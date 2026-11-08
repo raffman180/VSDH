@@ -1,0 +1,3 @@
+dc5ed4c80714d3e3327a36eacd17151d356562148a8dd2e0a14a15910c72ede2  VulkanMod-Reforged-0.3.5-ALPHA+1.21.1-sources.jar
+61a1c215f4dd591776fc890a7623680ebf409f7ce8c4d083eab0f18b07ec50f1  VulkanMod-Reforged-0.3.5-ALPHA+1.21.1.jar
+55e50141ce00353552120d1fced1fe2026629fcd5b312e2590dc9d37addbaf83  VulkanMod-Reforged-0.3.5-ALPHA+1.21.1-source.zip

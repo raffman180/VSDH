@@ -1,0 +1,50 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="LGPL-3.0-only"
+
+[[mods]]
+modId="vsdh"
+version="${version}"
+displayName="VSDH (development build)"
+authors="Stranger; Braffolk and upstream contributors (rendering)"
+description='''
+Experimental native Vulkan rendering bridge for Distant Horizons and VulkanMod Reforged.
+Development target: Minecraft 1.21.1, NeoForge 21.1.264, DH 3.3.3.
+Iris, Sodium and Complementary shaderpack support is not implemented in this milestone.
+'''
+
+[[dependencies.vsdh]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1]"
+side="CLIENT"
+[[dependencies.vsdh]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.264]"
+side="CLIENT"
+[[dependencies.vsdh]]
+modId="vulkanmod"
+type="required"
+versionRange="[0.3.5-ALPHA+1.21.1]"
+side="CLIENT"
+[[dependencies.vsdh]]
+modId="distanthorizons"
+type="required"
+versionRange="[3.3.3]"
+side="CLIENT"
+[[dependencies.vsdh]]
+modId="iris"
+type="incompatible"
+versionRange="[0,)"
+side="CLIENT"
+reason="This development milestone provides native DH rendering, not an Iris Vulkan backend."
+[[dependencies.vsdh]]
+modId="sodium"
+type="incompatible"
+versionRange="[0,)"
+side="CLIENT"
+reason="Sodium and VulkanMod Reforged replace the terrain renderer; simultaneous use is not implemented."
+
+[[mixins]]
+config="vsdh.mixins.json"

@@ -1,0 +1,76 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.141'
+}
+
+group = 'de.stranger.vsdh'
+version = project.mod_version
+base { archivesName = 'VSDH-neoforge-1.21.1' }
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+repositories { mavenCentral() }
+
+sourceSets {
+    smoke {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+}
+
+neoForge {
+    version = project.neo_version
+    runs {
+        client {
+            client()
+            jvmArguments.addAll('-Xmx6G', '-ea')
+        }
+        smokeClient {
+            client()
+            systemProperty 'vsdh.smoke', 'true'
+            programArguments.addAll('--width', '1280', '--height', '720')
+            jvmArguments.addAll('-Xmx4G', '-ea')
+        }
+    }
+    mods { vsdh { sourceSet sourceSets.main; sourceSet sourceSets.smoke } }
+}
+
+dependencies {
+    implementation files('libs/VulkanMod-Reforged-0.3.5-ALPHA+1.21.1.jar')
+    implementation files('libs/DistantHorizons-3.3.3-1.21.1-fabric-neoforge.jar')
+    compileOnly 'org.lwjgl:lwjgl-vulkan:3.3.3'
+    compileOnly 'org.lwjgl:lwjgl-shaderc:3.3.3'
+    compileOnly 'org.lwjgl:lwjgl-vma:3.3.3'
+    // Reforged supplies Vulkan/shaderc/VMA through JarJar. Adding the Maven
+    // modules again causes duplicate-package module failures at startup.
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+tasks.named('test', Test) { useJUnitPlatform() }
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('META-INF/neoforge.mods.toml') { expand version: project.version }
+}
+tasks.named('jar', Jar) { from('LICENSE', 'COPYING', 'NOTICE') }
+
+tasks.register('verifyDependencies') {
+    group = 'verification'
+    description = 'Checks the exact renderer and DH binaries used for this development build.'
+    doLast {
+        def pins = [
+            'libs/VulkanMod-Reforged-0.3.5-ALPHA+1.21.1.jar': ['SHA-256', '61a1c215f4dd591776fc890a7623680ebf409f7ce8c4d083eab0f18b07ec50f1'],
+            'libs/DistantHorizons-3.3.3-1.21.1-fabric-neoforge.jar': ['SHA-1', '4357b4d19fab818780c94f0e43dad1cc931634b2']
+        ]
+        pins.each { path, pin ->
+            def input = file(path)
+            if (!input.isFile()) throw new GradleException("Missing ${path}; see libs/README.md")
+            def actual = java.security.MessageDigest.getInstance(pin[0]).digest(input.bytes).encodeHex().toString()
+            if (actual != pin[1]) throw new GradleException("Dependency hash mismatch: ${path}")
+        }
+    }
+}
+tasks.named('compileJava') { dependsOn 'verifyDependencies' }

@@ -1,0 +1,16 @@
+VSDH — unofficial NeoForge adaptation, started 2026-11-08.
+
+Rendering code in com.braffolk.dhvulkan and shaders/vulkan is adapted from:
+https://github.com/Braffolk/distant-horizons-vulkanmod
+commit a72ba645188c5fab5f9d48254b6703b659543f0c, by Braffolk and contributors,
+based on Distant Horizons by James Seibel and contributors.
+Covered by LGPL-3.0; see LICENSE and COPYING. Original source headers remain.
+
+VSDH modifications: NeoForge entrypoint and lifecycle, VulkanMod Reforged
+adapter, DH 3.3.3 interface adaptation, build and dependency verification.
+This is not an official release of Distant Horizons or VulkanMod.
+
+External dependencies are not bundled into the VSDH JAR:
+Distant Horizons — https://gitlab.com/distant-horizons-team/distant-horizons
+VulkanMod Reforged — https://github.com/TrulyRin/VulkanMod-Reforged
+VulkanMod — https://github.com/xCollateral/VulkanMod
