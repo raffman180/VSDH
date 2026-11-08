@@ -1,107 +1,96 @@
-# VSDH — Portierungsstand, 08.11.2026
+# VSDH — Prüfstand 0.2.0-dev, 08.11.2026
 
-## Ziel und verbindliche Entscheidungen
+## Ziel und Entscheidungen
 
-- Minecraft 1.21.1, NeoForge 21.1.264, Java 21.
-- Nutzer hat VulkanMod Reforged als Zielrenderer gewählt.
-- Vorgehen: zuerst Vulkan + DH, anschließend Shaderpacks.
-- Erstes Shader-Ziel: Complementary Reimagined.
-- Langfristiger Wunsch: breite Shader-/DH-Kompatibilität für viele Geräte.
-  Keine Freigabe ungetesteter Kombinationen.
-- Referenzgerät: RTX 4070, Ryzen 9 7950X3D, 64 GB DDR5, 2560×1440.
-  Automatischer erster Test: 1280×720, begrenzte Bildrate, kein FPS-Benchmark.
+Minecraft 1.21.1, NeoForge 21.1.264, Java 21. Nutzerentscheidung: VulkanMod Reforged,
+schrittweiser Ausbau Vulkan + DH + ausgewählte Shaderpacks. Erstes Ziel:
+Complementary Reimagined r5.9.3. Eigener Renderer-Fork nach der Fortsetzungsanweisung.
+Breite spätere Kompatibilität ist ein Ziel, keine vorhandene Eigenschaft.
 
-## Quellen und Lizenz
+Eine JAR enthält jetzt `vsdh` und `vulkanmod`. Die bisherige Addon-Baseline
+`6699fe6` bleibt erhalten; Renderer-Import in `783f068`.
 
-- Einzige Portierungsreferenz: Braffolk/distant-horizons-vulkanmod,
-  Commit `a72ba645188c5fab5f9d48254b6703b659543f0c`.
-  [Quelle und Lizenztexte](https://github.com/Braffolk/distant-horizons-vulkanmod/tree/a72ba645188c5fab5f9d48254b6703b659543f0c).
-  LGPL-3.0; LGPL- und zugehöriger GPL-Text übernommen, Hinweise beibehalten.
-- Zielrenderer: TrulyRin/VulkanMod-Reforged,
-  Commit `0618965fbedb71ca2ee2e5d4528fcedc4fb27551`, Release
-  `mc-1.21.1-0618965`, 0.3.5-ALPHA+1.21.1.
-- DH: offizielles Modrinth-Release `9w34y8ai`, Version 3.3.3 für 1.21.1.
-  Dateihashes in Buildskript und Downloadskript festgelegt.
-- Unveränderte Vergleichsquellen liegen außerhalb dieses Projekts unter
-  `C:/Users/Stranger/Documents/ChatGPT/Vulkan Shader&DistantHorizons/.reference`;
-  sie sind nicht Teil der Mod oder des Quellpakets.
+## Gebundene Quellen
 
-## Anpassungsmatrix
+| Quelle | Festgelegter Stand | Verwendung |
+|---|---|---|
+| Braffolk/distant-horizons-vulkanmod | a72ba645188c5fab5f9d48254b6703b659543f0c | native DH-Ausgabe |
+| TrulyRin/VulkanMod-Reforged | 0618965fbedb71ca2ee2e5d4528fcedc4fb27551 | Renderer im eigenen Projekt |
+| avpbynf/Vitrail-Shaders | 7a3cdcbe1dfd7e04fb2b3021ee8352d341e7647e | portable Parser/GLSL-Übersetzung |
+| Distant Horizons | 3.3.3, Modrinth 9w34y8ai | externe JAR, Hashprüfung im Build |
+| Complementary Reimagined | r5.9.3, Modrinth Bqen1mJX | ausschließlich externe Testkopie |
 
-| System | Vorlage | Umsetzung | Stand |
-|---|---|---|---|
-| Loader/Einstieg | Fabric ClientModInitializer | `de.stranger.vsdh.Vsdh`, physischer Client | angepasst |
-| Rendererbindung | Fabric DependencySetup-Mixin | `DependencySetup_neoforge`, einmalige Bindung | angepasst, Start protokolliert |
-| DH-Render-API | DH 3.0 / 2.4 Mischpfad | DH 3.3.3, direkte typisierte VBO-Felder | angepasst |
-| Terrain/Pipelines | Vulkan-DH-Kern + GLSL 450 | Reforged-Puffer, UBOs, UINT32-Indizes | erste Welt sichtbar |
-| CPU-Staging | Callback an veränderlichem Feld | synchronisierte Eigentümerschaft, atomare VBO-IDs | vier Speichertests bestanden |
-| GPU-Freigabe | Worker liest HashMap | Worker stellt nur IDs an, Renderthread gibt frei | angepasst |
-| Tiefenbild | falscher 5-Argumente-ImageView-Aufruf | Basis-Mipmap 0 für Reforged | angepasst |
-| Fenstergröße | mehrere dauerhafte Callbacks je Welt | zentrale Registrierung / Freigabe | 1280×720 → 960×540 im Spiel geprüft |
-| Welt verlassen | kein NeoForge-Lifecycle | LoggingOut → Renderthread-Cleanup | erstes Beenden protokolliert |
-| Konfiguration | Fabric-Pfad, behauptetes Hot-Reload | NeoForge-Pfad, einmaliges Laden vor Rendering | angepasst |
-| Eigene Wolken | VulkanMod 0.6-API | Vanilla-/Reforged-Wolken erhalten | eigene Wolken nicht unterstützt |
-| Textur-LODs / AA / API-Geometrie | teils fehlend | ausdrücklich abgeschaltet und dokumentiert | nicht implementiert |
-| Shaderpacks | nicht in DH-Vorlage | noch kein Shader-Backend | offen |
+Shaderpack-SHA-1: `838139b54cddb56b2e83cd260d8efd960ac536d6`.
+LGPL- und Autorenhinweise: `NOTICE`, `LICENSE`, `COPYING`, `docs/upstream`.
+Private Vergleichsquellen und dekompilierte DH-Klassen liegen außerhalb des
+Repositorys. Keine solchen Dateien oder Complementary-Quellen in den Artefakten.
 
-## Tatsächlich ausgeführte Prüfungen
+## Tatsächlich geprüfte Ergebnisse
 
-- `gradlew.bat build`: erfolgreich, einschließlich fünf JUnit-Tests, keine
-  fehlgeschlagenen oder übersprungenen Tests.
-- Fremd-JARs: Hashprüfung erfolgreich.
-- Echter Client: Minecraft 1.21.1 / NeoForge 21.1.264 mit Reforged und DH gestartet.
-- Log: Vulkan-Gerät RTX 4070, Vulkan-Instanz, Renderer und VSDH-DH-Bindung erstellt.
-- Eigene Testwelt: Terrain-, SSAO-, Nebel- und Tiefen-Pipelines erfolgreich erstellt.
-- Screenshot `run/screenshots/vsdh-smoke.png` tatsächlich aufgenommen und angesehen:
-  Vanilla-Nahbereich und entfernte farbige LODs sichtbar.
-- Beenden dieser Welt: Cleanup für 323 zwischengespeicherte Vulkan-Puffer protokolliert.
-- Ein Regressionstest prüft zusätzlich DHs Wolkenregistrierung beim Weltaufbau.
-  Die Registrierung bleibt trotz ausgeschalteter Geometrie-Darstellung funktionsfähig.
-- Erweiterter Test mit Größenwechsel, Regen/Nacht und zweiter Welt:
-  `run-smoke-graceful.log`, `runSmokeClient` erfolgreich in 2 min 37 s.
-  Zwei Welten neu erstellt, beide mit sichtbaren LODs, Ressourcen zwischen den
-  Welten freigegeben und neu angelegt. Screenshots tatsächlich angesehen.
-  Der abschließende Lauf enthält keine ERROR- oder FATAL-Zeilen.
-- Tages- und Nacht/Regenbilder aus dem Spiel liegen unter `docs/validation/`.
-- JAR-Inhalt kontrolliert: kein Smoke-Testcode, keine eingebetteten Fremd-JARs,
-  zehn eigene Vulkan-Shader-Ressourcen vorhanden.
+| Prüfung | Ergebnis und Aussagegrenze |
+|---|---|
+| Java-Build | `build` erfolgreich; vollständiger Renderer-Fork kompiliert |
+| JUnit | 12 Tests, keine Fehler oder übersprungenen Tests |
+| std140 | Mitgliedsoffsets gegen unabhängig mit shaderc erzeugtes SPIR-V verglichen |
+| SQLite-Abbruch | echte native DH-SQLite-Abfrage in RAM beendet, bevor die Verbindung geschlossen wird |
+| Original-Abhängigkeiten | DH- und Flywheel-Hashes stimmen; Downloadskript geprüft |
+| Laufzeitbibliotheken | `verifyBundledLwjgl`: erwartete Vulkan/shaderc/VMA-JARs und Metadaten geprüft |
+| Complementary-Compiler | alle 96 Programmpaare in drei Dimensionen, Profil MEDIUM, zu SPIR-V kompiliert; Uniformlayouts berechnet |
+| Mehrere Farbausgaben | vier getrennte Ausgaben, zwei Puffergrößen und ein reiner Tiefendurchlauf; alle Pixel von der GPU zurückgelesen und verglichen |
+| Nativer Pack-Durchlauf | eigenes Diagnosepack: Includes, Legacy-GLSL, Uniforms, zwei RGBA16F-Ziele, Texturlesen und Wechsel eines Deskriptors mit derselben Pipeline |
+| Echtes Complementary-Programm | `world0/final` mit kontrollierten HDR-/Rauschbildern auf der GPU ausgeführt; erwartete mittlere Pixelfarbe verglichen |
+| Spiel-Lifecycle | zwei neu erzeugte Welten, Resize, Nacht/Regen, Disconnect, Neuinitialisierung, reguläres Beenden |
+| Sichtprüfung | aktuelle Screenshots der zweiten Welt bei Tag und Regen/Nacht angesehen; normales Weltbild nach Diagnose-Durchläufen wiederhergestellt |
 
-## Offener Shutdown-Befund
+Hardware dieser Spieltests: RTX 4070, Windows; Entwicklungsclient zunächst
+1280×720, dann 960×540. Kein FPS-Benchmark. Das Referenzgerät des Nutzers ist ein
+Ryzen 9 7950X3D mit 64 GB DDR5 und regulär 2560×1440.
 
-Der vorherige Lauf `run-smoke-verified.log` beendete den Client direkt aus der
-laufenden zweiten Welt. Dabei protokollierte DHs Regenerierungsqueue eine
-`java.sql.SQLException: stmt pointer is closed`. Der Stacktrace liegt in
-`FullDataSourceV2Repo.getChildPositionsToRegen` / `FullDataUpdatePropagatorV2`,
-während DH seine Datenbanken schließt. Die genaue Ursache und eine mögliche
-Beteiligung dieser Mod-Kombination sind nicht durch einen Vergleich ohne VSDH
-abgeklärt. Keine Fehlerunterdrückung und keine Änderungen an der Datenbanklogik.
+Wichtige Protokolle im lokalen Projekt: `verify-0.2.log`,
+`run-native-pass-cancel.log`, `run-complementary-final.log`,
+`verify-final-client.log` und
+`build/shader-audit/report.txt`. Der letzte vollständige Spieltest mit dem echten
+Final-Programm enthält vier bestandene Prüfgruppen vor/nach Resize in zwei Welten,
+keine ERROR/FATAL-Zeilen und einen erfolgreichen Prozessabschluss.
 
-Der letzte Test folgt in beiden Welten dem regulären Vanilla-Ablauf
-`level.disconnect()` → `Minecraft.disconnect(...)` → Hauptmenü / Beenden;
-dieser Lauf war ohne ERROR/FATAL. Das ist keine Behebung oder Entwarnung für
-den direkten Beenden-Pfad. Deshalb bleibt die Mod eine Entwicklungsfassung.
+## DH-Abschaltrennen
 
-## Nicht nachgewiesen / Abweichungen
+Das frühere `stmt pointer is closed` trat auch beim regulären Disconnect erneut
+auf. Nicht als harmlos verworfen: Die Klassenanalyse zeigte, dass DH 3.3.3 zwar
+`shutdownNow()` aufruft, aber eine laufende native Regenerationsabfrage nicht
+beendet und deren Ende vor Repository-Close nicht abwartet.
 
-Kein Complementary, kein Iris, kein Sodium. Kein Test weiterer DH-Versionen,
-anderer GPUs/Betriebssysteme, dedizierter Server oder großer Modpacks. Kein
-Langzeittest, kein kontrollierter Leistungsvergleich. Die sichtbare erste Welt
-belegt keine fehlerfreie Darstellung aller Fälle.
+Eine erste reine Warteergänzung schlug fehl: Die native Abfrage lief trotz
+Java-Interrupt weiter. Dieser Fehlversuch steht in `run-native-pass.log`;
+der blockierte, ausschließlich eigene Testclient wurde beendet.
 
-Die DH-2.4-Mixin-Variante wurde nicht übernommen: andere Schnittstellen dürfen
-nicht versehentlich als DH-3.3-kompatibel behandelt werden. Das ist eine bewusste
-Eingrenzung des ersten Meilensteins. Benutzereinstellungen werden nicht dauerhaft
-umgeschrieben. Die neuen Tests verwenden ausschließlich selbst erzeugte Welten.
+Der korrigierte Pfad registriert nur die lesende Regenerations-Positionsabfrage,
+fordert beim Shutdown deren JDBC-Abbruch an und wartet begrenzt auf die Worker.
+Nur explizites `SQLITE_INTERRUPT` dieser eigenen Abbruchanforderung ist ein normaler
+Abbruch. Andere SQL-Fehler werden weitergereicht. Datenbankinhalte werden nicht
+verändert. Zwei folgende vollständige Weltwechsel-Läufe verliefen ohne diesen
+Fehler. Das ist kein Langzeitnachweis für alle DH-Abschaltpfade.
 
-## Nächste Aufgaben
+## Noch offen — keine fertige Shaderpack-Unterstützung
 
-1. Shutdown-Befund in einem Vergleichsprofil isolieren; Langzeittest ergänzen.
-2. Tiefen-/Wasser-/Wolkenübergänge, Dimensionswechsel und F3+T gezielt prüfen.
-3. Architekturentscheidung mit dem Nutzer treffen: separates Addon oder eigener
-   Reforged-Fork. Die geprüfte `Framebuffer.Builder`-Implementierung von Reforged
-   lehnt mehr als einen Farbanhang ausdrücklich ab (`colorAttachments <= 1`).
-   Eigenen Shader-Backend-Entwurf für Complementary festlegen: Terrain-/Material-
-   und Schattenausgabe, mehrere Farbpuffer, Shader-Übersetzung und Pass-Reihenfolge.
-   Ein reiner Bildschirmfilter reicht dafür nicht.
-4. Erst nach einem funktionierenden festgelegten Shader weitere Shaderpacks
-   und DH-Versionen über getrennte Adapter aufnehmen.
+Der vollständige Welt-Rendergraph, Block-/Materialattribute, echte Schatten-
+Geometrie, Himmel, Entitäten, Hand, Transparenz und DH-Terrain/-Wasser durch die
+Pack-Programme sind noch nicht integriert. Der tatsächliche Complementary-
+Final-Durchlauf ist ein gezielter Backend-Test, kein spielbarer Complementary-Modus.
+Die Mod bietet deshalb noch keine Aktivierung vollständiger Shaderpacks an.
+
+Keine Freigabe für Iris-/Sodium-Co-Loading, andere DH-Versionen, alle Shaderpacks,
+andere GPUs/Betriebssysteme, große Modpacks oder dedizierte Server. Keine FPS-
+Gewinne behauptet. Textur-LODs, zusätzliche DH-AA-/Drahtgitter-/API-Geometrie und
+Wolkenüberdeckung bleiben wie im ersten Meilenstein eingeschränkt.
+
+## Nächster zusammenhängender Entwicklungsschritt
+
+Ziel ist die gemeinsame Welt-Pipeline: colortex-Wechsel/History und Tiefenführung,
+Terrain-/Materialformat und Schattenkamera zuerst; danach weitere Geometriefamilien
+und shaderseitige DH-Ausgabe. Ein einfacher Bildschirmfilter ersetzt diese Arbeit
+nicht. Erst die vollständige Sichtprüfung darf als Complementary-Unterstützung
+bezeichnet werden. Neue Abhängigkeiten oder alternative Renderer wurden dafür
+nicht eingeführt.
+
+Maschinenlesbarer Prüfbericht: `docs/verification/0.2.0-dev.json`.

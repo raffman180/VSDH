@@ -1,3 +1,4 @@
+/* VSDH MRT adaptation of VulkanMod Reforged; LGPL-3.0-only. See NOTICE. */
 package net.vulkanmod.vulkan.framebuffer;
 
 import net.vulkanmod.vulkan.Renderer;
@@ -7,293 +8,175 @@ import net.vulkanmod.vulkan.memory.MemoryManager;
 import net.vulkanmod.vulkan.texture.VulkanImage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
-
 import java.nio.LongBuffer;
-
 import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 import static org.lwjgl.vulkan.VK10.*;
 
 public class RenderPass {
     Framebuffer framebuffer;
     long id;
-
     final int attachmentCount;
     AttachmentInfo colorAttachmentInfo;
+    final AttachmentInfo[] colors;
     AttachmentInfo depthAttachmentInfo;
 
-    public RenderPass(Framebuffer framebuffer, AttachmentInfo colorAttachmentInfo, AttachmentInfo depthAttachmentInfo) {
+    public RenderPass(Framebuffer framebuffer, AttachmentInfo color, AttachmentInfo depth) {
+        this(framebuffer, color == null ? new AttachmentInfo[0] : new AttachmentInfo[]{color}, depth);
+    }
+    public RenderPass(Framebuffer framebuffer, AttachmentInfo[] colors, AttachmentInfo depth) {
+        if (colors.length != framebuffer.getColorAttachmentCount()) throw new IllegalArgumentException("Render pass color count differs from framebuffer");
         this.framebuffer = framebuffer;
-        this.colorAttachmentInfo = colorAttachmentInfo;
-        this.depthAttachmentInfo = depthAttachmentInfo;
-
-        int count = 0;
-        if (colorAttachmentInfo != null)
-            count++;
-        if (depthAttachmentInfo != null)
-            count++;
-
-        this.attachmentCount = count;
-
+        this.colors = colors.clone();
+        this.colorAttachmentInfo = colors.length == 0 ? null : colors[0];
+        this.depthAttachmentInfo = depth;
+        this.attachmentCount = colors.length + (depth == null ? 0 : 1);
         if (!Vulkan.DYNAMIC_RENDERING) {
             framebuffer.addRenderPass(this);
-
             createRenderPass();
         }
-
     }
+
+    public int getColorAttachmentCount() { return colors.length; }
 
     private void createRenderPass() {
-
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(attachmentCount, stack);
-            VkAttachmentReference.Buffer attachmentRefs = VkAttachmentReference.calloc(attachmentCount, stack);
-
+            VkAttachmentDescription.Buffer descriptions = VkAttachmentDescription.calloc(attachmentCount, stack);
+            VkAttachmentReference.Buffer colorRefs = colors.length == 0 ? null : VkAttachmentReference.calloc(colors.length, stack);
+            for (int i = 0; i < colors.length; i++) {
+                AttachmentInfo info = colors[i];
+                describe(descriptions.get(i), info, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                colorRefs.get(i).attachment(i).layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+            }
             VkSubpassDescription.Buffer subpass = VkSubpassDescription.calloc(1, stack);
-            subpass.pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS);
-
-            int i = 0;
-
-            if (colorAttachmentInfo != null) {
-                VkAttachmentDescription colorAttachment = attachments.get(i);
-                colorAttachment.format(colorAttachmentInfo.format)
-                        .samples(VK_SAMPLE_COUNT_1_BIT)
-                        .loadOp(colorAttachmentInfo.loadOp)
-                        .storeOp(colorAttachmentInfo.storeOp)
-                        .stencilLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE)
-                        .stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
-                        .initialLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-                        .finalLayout(colorAttachmentInfo.finalLayout);
-
-                VkAttachmentReference colorAttachmentRef = attachmentRefs.get(0)
-                        .attachment(0)
-                        .layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-                subpass.colorAttachmentCount(1);
-                subpass.pColorAttachments(VkAttachmentReference.calloc(1, stack).put(0, colorAttachmentRef));
-
-                ++i;
-            }
-
+            subpass.pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS).pColorAttachments(colorRefs);
+            subpass.colorAttachmentCount(colors.length);
             if (depthAttachmentInfo != null) {
-                VkAttachmentDescription depthAttachment = attachments.get(i);
-                depthAttachment.format(depthAttachmentInfo.format)
-                        .samples(VK_SAMPLE_COUNT_1_BIT)
-                        .loadOp(depthAttachmentInfo.loadOp)
-                        .storeOp(depthAttachmentInfo.storeOp)
-                        .stencilLoadOp(depthAttachmentInfo.loadOp)
-                        .stencilStoreOp(VK_ATTACHMENT_STORE_OP_STORE)
-                        .initialLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-                        .finalLayout(depthAttachmentInfo.finalLayout);
-
-                VkAttachmentReference depthAttachmentRef = attachmentRefs.get(i)
-                        .attachment(i)
-                        .layout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-
-                subpass.pDepthStencilAttachment(depthAttachmentRef);
+                describe(descriptions.get(colors.length), depthAttachmentInfo, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+                VkAttachmentReference depthRef = VkAttachmentReference.calloc(stack)
+                        .attachment(colors.length).layout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+                subpass.pDepthStencilAttachment(depthRef);
             }
-
-            VkRenderPassCreateInfo renderPassInfo = VkRenderPassCreateInfo.calloc(stack);
-            renderPassInfo.sType$Default()
-                    .pAttachments(attachments)
-                    .pSubpasses(subpass);
-
-            renderPassInfo.pDependencies(createSubpassDependencies(stack, colorAttachmentInfo, depthAttachmentInfo));
-
-            LongBuffer pRenderPass = stack.mallocLong(1);
-
-            if (vkCreateRenderPass(Vulkan.getVkDevice(), renderPassInfo, null, pRenderPass) != VK_SUCCESS) {
-                throw new RuntimeException("Failed to create render pass");
-            }
-
-            id = pRenderPass.get(0);
+            VkRenderPassCreateInfo info = VkRenderPassCreateInfo.calloc(stack).sType$Default()
+                    .pAttachments(descriptions).pSubpasses(subpass)
+                    .pDependencies(createSubpassDependencies(stack, colors, depthAttachmentInfo));
+            LongBuffer handle = stack.mallocLong(1);
+            int result = vkCreateRenderPass(Vulkan.getVkDevice(), info, null, handle);
+            if (result != VK_SUCCESS) throw new IllegalStateException("vkCreateRenderPass failed: " + result);
+            id = handle.get(0);
         }
     }
 
-    static VkSubpassDependency.Buffer createSubpassDependencies(MemoryStack stack,
-                                                               AttachmentInfo colorAttachmentInfo,
-                                                               AttachmentInfo depthAttachmentInfo) {
-        boolean loadsAttachment = (colorAttachmentInfo != null && colorAttachmentInfo.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
-                || (depthAttachmentInfo != null && depthAttachmentInfo.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD);
-        boolean presentsColor = colorAttachmentInfo != null && colorAttachmentInfo.finalLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        int attachmentStages = 0;
-        int attachmentWrites = 0;
-        int attachmentReadsAndWrites = 0;
-        int sampledStages = 0;
-        int sampledWrites = 0;
+    private static void describe(VkAttachmentDescription description, AttachmentInfo info, int initialLayout) {
+        description.format(info.format).samples(VK_SAMPLE_COUNT_1_BIT)
+                .loadOp(info.loadOp).storeOp(info.storeOp)
+                .stencilLoadOp(info.type == AttachmentInfo.Type.DEPTH ? info.loadOp : VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+                .stencilStoreOp(info.type == AttachmentInfo.Type.DEPTH ? info.storeOp : VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                .initialLayout(initialLayout).finalLayout(info.finalLayout);
+    }
 
-        if (colorAttachmentInfo != null) {
-            attachmentStages |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            attachmentWrites |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            attachmentReadsAndWrites |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            if (colorAttachmentInfo.finalLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
-                sampledStages |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-                sampledWrites |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            }
+    static VkSubpassDependency.Buffer createSubpassDependencies(MemoryStack stack, AttachmentInfo color, AttachmentInfo depth) {
+        return createSubpassDependencies(stack, color == null ? new AttachmentInfo[0] : new AttachmentInfo[]{color}, depth);
+    }
+    private static VkSubpassDependency.Buffer createSubpassDependencies(MemoryStack stack, AttachmentInfo[] colors, AttachmentInfo depth) {
+        boolean loads = depth != null && depth.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD;
+        boolean presents = false;
+        boolean samples = depth != null && depth.finalLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        int stages = depth == null ? 0 : VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        int writes = depth == null ? 0 : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        int reads = depth == null ? 0 : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+        for (AttachmentInfo color : colors) {
+            loads |= color.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD;
+            presents |= color.finalLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            samples |= color.finalLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            stages |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            writes |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            reads |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
         }
-        if (depthAttachmentInfo != null) {
-            int depthStages = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-            attachmentStages |= depthStages;
-            attachmentWrites |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-            attachmentReadsAndWrites |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-            if (depthAttachmentInfo.finalLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
-                sampledStages |= depthStages;
-                sampledWrites |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-            }
-        }
-
-        int count = (loadsAttachment ? 1 : 0) + (presentsColor ? 1 : 0) + (sampledStages != 0 ? 1 : 0);
-        if (count == 0)
-            return null;
-
+        int count = (loads ? 1 : 0) + (presents ? 1 : 0) + (samples ? 1 : 0);
+        if (count == 0) return null;
         VkSubpassDependency.Buffer dependencies = VkSubpassDependency.calloc(count, stack);
-        int index = 0;
-        if (loadsAttachment) {
-
-
-            dependencies.get(index++)
-                    .srcSubpass(VK_SUBPASS_EXTERNAL)
-                    .dstSubpass(0)
-                    .srcStageMask(attachmentStages)
-                    .dstStageMask(attachmentStages)
-                    .srcAccessMask(attachmentWrites)
-                    .dstAccessMask(attachmentReadsAndWrites);
-        }
-        if (presentsColor) {
-            dependencies.get(index++)
-                    .srcSubpass(VK_SUBPASS_EXTERNAL)
-                    .dstSubpass(0)
-                    .srcStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
-                    .dstStageMask(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT)
-                    .srcAccessMask(0)
-                    .dstAccessMask(0);
-        }
-        if (sampledStages != 0) {
-            dependencies.get(index)
-                    .srcSubpass(0)
-                    .dstSubpass(VK_SUBPASS_EXTERNAL)
-                    .srcStageMask(sampledStages)
-                    .dstStageMask(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
-                    .srcAccessMask(sampledWrites)
-                    .dstAccessMask(VK_ACCESS_SHADER_READ_BIT);
-        }
+        int n = 0;
+        if (loads) dependencies.get(n++).srcSubpass(VK_SUBPASS_EXTERNAL).dstSubpass(0)
+                .srcStageMask(stages).dstStageMask(stages).srcAccessMask(writes).dstAccessMask(reads | writes);
+        if (presents) dependencies.get(n++).srcSubpass(0).dstSubpass(VK_SUBPASS_EXTERNAL)
+                .srcStageMask(stages).dstStageMask(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT).srcAccessMask(writes).dstAccessMask(0);
+        if (samples) dependencies.get(n).srcSubpass(0).dstSubpass(VK_SUBPASS_EXTERNAL)
+                .srcStageMask(stages).dstStageMask(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT)
+                .srcAccessMask(writes).dstAccessMask(VK_ACCESS_SHADER_READ_BIT);
         return dependencies;
     }
 
-    public void beginRenderPass(VkCommandBuffer commandBuffer, long framebufferId, MemoryStack stack) {
-
-        if (colorAttachmentInfo != null
-                && framebuffer.getColorAttachment().getCurrentLayout() != VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-            framebuffer.getColorAttachment().transitionImageLayout(stack, commandBuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        if (depthAttachmentInfo != null
-                && framebuffer.getDepthAttachment().getCurrentLayout() != VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-            framebuffer.getDepthAttachment().transitionImageLayout(stack, commandBuffer, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-
-        VkRenderPassBeginInfo renderPassInfo = VkRenderPassBeginInfo.calloc(stack);
-        renderPassInfo.sType$Default();
-        renderPassInfo.renderPass(this.id);
-        renderPassInfo.framebuffer(framebufferId);
-
-        VkRect2D renderArea = VkRect2D.malloc(stack);
-        renderArea.offset().set(0, 0);
-        renderArea.extent().set(framebuffer.getWidth(), framebuffer.getHeight());
-        renderPassInfo.renderArea(renderArea);
-
-        VkClearValue.Buffer clearValues = VkClearValue.malloc(2, stack);
-        clearValues.get(0).color().float32(VRenderSystem.clearColor);
-        clearValues.get(1).depthStencil().set(VRenderSystem.clearDepthValue, VRenderSystem.clearStencilValue);
-
-        renderPassInfo.pClearValues(clearValues);
-
-        vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
+    private void transitionForRendering(VkCommandBuffer cmd, MemoryStack stack) {
+        for (int i = 0; i < colors.length; i++)
+            framebuffer.getColorAttachment(i).transitionImageLayout(stack, cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        if (depthAttachmentInfo != null)
+            framebuffer.getDepthAttachment().transitionImageLayout(stack, cmd, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    }
+    private VkClearValue.Buffer clearValues(MemoryStack stack) {
+        VkClearValue.Buffer values = VkClearValue.calloc(attachmentCount, stack);
+        for (int i = 0; i < colors.length; i++) values.get(i).color().float32(VRenderSystem.clearColor);
+        if (depthAttachmentInfo != null) values.get(colors.length).depthStencil().set(VRenderSystem.clearDepthValue, VRenderSystem.clearStencilValue);
+        return values;
+    }
+    public void beginRenderPass(VkCommandBuffer cmd, long framebufferId, MemoryStack stack) {
+        transitionForRendering(cmd, stack);
+        VkRenderPassBeginInfo info = VkRenderPassBeginInfo.calloc(stack).sType$Default().renderPass(id).framebuffer(framebufferId);
+        info.renderArea().offset().set(0, 0);
+        info.renderArea().extent().set(framebuffer.getWidth(), framebuffer.getHeight());
+        info.pClearValues(clearValues(stack));
+        vkCmdBeginRenderPass(cmd, info, VK_SUBPASS_CONTENTS_INLINE);
         Renderer.getInstance().setBoundRenderPass(this);
     }
-
-    public void endRenderPass(VkCommandBuffer commandBuffer) {
-        vkCmdEndRenderPass(commandBuffer);
-
-        if (colorAttachmentInfo != null)
-            framebuffer.getColorAttachment().setCurrentLayout(colorAttachmentInfo.finalLayout);
-
-        if (depthAttachmentInfo != null)
-            framebuffer.getDepthAttachment().setCurrentLayout(depthAttachmentInfo.finalLayout);
-
+    public void endRenderPass(VkCommandBuffer cmd) {
+        vkCmdEndRenderPass(cmd);
+        recordFinalLayouts();
         Renderer.getInstance().setBoundRenderPass(null);
     }
-
-    public void beginDynamicRendering(VkCommandBuffer commandBuffer, MemoryStack stack) {
-        VkRect2D renderArea = VkRect2D.malloc(stack);
-        renderArea.offset().set(0, 0);
-        renderArea.extent().set(framebuffer.getWidth(), framebuffer.getHeight());
-
-        VkClearValue.Buffer clearValues = VkClearValue.malloc(2, stack);
-        clearValues.get(0).color().float32(stack.floats(0.0f, 0.0f, 0.0f, 1.0f));
-        clearValues.get(1).depthStencil().set(VRenderSystem.clearDepthValue, VRenderSystem.clearStencilValue);
-
-        VkRenderingInfo renderingInfo = VkRenderingInfo.calloc(stack);
-        renderingInfo.sType(KHRDynamicRendering.VK_STRUCTURE_TYPE_RENDERING_INFO_KHR);
-        renderingInfo.renderArea(renderArea);
-        renderingInfo.layerCount(1);
-
-        if (colorAttachmentInfo != null) {
-            VkRenderingAttachmentInfo.Buffer colorAttachment = VkRenderingAttachmentInfo.calloc(1, stack);
-            colorAttachment.sType(KHRDynamicRendering.VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR);
-            colorAttachment.imageView(framebuffer.getColorAttachment().getImageView());
-            colorAttachment.imageLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-            colorAttachment.loadOp(colorAttachmentInfo.loadOp);
-            colorAttachment.storeOp(colorAttachmentInfo.storeOp);
-            colorAttachment.clearValue(clearValues.get(0));
-
-            renderingInfo.pColorAttachments(colorAttachment);
+    private void recordFinalLayouts() {
+        for (int i = 0; i < colors.length; i++) framebuffer.getColorAttachment(i).setCurrentLayout(colors[i].finalLayout);
+        if (depthAttachmentInfo != null) framebuffer.getDepthAttachment().setCurrentLayout(depthAttachmentInfo.finalLayout);
+    }
+    public void beginDynamicRendering(VkCommandBuffer cmd, MemoryStack stack) {
+        transitionForRendering(cmd, stack);
+        VkClearValue.Buffer values = clearValues(stack);
+        VkRenderingInfo info = VkRenderingInfo.calloc(stack).sType$Default().layerCount(1);
+        info.renderArea().offset().set(0, 0);
+        info.renderArea().extent().set(framebuffer.getWidth(), framebuffer.getHeight());
+        if (colors.length > 0) {
+            VkRenderingAttachmentInfo.Buffer attachments = VkRenderingAttachmentInfo.calloc(colors.length, stack);
+            for (int i = 0; i < colors.length; i++) attachments.get(i).sType$Default()
+                    .imageView(framebuffer.getColorAttachment(i).getImageView()).imageLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+                    .loadOp(colors[i].loadOp).storeOp(colors[i].storeOp).clearValue(values.get(i));
+            info.pColorAttachments(attachments);
         }
-
         if (depthAttachmentInfo != null) {
-            VkRenderingAttachmentInfo depthAttachment = VkRenderingAttachmentInfo.calloc(stack);
-            depthAttachment.sType(KHRDynamicRendering.VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR);
-            depthAttachment.imageView(framebuffer.getDepthAttachment().getImageView());
-            depthAttachment.imageLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-            depthAttachment.loadOp(depthAttachmentInfo.loadOp);
-            depthAttachment.storeOp(depthAttachmentInfo.storeOp);
-            depthAttachment.clearValue(clearValues.get(1));
-
-            renderingInfo.pDepthAttachment(depthAttachment);
-
-            if (VulkanImage.hasStencilComponent(depthAttachmentInfo.format)) {
-                VkRenderingAttachmentInfo stencilAttachment = VkRenderingAttachmentInfo.calloc(stack);
-                stencilAttachment.sType(KHRDynamicRendering.VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR);
-                stencilAttachment.imageView(framebuffer.getDepthAttachment().getImageView());
-                stencilAttachment.imageLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-                stencilAttachment.loadOp(depthAttachmentInfo.loadOp);
-                stencilAttachment.storeOp(depthAttachmentInfo.storeOp);
-                stencilAttachment.clearValue(clearValues.get(1));
-
-                renderingInfo.pStencilAttachment(stencilAttachment);
-            }
+            VkRenderingAttachmentInfo depth = VkRenderingAttachmentInfo.calloc(stack).sType$Default()
+                    .imageView(framebuffer.getDepthAttachment().getImageView()).imageLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                    .loadOp(depthAttachmentInfo.loadOp).storeOp(depthAttachmentInfo.storeOp).clearValue(values.get(colors.length));
+            info.pDepthAttachment(depth);
+            if (VulkanImage.hasStencilComponent(depthAttachmentInfo.format)) info.pStencilAttachment(depth);
         }
-
-        KHRDynamicRendering.vkCmdBeginRenderingKHR(commandBuffer, renderingInfo);
+        KHRDynamicRendering.vkCmdBeginRenderingKHR(cmd, info);
+        Renderer.getInstance().setBoundRenderPass(this);
     }
-
-    public void endDynamicRendering(VkCommandBuffer commandBuffer) {
-        KHRDynamicRendering.vkCmdEndRenderingKHR(commandBuffer);
+    public void endDynamicRendering(VkCommandBuffer cmd) {
+        KHRDynamicRendering.vkCmdEndRenderingKHR(cmd);
+        // Dynamic rendering has no implicit final-layout transitions.
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            for (int i = 0; i < colors.length; i++) framebuffer.getColorAttachment(i).transitionImageLayout(stack, cmd, colors[i].finalLayout);
+            if (depthAttachmentInfo != null) framebuffer.getDepthAttachment().transitionImageLayout(stack, cmd, depthAttachmentInfo.finalLayout);
+        }
+        Renderer.getInstance().setBoundRenderPass(null);
     }
-
-    public Framebuffer getFramebuffer() {
-        return framebuffer;
-    }
-
+    public Framebuffer getFramebuffer() { return framebuffer; }
+    public long getId() { return id; }
     public void cleanUp() {
-
-        if (!Vulkan.DYNAMIC_RENDERING)
-            MemoryManager.getInstance().addFrameOp(
-                    () -> vkDestroyRenderPass(Vulkan.getVkDevice(), this.id, null));
-
+        if (!Vulkan.DYNAMIC_RENDERING) {
+            long retiring = id;
+            VkDevice device = Vulkan.getVkDevice();
+            MemoryManager.getInstance().addFrameOp(() -> vkDestroyRenderPass(device, retiring, null));
+        }
     }
-
-    public long getId() {
-        return id;
-    }
-
     public static class AttachmentInfo {
         final Type type;
         final int format;
@@ -341,45 +224,29 @@ public class RenderPass {
         }
     }
 
-    public static Builder builder(Framebuffer framebuffer) {
-        return new Builder(framebuffer);
-    }
 
+    public static Builder builder(Framebuffer framebuffer) { return new Builder(framebuffer); }
     public static class Builder {
-        Framebuffer framebuffer;
-        AttachmentInfo colorAttachmentInfo;
+        final Framebuffer framebuffer;
+        final AttachmentInfo[] colors;
         AttachmentInfo depthAttachmentInfo;
-
         public Builder(Framebuffer framebuffer) {
             this.framebuffer = framebuffer;
-
-            if (framebuffer.hasColorAttachment)
-                colorAttachmentInfo = new AttachmentInfo(AttachmentInfo.Type.COLOR, framebuffer.format).setOps(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE);
-            if (framebuffer.hasDepthAttachment)
-                depthAttachmentInfo = new AttachmentInfo(AttachmentInfo.Type.DEPTH, framebuffer.depthFormat).setOps(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE);
+            int[] formats = framebuffer.getColorFormats();
+            colors = new AttachmentInfo[formats.length];
+            for (int i = 0; i < formats.length; i++) colors[i] = new AttachmentInfo(AttachmentInfo.Type.COLOR, formats[i])
+                    .setOps(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE);
+            if (framebuffer.hasDepthAttachment) depthAttachmentInfo = new AttachmentInfo(AttachmentInfo.Type.DEPTH, framebuffer.depthFormat)
+                    .setOps(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE);
         }
-
-        public RenderPass build() {
-            return new RenderPass(framebuffer, colorAttachmentInfo, depthAttachmentInfo);
-        }
-
-        public Builder setLoadOp(int loadOp) {
-            if (colorAttachmentInfo != null) {
-                colorAttachmentInfo.setLoadOp(loadOp);
-            }
-            if (depthAttachmentInfo != null) {
-                depthAttachmentInfo.setLoadOp(loadOp);
-            }
-
+        public RenderPass build() { return new RenderPass(framebuffer, colors, depthAttachmentInfo); }
+        public Builder setLoadOp(int op) {
+            for (AttachmentInfo color : colors) color.setLoadOp(op);
+            if (depthAttachmentInfo != null) depthAttachmentInfo.setLoadOp(op);
             return this;
         }
-
-        public AttachmentInfo getColorAttachmentInfo() {
-            return colorAttachmentInfo;
-        }
-
-        public AttachmentInfo getDepthAttachmentInfo() {
-            return depthAttachmentInfo;
-        }
+        public AttachmentInfo getColorAttachmentInfo() { return colors.length == 0 ? null : colors[0]; }
+        public AttachmentInfo getColorAttachmentInfo(int index) { return colors[index]; }
+        public AttachmentInfo getDepthAttachmentInfo() { return depthAttachmentInfo; }
     }
 }

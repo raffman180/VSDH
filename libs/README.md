@@ -6,9 +6,15 @@ den angegebenen Originalquellen und überprüft ihre Hashes.
 
 | Datei | Originalquelle | Prüfsumme |
 |---|---|---|
-| VulkanMod-Reforged-0.3.5-ALPHA+1.21.1.jar | [Reforged-Release mc-1.21.1-0618965](https://github.com/TrulyRin/VulkanMod-Reforged/releases/tag/mc-1.21.1-0618965) | SHA-256: `61a1c215f4dd591776fc890a7623680ebf409f7ce8c4d083eab0f18b07ec50f1` |
+| flywheel-neoforge-1.21.1-1.0.6.jar | [Offizielles Create-Maven](https://maven.createmod.net/dev/engine-room/flywheel/flywheel-neoforge-1.21.1/1.0.6/) | SHA-256: `31dda15c205eb596d3b3449ef03f6af7363a6cd35b3da4bfe916b304f9e5337e` |
 | DistantHorizons-3.3.3-1.21.1-fabric-neoforge.jar | [DH 3.3.3 für 1.21.1](https://modrinth.com/mod/distanthorizons/version/9w34y8ai) | SHA-1: `4357b4d19fab818780c94f0e43dad1cc931634b2` |
 
 Für DH prüft das Downloadskript zusätzlich den vom Anbieter veröffentlichten
-SHA-512-Hash. Die Reforged-Prüfsumme wurde mit der `SHA256SUMS.txt` des Releases
-verglichen. Die Minecraft-/NeoForge-Abhängigkeiten lädt ModDevGradle.
+SHA-512-Hash. Flywheel ist ausschließlich eine Compile-Abhängigkeit für vorhandene
+Reforged-Kompatibilitätsklassen und wird nicht zum Testprofil hinzugefügt.
+Minecraft-/NeoForge-Abhängigkeiten lädt ModDevGradle.
+
+Ab 0.2 enthält VSDH den eigenen Reforged-Fork. Die originale Reforged-JAR darf
+deshalb nicht zusätzlich im Spiel installiert sein. Eine alte Kopie in `libs`
+wird vom Build nicht mehr verwendet. Vulkan/shaderc/VMA werden wie beim Renderer
+als Laufzeitbibliotheken eingebettet; DH und Flywheel bleiben externe Artefakte.

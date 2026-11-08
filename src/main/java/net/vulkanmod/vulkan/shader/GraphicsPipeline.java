@@ -152,27 +152,32 @@ public class GraphicsPipeline extends Pipeline {
                 depthStencil.back(depthStencil.front());
             }
 
-            VkPipelineColorBlendAttachmentState.Buffer colorBlendAttachment = VkPipelineColorBlendAttachmentState.calloc(1, stack);
-            colorBlendAttachment.colorWriteMask(state.colorMask_i);
+            VkPipelineColorBlendAttachmentState.Buffer colorBlendAttachment = VkPipelineColorBlendAttachmentState.calloc(state.renderPass.getColorAttachmentCount(), stack);
+            for (int attachmentIndex = 0; attachmentIndex < colorBlendAttachment.capacity(); attachmentIndex++) {
+                colorBlendAttachment.position(attachmentIndex);
+                colorBlendAttachment.colorWriteMask(state.colorMask_i);
 
-            if (PipelineState.BlendState.enable(state.blendState_i)) {
-                colorBlendAttachment.blendEnable(true);
-                colorBlendAttachment.srcColorBlendFactor(PipelineState.BlendState.getSrcRgbFactor(state.blendState_i));
-                colorBlendAttachment.dstColorBlendFactor(PipelineState.BlendState.getDstRgbFactor(state.blendState_i));
-                colorBlendAttachment.colorBlendOp(PipelineState.BlendState.getColorBlendOp(state.blendState_i));
-                colorBlendAttachment.srcAlphaBlendFactor(PipelineState.BlendState.getSrcAlphaFactor(state.blendState_i));
-                colorBlendAttachment.dstAlphaBlendFactor(PipelineState.BlendState.getDstAlphaFactor(state.blendState_i));
-                colorBlendAttachment.alphaBlendOp(PipelineState.BlendState.getAlphaBlendOp(state.blendState_i));
+                if (PipelineState.BlendState.enable(state.blendState_i)) {
+                    colorBlendAttachment.blendEnable(true);
+                    colorBlendAttachment.srcColorBlendFactor(PipelineState.BlendState.getSrcRgbFactor(state.blendState_i));
+                    colorBlendAttachment.dstColorBlendFactor(PipelineState.BlendState.getDstRgbFactor(state.blendState_i));
+                    colorBlendAttachment.colorBlendOp(PipelineState.BlendState.getColorBlendOp(state.blendState_i));
+                    colorBlendAttachment.srcAlphaBlendFactor(PipelineState.BlendState.getSrcAlphaFactor(state.blendState_i));
+                    colorBlendAttachment.dstAlphaBlendFactor(PipelineState.BlendState.getDstAlphaFactor(state.blendState_i));
+                    colorBlendAttachment.alphaBlendOp(PipelineState.BlendState.getAlphaBlendOp(state.blendState_i));
+                }
+                else {
+                    colorBlendAttachment.blendEnable(false);
+                }
+
             }
-            else {
-                colorBlendAttachment.blendEnable(false);
-            }
+            colorBlendAttachment.position(0);
 
             VkPipelineColorBlendStateCreateInfo colorBlending = VkPipelineColorBlendStateCreateInfo.calloc(stack);
             colorBlending.sType(VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO);
             colorBlending.logicOpEnable(PipelineState.LogicOpState.enable(state.logicOp_i));
             colorBlending.logicOp(PipelineState.LogicOpState.decodeFun(state.logicOp_i));
-            colorBlending.pAttachments(colorBlendAttachment);
+            colorBlending.pAttachments(colorBlendAttachment.capacity() == 0 ? null : colorBlendAttachment);
 
             VkPipelineDynamicStateCreateInfo dynamicStates = VkPipelineDynamicStateCreateInfo.calloc(stack);
             dynamicStates.sType(VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO);
@@ -219,7 +224,8 @@ public class GraphicsPipeline extends Pipeline {
 
                 VkPipelineRenderingCreateInfoKHR renderingInfo = VkPipelineRenderingCreateInfoKHR.calloc(stack);
                 renderingInfo.sType(KHRDynamicRendering.VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR);
-                renderingInfo.pColorAttachmentFormats(stack.ints(state.renderPass.getFramebuffer().getFormat()));
+                int[] colorFormats = state.renderPass.getFramebuffer().getColorFormats();
+                renderingInfo.pColorAttachmentFormats(colorFormats.length == 0 ? null : stack.ints(colorFormats));
                 renderingInfo.depthAttachmentFormat(state.renderPass.getFramebuffer().getDepthFormat());
                 renderingInfo.stencilAttachmentFormat(VulkanImage.hasStencilComponent(state.renderPass.getFramebuffer().getDepthFormat())
                         ? state.renderPass.getFramebuffer().getDepthFormat() : VK_FORMAT_UNDEFINED);

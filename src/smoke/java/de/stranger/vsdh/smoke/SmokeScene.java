@@ -17,6 +17,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,10 +29,23 @@ public final class SmokeScene {
     private static int ticks;
     private static int worldNumber;
     private static long drawsBeforeReload;
+    private static int gpuChecks;
+
+    @SubscribeEvent
+    public static void render(RenderLevelStageEvent event) {
+        if (!Boolean.getBoolean("vsdh.smoke") || event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) return;
+        int check = (worldNumber - 1) * 2 + (ticks >= 950 ? 2 : 1);
+        if (ticks >= 100 && check > gpuChecks && NativePassGpuCheck.ready()) {
+            MrtGpuCheck.run();
+            NativePassGpuCheck.run();
+            gpuChecks = check;
+        }
+    }
 
     @SubscribeEvent
     public static void tick(ClientTickEvent.Post event) {
         if (!Boolean.getBoolean("vsdh.smoke")) return;
+        NativePassGpuCheck.prepare();
         Minecraft mc = Minecraft.getInstance();
         if (!started && (mc.screen instanceof TitleScreen || mc.screen instanceof AccessibilityOnboardingScreen)) {
             startWorld(mc);

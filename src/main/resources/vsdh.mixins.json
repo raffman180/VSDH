@@ -4,6 +4,9 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "dh3.MixinDependencySetup",
+    "dh3.MixinUpdatePropagatorShutdown",
+    "dh3.MixinRegenQueryScope",
+    "dh3.MixinRegenStatementCancellation",
     "shared.MixinLevelRenderer"
   ],
   "injectors": { "defaultRequire": 1 }

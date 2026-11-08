@@ -1,0 +1,79 @@
+{
+  "version": "0.2.0-dev",
+  "date": "2026-11-08",
+  "minecraft": "1.21.1",
+  "neoforge": "21.1.264",
+  "dh": "3.3.3",
+  "gpu": "NVIDIA RTX 4070",
+  "os": "Windows",
+  "testSuites": [
+    {
+      "name": "com.braffolk.dhvulkan.api.DhRegistrationTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.braffolk.dhvulkan.core.data.VkVertexDataTest",
+      "tests": "4",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.compat.ExecutorShutdownTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.compat.SqliteRegenCancellationTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.shader.Std140LayoutTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    }
+  ],
+  "shaderPack": {
+    "name": "Complementary Reimagined",
+    "version": "r5.9.3",
+    "sha1": "838139b54cddb56b2e83cd260d8efd960ac536d6",
+    "profile": "MEDIUM",
+    "programPairsCompiled": 96,
+    "failed": 0,
+    "fullWorldShaderSupport": false
+  },
+  "game": {
+    "log": "verify-final-client.log",
+    "newIsolatedWorlds": 2,
+    "resize": true,
+    "nightRain": true,
+    "mrtGpuGroups": 4,
+    "diagnosticPackGpuGroups": 4,
+    "complementaryFinalGpuGroups": 4,
+    "errors": 0,
+    "fatal": 0,
+    "exit": "BUILD SUCCESSFUL"
+  },
+  "packaging": {
+    "bundledLwjglVerified": true,
+    "smokeCodeExcluded": true,
+    "externalShaderPackExcluded": true,
+    "upstreamNoticesPresent": true
+  },
+  "limitations": [
+    "Full shader world render graph, material data and shadows are unfinished",
+    "No Iris/Sodium co-loading",
+    "Other DH versions, GPUs, operating systems and large modpacks not verified",
+    "No controlled FPS benchmark"
+  ]
+}

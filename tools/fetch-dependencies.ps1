@@ -4,10 +4,10 @@ $dependencyRoot = Join-Path $projectRoot 'libs'
 New-Item -ItemType Directory -Force -Path $dependencyRoot | Out-Null
 $dependencies = @(
     @{
-        Name = 'VulkanMod-Reforged-0.3.5-ALPHA+1.21.1.jar'
-        Url = 'https://github.com/TrulyRin/VulkanMod-Reforged/releases/download/mc-1.21.1-0618965/VulkanMod-Reforged-0.3.5-ALPHA%2B1.21.1.jar'
+        Name = 'flywheel-neoforge-1.21.1-1.0.6.jar'
+        Url = 'https://maven.createmod.net/dev/engine-room/flywheel/flywheel-neoforge-1.21.1/1.0.6/flywheel-neoforge-1.21.1-1.0.6.jar'
         Algorithm = 'SHA256'
-        Hash = '61a1c215f4dd591776fc890a7623680ebf409f7ce8c4d083eab0f18b07ec50f1'
+        Hash = '31dda15c205eb596d3b3449ef03f6af7363a6cd35b3da4bfe916b304f9e5337e'
     },
     @{
         Name = 'DistantHorizons-3.3.3-1.21.1-fabric-neoforge.jar'

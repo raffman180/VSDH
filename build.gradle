@@ -39,6 +39,8 @@ neoForge {
         smokeClient {
             client()
             systemProperty 'vsdh.smoke', 'true'
+            if (providers.gradleProperty('smokeShaderPack').isPresent())
+                systemProperty 'vsdh.smoke.pack', providers.gradleProperty('smokeShaderPack').get()
             programArguments.addAll('--width', '1280', '--height', '720')
             jvmArguments.addAll('-Xmx4G', '-ea')
         }
@@ -67,22 +69,40 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly "org.lwjgl:lwjgl:${lwjglVersion}:${devNatives}"
 }
 
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
 tasks.named('test', Test) { useJUnitPlatform() }
+tasks.register('auditShaderPack', JavaExec) {
+    group = 'verification'
+    description = 'Translates and compiles an external shaderpack without starting Minecraft or requiring a GPU.'
+    classpath = sourceSets.smoke.runtimeClasspath
+    mainClass = 'de.stranger.vsdh.smoke.PackCompileAudit'
+    args providers.gradleProperty('shaderPack').getOrElse('run/shaderpacks/ComplementaryReimagined_r5.9.3.zip'),
+            layout.buildDirectory.dir('shader-audit').get().asFile.absolutePath,
+            providers.gradleProperty('shaderProfile').getOrElse('MEDIUM')
+}
 processResources {
     inputs.property 'version', project.version
     filesMatching('META-INF/neoforge.mods.toml') { expand version: project.version, renderer_version: project.renderer_version }
 }
-tasks.named('jar', Jar) { from('LICENSE', 'COPYING', 'NOTICE') }
+tasks.named('jar', Jar) {
+    from('LICENSE', 'COPYING', 'NOTICE')
+    from('docs/upstream') { into 'META-INF/vsdh/attribution' }
+}
+tasks.named('sourcesJar', Jar) {
+    from('LICENSE', 'COPYING', 'NOTICE')
+    from('docs/upstream') { into 'META-INF/vsdh/attribution' }
+}
 
 tasks.register('verifyDependencies') {
     group = 'verification'
     description = 'Checks the exact renderer and DH binaries used for this development build.'
     doLast {
         def pins = [
-            'libs/DistantHorizons-3.3.3-1.21.1-fabric-neoforge.jar': ['SHA-1', '4357b4d19fab818780c94f0e43dad1cc931634b2']
+            'libs/DistantHorizons-3.3.3-1.21.1-fabric-neoforge.jar': ['SHA-1', '4357b4d19fab818780c94f0e43dad1cc931634b2'],
+            'libs/flywheel-neoforge-1.21.1-1.0.6.jar': ['SHA-256', '31dda15c205eb596d3b3449ef03f6af7363a6cd35b3da4bfe916b304f9e5337e']
         ]
         pins.each { path, pin ->
             def input = file(path)
