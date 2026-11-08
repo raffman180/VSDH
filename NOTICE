@@ -14,3 +14,8 @@ External dependencies are not bundled into the VSDH JAR:
 Distant Horizons — https://gitlab.com/distant-horizons-team/distant-horizons
 VulkanMod Reforged — https://github.com/TrulyRin/VulkanMod-Reforged
 VulkanMod — https://github.com/xCollateral/VulkanMod
+
+Renderer source imported from VulkanMod Reforged commit
+0618965fbedb71ca2ee2e5d4528fcedc4fb27551 (Rindw and upstream VulkanMod contributors).
+Its original notice is preserved in docs/upstream/REFORGED_NOTICE.txt.
+VSDH renderer modifications started 2026-11-08. Covered source remains LGPL-3.0-only.

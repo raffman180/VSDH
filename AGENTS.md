@@ -16,3 +16,9 @@ only stage copied buffers and enqueue work. Preserve world data and user setting
 Do not advertise untested version combinations or unfinished shader support.
 Report code review, compilation, unit tests and in-game rendering separately.
 Keep docs/MIGRATION_STATUS.md and docs/HANDOFF.md accurate.
+
+User on 2026-11-08 instructed continuing here to completion after the fork
+recommendation; use the recommended Reforged fork. Renderer sources are now
+part of this project; do not also install the original Reforged JAR. Keep
+6699fe6 / dist/0.1 artifacts as the baseline. Complementary test reference:
+r5.9.3, SHA-1 838139b54cddb56b2e83cd260d8efd960ac536d6; never bundle the pack.

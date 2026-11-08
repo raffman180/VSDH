@@ -26,7 +26,7 @@ side="CLIENT"
 [[dependencies.vsdh]]
 modId="vulkanmod"
 type="required"
-versionRange="[0.3.5-ALPHA+1.21.1]"
+versionRange="[0.3.5-vsdh.0.2.0+1.21.1]"
 side="CLIENT"
 [[dependencies.vsdh]]
 modId="distanthorizons"
@@ -48,3 +48,24 @@ reason="Sodium and VulkanMod Reforged replace the terrain renderer; simultaneous
 
 [[mixins]]
 config="vsdh.mixins.json"
+
+[[mods]]
+modId="vulkanmod"
+version="${renderer_version}"
+displayName="VSDH Vulkan Renderer"
+authors="xCollateral, VulkanMod contributors, Rindw; VSDH adaptations"
+description="Unofficial VSDH fork of VulkanMod Reforged for Minecraft 1.21.1."
+
+[[mixins]]
+config="vulkanmod.mixins.json"
+
+[[dependencies.vulkanmod]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.264]"
+side="CLIENT"
+[[dependencies.vulkanmod]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1]"
+side="CLIENT"
