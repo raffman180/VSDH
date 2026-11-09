@@ -28,7 +28,7 @@ public class WorldShaderLevelMixin {
         if(session!=null) session.beginWorld(camera,view,projection,delta.getGameTimeDeltaPartialTick(false));
     }
     @Inject(method="setLevel",at=@At("HEAD"))
-    private void vsdh$detachWorld(ClientLevel level,CallbackInfo ci) {
-        var session=WorldShaderSession.current();if(level==null && session!=null) session.detachWorld();
+    private void vsdh$changeWorld(ClientLevel level,CallbackInfo ci) {
+        var session=WorldShaderSession.current();if(session!=null) session.changeWorld(level);
     }
 }

@@ -1,4 +1,4 @@
-# VSDH — Entwicklungsstand 0.12.0-dev
+# VSDH — Entwicklungsstand 0.13.0-dev
 
 VSDH enthält einen eigenen **VulkanMod-Reforged-Fork** und eine native Anbindung
 für Distant Horizons. Die Durchlaufkette für Shader-Farbpuffer, HDR/Mipmaps, gespeicherte Werte zwischen
@@ -17,7 +17,7 @@ ist noch nicht fertig.** Iris und Sodium können nicht zusätzlich geladen werde
 ## Testinstallation
 
 1. Ein separates Profil für Minecraft 1.21.1 / NeoForge 21.1.264 anlegen.
-2. Die VSDH-0.12.0-dev-JAR und DH 3.3.3 in dessen `mods`-Ordner legen.
+2. Die VSDH-0.13.0-dev-JAR und DH 3.3.3 in dessen `mods`-Ordner legen.
 3. Die originale Reforged-JAR sowie alte VSDH-0.1-JARs entfernen: Ab 0.2 ersetzt
    diese eine JAR den Renderer und das bisherige Addon.
 4. Iris, Sodium und andere Renderer-Ersatzmods aus diesem Profil herauslassen.
@@ -31,7 +31,14 @@ VSDH wird ausschließlich auf dem Client installiert. Bestehende DH-Speicherung
 und Multiplayer-Protokolle bleiben bei DH. Keine eigenen Änderungen an Inventaren
 oder Weltdaten; dedizierte Server und große Modpacks sind noch ungetestet.
 
-## Aktuell 0.12
+## Aktuell 0.13
+
+Der Entwicklungsclient kann für die drei Vanilla-Dimensionen getrennte
+Pack-Pläne vorbereiten. Beim Dimensionswechsel tauscht er Renderziele
+und Kamerahistorie. Die Shaderaktivierung erfolgt weiter über den Entwicklungslauf.
+Der Spieltest schaltete nach Nether und Ende wieder auf die Oberwelt um.
+
+## Stand 0.12
 
 Die Partikel- und Wetterprogramme zeichnen die vorhandenen Minecraft-Meshes.
 Der Diagnoselauf prüft Regenpixel und opake sowie transparente Partikel.

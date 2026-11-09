@@ -6,7 +6,15 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.12 — Wetter und Partikel
+## Aktuell 0.13 — Dimensionspläne
+
+WorldPackSet bereitet die Programme für Oberwelt, Nether und Ende vor.
+WorldShaderSession wählt den neuen Plan am ClientLevel-Wechsel. Ein
+gemeinsamer Materialvertrag hält die Terrainpuffer kompatibel. Der
+CPU-Audit und die 60 Tests bestehen. Aktuellen Spielstatus in
+verify-0.13-dimensions-client.log nachsehen.
+
+## Stand 0.12 — Wetter und Partikel
 
 Partikel und Niederschlag nutzen ihre Packprogramme auf dem bestehenden
 Minecraft-Vertexformat. Der Diagnoseclient hat 26.513 echte Regenpixel

@@ -135,7 +135,14 @@ public final class SmokeScene {
             Screenshot.grab(mc.gameDirectory, "vsdh-smoke-resize-rain-" + worldNumber + ".png", mc.getMainRenderTarget(),
                     component -> LOGGER.info("Resize/rain screenshot: {}", component.getString()));
         }
-        if (ticks == 1050 && worldNumber == 1) {
+        if (worldNumber == 1 && DimensionWorldProbe.enabled()) {
+            switch(ticks) {
+                case 1050 -> mc.getConnection().sendCommand("execute in minecraft:the_nether run tp @s 0 90 0 45 35");
+                case 1250 -> mc.getConnection().sendCommand("execute in minecraft:the_end run tp @s 0 100 0 45 35");
+                case 1450 -> mc.getConnection().sendCommand("execute in minecraft:overworld run tp @s 0 100 0 45 35");
+            }
+        }
+        if (ticks == (DimensionWorldProbe.enabled()?1650:1050) && worldNumber == 1) {
             drawsBeforeReload = ((VulkanRenderEngine) ApiDhIntegration.getInstance().getBackend()).getTotalTerrainDrawCalls();
             LOGGER.info("Disconnecting isolated world to exercise GPU cleanup and reinitialization.");
             // Match PauseScreen.onDisconnect(): this signals the integrated

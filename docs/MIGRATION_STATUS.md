@@ -1,6 +1,15 @@
-# VSDH — Prüfstand 0.12.0-dev, 09.11.2026
+# VSDH — Prüfstand 0.13.0-dev, 09.11.2026
 
-## Aktuell 0.12
+## Aktuell 0.13
+
+WorldPackSet bereitet die drei Vanilla-Dimensionen vor. Die Sitzung tauscht
+bei jedem ClientLevel-Wechsel ihre Renderziele und Historie aus. Im
+Originallauf wurden Oberwelt, Nether, Ende und die Rückkehr zur Oberwelt
+mit dem jeweiligen Pack-Ordner gezeichnet. Der CPU-Build enthält 60 Tests.
+Die erste Dimensionsaufnahme erfasste frühe Frames. Der nachfolgende
+Test wartet auf hochgeladene Terrainpuffer.
+
+## Stand 0.12
 
 Wetter und Partikel sind in die Pack-Durchläufe eingebunden. Drei
 Partikel-/Wettervarianten pro Dimension kompilieren im Complementary-Audit.

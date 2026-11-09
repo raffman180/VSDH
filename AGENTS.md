@@ -82,3 +82,7 @@ depth clear so depthtex0 still carries the rendered world. See WORLD_SKY.md.
 0.12 adds particles and weather with the existing Minecraft PARTICLE format.
 Follow the pack's before/mixed/after ordering on both NeoForge render calls.
 Keep weather after deferred. Verify real rain texture and both particle batches.
+
+0.13 prepares vanilla dimension programs off-thread and switches the graph on
+ClientLevel changes. Keep one material table and terrain format across the
+dimensions. Test all three live, return to Overworld, then a standard world.

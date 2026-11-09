@@ -1,6 +1,31 @@
-# Fortsetzungs-Prompt — VSDH 0.12
+# Fortsetzungs-Prompt — VSDH 0.13
 
 ## Aktuelle Arbeit
+
+0.13 bereitet alle drei Vanilla-Dimensionen in WorldPackSet vor und tauscht
+den aktiven Plan bei LevelRenderer.setLevel. Die Materialtabellen müssen
+gleich sein, damit der Terrainstride und die Chunk-Builder beim Wechsel
+gültig bleiben. Jede Welt erhält neue Vulkan-Ziele und frische Historie.
+60 CPU-Tests, Build und Audit stehen in verify-0.13-build.log. Den
+Spielstatus in verify-0.13-dimensions-client.log nachsehen. Der Lauf verwendet
+-PsmokeDimensions=true zusätzlich zum echten Pack und DH.
+
+0.12 ist mit Diagnose- und Originalpack, Weltwechsel, 59 Tests und einem
+Neuaufbau des Quellarchivs geprüft. Commit d5a7670. Artefakte liegen unter
+dist/0.12.0-dev. Regen und beide Partikelphasen bestehen im Originallauf.
+
+Beim direkten MEDIUM-Vergleich unter Iris ist der Detailübergang auch
+vorhanden. Das Nahwasser ist in VSDH messbar dunkler. Das Fernwasser ist
+in den Stichproben nahezu gleich hell. Details und Prüfarchiv in
+docs/DISTANT_PACK.md. Vergleiche die Near-GBuffer-Ausgaben und Reflexionen,
+bevor die Pack-Mischung oder die DH-Tiefe weiter geändert wird.
+
+Nächster Schritt nach einem erfolgreichen Dimensionslauf ist eine explizit
+experimentelle Auswahl beim normalen Start. Packaufbereitung auf einem
+Worker, Installation auf dem Renderthread bei ungeladener Welt und ein
+Rückfall auf den Standardmodus bei fehlerhaften Packdateien sind Pflicht.
+Entitäten und Pack-Hand bleiben eigene Geometriearbeiten.
+
 
 0.11.0-dev ist ein vollständig geprüfter Zwischenstand. Commit
 98c6537. Unter dist/0.11.0-dev liegen JAR, Quellarchiv, Prüfsummen und
@@ -21,9 +46,8 @@ festgehalten. Prüfe Abschluss und PASS-Marker vor weiteren Änderungen.
 
 Iris 1.8.12 und Sodium 0.6.13 wurden für die Wasserdiagnose in einem
 isolierten Vergleichsclient unter build/reference/iris-client mit DH 3.3.3
-eingerichtet. Die HIGH-Referenzaufnahme zeigt ebenfalls die Grenze zwischen
-den beiden Wasserarten. MEDIUM wurde über 14 Profiloptionen vorbereitet und
-muss noch im Referenzlog bestätigt werden. Quellordner build/reference,
+eingerichtet. iris-reference-medium.log bestätigt MEDIUM ohne zusätzliche
+Optionen. Der Prüfbericht enthält beide Ausschnitte und deren RGB-Mittelwerte. Quellordner build/reference,
 fremde JARs und Shader-ZIP bleiben aus den VSDH-Artefakten heraus.
 
 ## Stand 0.11 am Vulkan-Renderer

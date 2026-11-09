@@ -40,8 +40,16 @@ Die Vorgaben zur Reihenfolge und den Tiefenbildern stammen aus der
 Die Gerätebedingung steht in der
 [Vulkan-Referenz zum Blend-Zustand](https://docs.vulkan.org/refpages/latest/refpages/source/VkPipelineColorBlendStateCreateInfo.html).
 
-Die Bildprüfung zeigt noch einen sichtbaren Übergang der Wasserdarstellung.
+Bei 1280×720, vier Minecraft-Chunks Sichtweite, Seed 825765032 und
+Profil MEDIUM erscheint der Detailübergang auch in der OpenGL-Referenz mit
+Iris 1.8.12, Sodium 0.6.13 und DH 3.3.3. In der untersuchten Nahwasserregion
+ist VSDH dunkler. Die mittleren RGB-Kanäle liegen bei 54/71/87 gegenüber
+100/127/149. Im Fernwasser liegen die Mittelwerte bei 96/139/167 gegenüber
+97/140/169. Das sind Stichproben aus zwei unabhängigen Spielsitzungen.
+Für die Ursache sind Farbpuffer und Reflexionseingaben des Nahwasserpasses
+auf beiden Renderern zu vergleichen. Aufnahmen, Koordinaten und Profilbeleg
+liegen im Prüfarchiv von 0.12.
+
 Weitere Arbeiten betreffen Packprogramme für übrige Minecraft-Geometrie,
-DH-Schatten für Packs, die sie aktivieren, allgemeine DH-Objekte und
-die Prüfung zusätzlicher Dimensionen im Spiel. Complementary MEDIUM
+DH-Schatten für Packs, die sie aktivieren, und allgemeine DH-Objekte. Complementary MEDIUM
 deaktiviert DH-Schatten in seiner eigenen Konfiguration.

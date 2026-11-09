@@ -41,6 +41,7 @@ neoForge {
             client()
             systemProperty 'vsdh.smoke', 'true'
             systemProperty 'vsdh.smoke.livePack', providers.gradleProperty('smokeLivePack').getOrElse('false')
+            systemProperty 'vsdh.smoke.dimensions', providers.gradleProperty('smokeDimensions').getOrElse('false')
             systemProperty 'vsdh.smoke.distantPack', providers.gradleProperty('smokeDistantPack').getOrElse('false')
             if (providers.gradleProperty('smokeShaderPack').isPresent())
                 systemProperty 'vsdh.smoke.pack', providers.gradleProperty('smokeShaderPack').get()

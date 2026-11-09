@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 
 /** Entire live-world chain, not a colour-seeded synthetic test. */
 final class WorldHostCheck {
-    private static CompletableFuture<WorldPackPlan> pending;
+    private static CompletableFuture<WorldPackSet> pending;
     private static WorldShaderSession session;
     private static boolean verified,scaledVerified,armed;
     private static int savedScale, ticks;
@@ -25,9 +25,12 @@ final class WorldHostCheck {
                 boolean real=Boolean.getBoolean("vsdh.smoke.livePack");
                 var path=real?Path.of(System.getProperty("vsdh.smoke.pack")):Path.of(WorldHostCheck.class.getResource("/shaderpacks/vsdh-world").toURI());
                 try(var pack=OpenedPack.open(path,Map.of(),real?"MEDIUM":"")) {
-                    var prepared=WorldPackPlan.prepare(pack,real?"world0":"",Boolean.getBoolean("vsdh.smoke.distantPack"));
-                    WorldUniforms.validate(prepared);
-                    if(real)RealPackCloudProbe.prepare(prepared);
+                    boolean distant=Boolean.getBoolean("vsdh.smoke.distantPack");
+                    var prepared=DimensionWorldProbe.enabled()
+                            ?WorldPackSet.prepare(pack,distant)
+                            :WorldPackSet.single(WorldPackPlan.prepare(pack,real?"world0":"",distant));
+                    WorldUniforms.validate(prepared.overworld());
+                    if(real)RealPackCloudProbe.prepare(prepared.overworld());
                     return prepared;
                 }
             }catch(Exception error){throw new java.util.concurrent.CompletionException(error);}
@@ -36,13 +39,13 @@ final class WorldHostCheck {
     static boolean ready(){return pending!=null&&pending.isDone();}
     static void install(){savedScale=net.vulkanmod.Initializer.CONFIG.renderScale;session=WorldShaderSession.install(pending.join());session.frameObserver(ignored->verify());}
     static void scaleDown(){net.vulkanmod.Initializer.CONFIG.renderScale=50;}
-    static void uninstall(){if(Boolean.getBoolean("vsdh.smoke.livePack"))RealPackWorldProbe.requireComplete();else{WeatherWorldProbe.requireDraws(session);WeatherWorldProbe.requireComplete();SkyWorldProbe.requireComplete();BuiltinWorldProbe.requireComplete();ExpressionWorldProbe.requireComplete();if(!verified || !scaledVerified)throw new AssertionError("World shader did not complete its live-world check");}net.vulkanmod.Initializer.CONFIG.renderScale=savedScale;session.uninstall();}
+    static void uninstall(){if(Boolean.getBoolean("vsdh.smoke.livePack")){DimensionWorldProbe.requireComplete();RealPackWorldProbe.requireComplete();}else{WeatherWorldProbe.requireDraws(session);WeatherWorldProbe.requireComplete();SkyWorldProbe.requireComplete();BuiltinWorldProbe.requireComplete();ExpressionWorldProbe.requireComplete();if(!verified || !scaledVerified)throw new AssertionError("World shader did not complete its live-world check");}net.vulkanmod.Initializer.CONFIG.renderScale=savedScale;session.uninstall();}
     static void verifyIfReady(int ticks) {
         WorldHostCheck.ticks=ticks;
         armed=ticks>=800;
     }
     private static void verify() {
-        if(Boolean.getBoolean("vsdh.smoke.livePack")){RealPackWorldProbe.verify(session,ticks);return;}
+        if(Boolean.getBoolean("vsdh.smoke.livePack")){DimensionWorldProbe.verify(session,ticks);RealPackWorldProbe.verify(session,ticks);return;}
         if (session!=null && session.chain()!=null) {
             SkyWorldProbe.verify(session,ticks);
             WeatherWorldProbe.verify(session,ticks);

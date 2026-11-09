@@ -36,8 +36,9 @@ public final class WorldShaderSession implements MainPass {
     private static WorldShaderSession current;
     private static final java.util.Set<String> DEPTH_NAMES=java.util.Set.of("depthtex0","depthtex1","depthtex2","gdepthtex");
     private final MainPass delegate;
-    private final WorldPackPlan plan;
-    private final WorldUniforms uniforms;
+    private final WorldPackSet plans;
+    private WorldPackPlan plan;
+    private WorldUniforms uniforms;
     private final Map<TerrainRenderType,NativeTerrainPass> terrain=new EnumMap<>(TerrainRenderType.class);
     private final Map<TerrainRenderType,NativeBlend> terrainBlend=new EnumMap<>(TerrainRenderType.class);
     private final Map<TerrainRenderType,PackProgramSource.Prepared> sources=new EnumMap<>(TerrainRenderType.class);
@@ -59,10 +60,29 @@ public final class WorldShaderSession implements MainPass {
     private long skippedFrames;
     private Consumer<WorldShaderSession> frameObserver;
 
-    private WorldShaderSession(MainPass delegate, WorldPackPlan plan) {
-        this.delegate=delegate;this.plan=plan;this.uniforms=new WorldUniforms(plan);
-        for(var type:TerrainRenderType.values())sources.put(type,plan.terrain().get(type.name().toLowerCase(java.util.Locale.ROOT)));
+    private WorldShaderSession(MainPass delegate, WorldPackSet plans) {
+        this.delegate=delegate;
+        this.plans=plans;
+        selectPlan(plans.overworld());
     }
+
+    private void selectPlan(WorldPackPlan next) {
+        plan=next;
+        uniforms=new WorldUniforms(next);
+        for(var type:TerrainRenderType.values())
+            sources.put(type,next.terrain().get(type.name().toLowerCase(java.util.Locale.ROOT)));
+    }
+
+    public void changeWorld(net.minecraft.client.multiplayer.ClientLevel level) {
+        RenderSystem.assertOnRenderThread();
+        releaseGraph();
+        if(level!=null) {
+            var next=plans.forDimension(level.dimension().location().toString());
+            if(next!=plan)selectPlan(next);
+        }
+    }
+
+    public String dimensionFolder() { return plan.chain().targets().place(); }
     public static WorldShaderSession current() { return current; }
     public boolean active() { return active; }
     public long framesCompleted() { return frames; }
@@ -182,8 +202,23 @@ public final class WorldShaderSession implements MainPass {
     public void frameObserver(Consumer<WorldShaderSession> observer) { RenderSystem.assertOnRenderThread();frameObserver=observer; }
 
     public static WorldShaderSession install(WorldPackPlan plan) {
+        return install(WorldPackSet.single(plan));
+    }
+
+    public static WorldShaderSession install(WorldPackSet plans) {
         RenderSystem.assertOnRenderThread();
         if (Minecraft.getInstance().level!=null || current!=null) throw new IllegalStateException("Unload world and previous shader session before installation");
+        var unique=new java.util.LinkedHashSet<>(plans.dimensions().values());
+        unique.add(plans.overworld());
+        unique.forEach(WorldShaderSession::validatePlan);
+        var session=new WorldShaderSession(Renderer.getInstance().getMainPass(),plans);
+        PipelineManager.configureShaderTerrain(ShaderBlockMaterials.resolve(plans.overworld().materials()));
+        Renderer.getInstance().setMainPass(session);
+        current=session;
+        return session;
+    }
+
+    private static void validatePlan(WorldPackPlan plan) {
         WorldUniforms.validate(plan);
         // Refuse unavailable resources before creating GPU objects or changing the terrain format.
         for(var stage:plan.chain().stages().values())for(var pass:stage)for(var binding:pass.inputs()) {
@@ -208,10 +243,6 @@ public final class WorldShaderSession implements MainPass {
                     && dev.vitrail.pack.model.TargetName.index(sampler.name()).stream().noneMatch(plan.chain().targets().allocated()::contains))
                 throw new IllegalArgumentException("Terrain resource not implemented: "+sampler.name());
         }
-        var session=new WorldShaderSession(Renderer.getInstance().getMainPass(),plan);
-        PipelineManager.configureShaderTerrain(ShaderBlockMaterials.resolve(plan.materials()));
-        Renderer.getInstance().setMainPass(session); current=session;
-        return session;
     }
 
     public void uninstall() {
@@ -394,7 +425,6 @@ public final class WorldShaderSession implements MainPass {
     private static boolean shadowName(String s) {return s.equals("shadow")||s.equals("watershadow")||s.matches("shadowtex[01](?:HW)?|shadowcolor[0-7]?");}
     private static String bare(String path) {return path.substring(path.lastIndexOf('/')+1);}
 
-    public void detachWorld() { releaseGraph(); }
     private void releaseGraph() {
         active=false;scene=null;uniforms.reset();
         for (int id:aliases.values()) {GlTexture.setVulkanImage(id,null);GlTexture.glDeleteTextures(id);}

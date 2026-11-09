@@ -36,6 +36,16 @@ class WorldPackPlanTest {
             }
         }
     }
+    @Test void reusesTheRootPlanWhenThePackHasNoDimensionFolders() throws Exception {
+        var path=Path.of(getClass().getResource("/shaderpacks/vsdh-world").toURI());
+        try(var pack=OpenedPack.open(path,Map.of(),"")) {
+            var plans=WorldPackSet.prepare(pack,false);
+            assertEquals(3,plans.dimensions().size());
+            assertSame(plans.overworld(),plans.forDimension("minecraft:the_nether"));
+            assertSame(plans.overworld(),plans.forDimension("minecraft:the_end"));
+        }
+    }
+
     private static boolean hasKill(byte[] spirv) {
         var words=ByteBuffer.wrap(spirv).order(ByteOrder.LITTLE_ENDIAN);
         for(int at=20;at<words.limit();) {int instruction=words.getInt(at);if((instruction&65535)==252)return true;at+=(instruction>>>16)*4;}
