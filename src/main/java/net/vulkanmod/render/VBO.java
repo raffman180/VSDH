@@ -341,6 +341,11 @@ public class VBO {
     public void drawWithShader(Matrix4f MV, Matrix4f P, ShaderInstance shader) {
         if (!hasGeometry() || shader == null) return;
         RenderSystem.assertOnRenderThread();
+        var shaderWorld = de.stranger.vsdh.shader.WorldShaderSession.current();
+        if (shaderWorld != null && shaderWorld.renderSkyGeometry(this.format, this.mode, MV, P, pipeline -> {
+            validateGeometry(pipeline);
+            drawGeometry(pipeline);
+        })) return;
         if (!shader.getVertexFormat().equals(this.format) && net.vulkanmod.compat.RuntimeOptions.diagnosticsEnabled()) {
             net.vulkanmod.Initializer.LOGGER.warn("Vertex format mismatch for shader {}", shader.getName());
         }

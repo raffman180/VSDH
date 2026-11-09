@@ -1,6 +1,15 @@
-# VSDH — Prüfstand 0.10.0-dev, 09.11.2026
+# VSDH — Prüfstand 0.11.0-dev, 09.11.2026
 
-## Aktuell 0.10
+## Aktuell 0.11
+
+Vier native Himmelsvarianten für den Shaderpack-Pfad. Die Oberweltprobe
+zeichnet Himmelskreis, Sonne, Mond und Sterne. Der Diagnose-Shader bestätigt
+Pixel und Spielfarbe. Composite und Final laufen vor dem Tiefen-Clear der
+Hand. Die GPU-Probe liest die tatsächliche Tiefe des Nahterrains in zwei
+Rendergrößen. Ausstehend sind weitere Geometriefamilien, echte Dimensionsläufe
+und die normale Shader-Auswahl. Details stehen in WORLD_SKY.md.
+
+## Stand 0.10
 
 Der Entwicklungsclient zeichnet die originalen Programme dh_terrain und
 dh_water aus Complementary Reimagined r5.9.3 MEDIUM. Vulkan verwendet

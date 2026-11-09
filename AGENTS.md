@@ -73,3 +73,8 @@ Enable the define per pack only where both terrain and water use this path.
 The full and opaque DH depth images must stay distinct from each other and from
 Minecraft depth. See docs/DISTANT_PACK.md. Complementary disables DH shadows
 in this profile. Other geometry families and the visible water transition remain open.
+
+0.11 draws the vanilla sky meshes with native pack programs. Keep stable vertex
+locations when unused inputs are optimized away. Draw transforms and the
+shader colour are local to each sky draw. Finalize before the vanilla hand
+depth clear so depthtex0 still carries the rendered world. See WORLD_SKY.md.

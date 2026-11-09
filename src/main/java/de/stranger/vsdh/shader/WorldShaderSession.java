@@ -1,6 +1,9 @@
 package de.stranger.vsdh.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import dev.vitrail.pack.model.RenderStage;
+import net.vulkanmod.vulkan.VRenderSystem;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.vulkanmod.gl.GlFramebuffer;
@@ -32,6 +35,9 @@ public final class WorldShaderSession implements MainPass {
     private final Map<TerrainRenderType,NativeTerrainPass> terrain=new EnumMap<>(TerrainRenderType.class);
     private final Map<TerrainRenderType,NativeBlend> terrainBlend=new EnumMap<>(TerrainRenderType.class);
     private final Map<TerrainRenderType,PackProgramSource.Prepared> sources=new EnumMap<>(TerrainRenderType.class);
+    private final Map<SkyPackPlan.Layout,NativeSkyPass> sky=new EnumMap<>(SkyPackPlan.Layout.class);
+    private final long[] skyDraws=new long[RenderStage.values().length];
+    private RenderStage skyStage;
     private final Map<Long,Integer> aliases=new HashMap<>();
     private NativeShaderChain chain;
     private NativeWorldDepth depth;
@@ -75,6 +81,50 @@ public final class WorldShaderSession implements MainPass {
             case FAST->net.minecraft.client.CloudStatus.FAST;case FANCY->net.minecraft.client.CloudStatus.FANCY;
         };
     }
+    public long skyDraws(RenderStage stage) { return skyDraws[stage.ordinal()]; }
+
+    public static boolean drawSkyStage(RenderStage stage, Runnable draw) {
+        var session=current;
+        if(session==null || !session.active) {
+            draw.run();
+            return true;
+        }
+        var elements=session.plan.sky();
+        boolean enabled=switch(stage) {
+            case SKY,SUNSET,VOID->elements.sky();
+            case SUN->elements.sun();
+            case MOON->elements.moon();
+            case STARS->elements.stars();
+            case CUSTOM_SKY->true;
+            default->throw new IllegalArgumentException("Not a sky stage: "+stage);
+        };
+        if(!enabled)return false;
+        var previous=session.skyStage;
+        session.skyStage=stage;
+        try { draw.run(); } finally { session.skyStage=previous; }
+        return true;
+    }
+
+    public boolean renderSkyGeometry(VertexFormat format,VertexFormat.Mode mode,Matrix4f view,Matrix4f projection,
+                                     Consumer<GraphicsPipeline> geometry) {
+        if(!active || skyStage==null)return false;
+        var layout=SkyPackPlan.Layout.forStage(skyStage);
+        var program=sky.get(layout);
+        if(program==null || !NativeSkyPass.format(layout).equals(format))return false;
+        var source=plan.skyPrograms().programs().get(layout);
+        uniforms.writeSky(program,view,projection,skyStage);
+        bindGeometry(program,source,false,false,!layout.elements.contains("UV0"));
+        int topology=VRenderSystem.topology;
+        try(var scope=Renderer.getInstance().temporaryRenderTarget()) {
+            VRenderSystem.setPrimitiveTopology(mode);
+            program.render(geometry);
+        } finally {
+            VRenderSystem.topology=topology;
+        }
+        skyDraws[skyStage.ordinal()]++;
+        return true;
+    }
+
     public long skippedFrames() { return skippedFrames; }
     public VulkanImage presentationImage() { return delegate.getColorAttachment(); }
     public void frameObserver(Consumer<WorldShaderSession> observer) { RenderSystem.assertOnRenderThread();frameObserver=observer; }
@@ -93,6 +143,7 @@ public final class WorldShaderSession implements MainPass {
         }
         var geometry=new java.util.ArrayList<>(plan.terrain().values());
         if(plan.distant()!=null)geometry.addAll(plan.distant().programs());
+        geometry.addAll(plan.skyPrograms().programs().values());
         for (var source:geometry) {
             var activeBindings=new java.util.HashSet<Integer>();
             source.compiled().stages().values().forEach(bytes->activeBindings.addAll(SpirvInterface.bindings(bytes)));
@@ -148,6 +199,13 @@ public final class WorldShaderSession implements MainPass {
                     terrainBlend.put(type,NativeBlend.forProgram(plan.chain().targets(),bare(source.path()),target.framebuffer().getColorAttachmentCount()));
                     pipeline.prepare(target.pass());
                 }
+                for(var entry:plan.skyPrograms().programs().entrySet()) {
+                    var source=entry.getValue();
+                    String name=bare(source.path());
+                    var target=chain.geometry(name,false,worldDepth);
+                    var blend=NativeBlend.forProgram(plan.chain().targets(),name,target.framebuffer().getColorAttachmentCount());
+                    sky.put(entry.getKey(),new NativeSkyPass(source,NativeSkyPass.format(entry.getKey()),target,blend));
+                }
                 chain.prepareOutput(output);
             } catch (Throwable failure) {releaseGraph();throw failure;}
         }
@@ -175,7 +233,7 @@ public final class WorldShaderSession implements MainPass {
         var pipeline=terrain.get(type);
         int stage=switch(type) {case SOLID->8;case CUTOUT_MIPPED->9;case CUTOUT->10;case TRANSLUCENT->17;case TRIPWIRE->18;};
         uniforms.write(pipeline,false,stage,type.alphaCutout);
-        bindGeometry(pipeline,source,deferred,false);
+        bindGeometry(pipeline,source,deferred,false,false);
         try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
             var state=terrainBlend.get(type).apply(PipelineState.getCurrentPipelineState(target.pass()));
             pipeline.renderBatches(target.framebuffer(),target.pass(),state,batches);
@@ -185,11 +243,11 @@ public final class WorldShaderSession implements MainPass {
 
     void writeDistant(NativeGraphicsProgram pipeline,PackProgramSource.Prepared source,boolean water) {
         uniforms.writeDistant(pipeline,water);
-        bindGeometry(pipeline,source,water,true);
+        bindGeometry(pipeline,source,water,true,false);
     }
 
     private void bindGeometry(NativeGraphicsProgram pipeline,PackProgramSource.Prepared source,
-                              boolean afterDeferred,boolean dh) {
+                              boolean afterDeferred,boolean dh,boolean untextured) {
         for (String sampler:pipeline.requiredSamplers()) {
             var supplied=textures.image(source.path(),sampler);
             if(supplied!=null){pipeline.bindImage(sampler,supplied);continue;}
@@ -215,6 +273,10 @@ public final class WorldShaderSession implements MainPass {
                 pipeline.bindImage(sampler,lightmap);
                 continue;
             }
+            if(untextured || pipeline instanceof NativeSkyPass && sampler.equals("lightmap")) {
+                pipeline.bindImage(sampler,net.vulkanmod.vulkan.texture.VTextureSelector.getWhiteTexture());
+                continue;
+            }
             int id=RenderSystem.getShaderTexture(sampler.equals("lightmap")?2:0);
             var texture=GlTexture.getTexture(id);
             if (texture==null || texture.getVulkanImage()==null) throw new IllegalStateException("Missing world texture: "+sampler+" id="+id);
@@ -233,7 +295,7 @@ public final class WorldShaderSession implements MainPass {
         deferred=true;scene=chain.scene("gbuffers_basic",true,borrowedDepth);rebindMainTarget();
     }
 
-    /** After world/DH/hand drawing, before GUI. The normal main target receives the final pass. */
+    /** After world and DH drawing, while the world's depth is still intact. */
     public void finishWorld() {
         if (!active) return;
         if (!deferred) runDeferred();
@@ -276,6 +338,7 @@ public final class WorldShaderSession implements MainPass {
         aliases.clear();
         terrain.values().forEach(NativeTerrainPass::close);terrain.clear();
         terrainBlend.clear();
+        sky.values().forEach(NativeSkyPass::close);sky.clear();
         if (chain!=null) chain.close();chain=null;
         if(distant!=null)distant.close();distant=null;
         if (depth!=null) depth.close();depth=null;borrowedDepth=null;

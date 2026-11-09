@@ -6,7 +6,14 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.10 — Native DH-Programme und Mischregeln
+## Aktuell 0.11 — Pack-Himmel und Welttiefe
+
+Vier Varianten decken die Vanilla-Himmelsmeshes ab. WorldShaderGameMixin
+schließt Composite/Final vor dem Vanilla-Hand-Depth-Clear ab. Details in
+WORLD_SKY.md. Die restlichen Geometriefamilien, visuelle Tests in Nether
+und Ende sowie die normale Shader-Auswahl bleiben offen.
+
+## Stand 0.10 — Native DH-Programme und Mischregeln
 
 Die beiden originalen DH-Programme von Complementary können auf den echten
 DH-3.3.3-Meshes zeichnen. Diagnosemodus und technische Regeln stehen in

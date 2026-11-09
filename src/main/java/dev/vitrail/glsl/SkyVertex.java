@@ -6,43 +6,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * What the game's sky meshes carry, and how the names a pack reads are made out of them.
- * <p>
- * Unlike the chunk mesh and the entity mesh, the sky is not ONE format. {@code SkyRenderer} opens
- * eight render passes of its own and binds four different formats between them, and
- * {@code CloudRenderer} adds its own:
- * <pre>
- *     SKY, STARS          POSITION             disc, dark disc, stars
- *     SUNRISE_SUNSET      POSITION_COLOR       the sunrise and sunset band
- *     CELESTIAL           POSITION_TEX         sun, moon, the End flash
- *     END_SKY             POSITION_TEX_COLOR   the End's sky
- * </pre>
- * So the prologue is built from the elements actually bound rather than from a table of its own,
- * and that is not a refinement. The pairing is by name and asymmetric in both directions: a name
- * the stage declares that the format has not got is refused outright,
- * {@code IntermediaryShaderModule.rebind:205-207}, and an element the format carries that the
- * stage does not declare is stepped over, which shifts the location of everything after it without
- * a word being said. Declaring the union of the four would break three of them.
- * <p>
- * Only three names ever appear: {@code Position}, {@code Color} and {@code UV0}. There is no
- * normal, no light map and no overlay anywhere in the sky, which is why so much of what a pack
- * reads is answered with a constant here.
- * <p>
- * <strong>What is approximated, said out loud.</strong> {@code of_MultiTexCoord1} is the light map,
- * and no sky format carries one. It is answered at the top of both channels rather than at nought,
- * because nought is the value that reads as "underground" to a pack that folds it into its own sky
- * colour, and a pack does read it here: Body Camera writes the coordinate itself into a colour
- * target over the whole sky. {@code of_Normal} is answered facing the camera for a related reason:
- * the sky has no surface, and a normalise of a zero vector is a NaN that spreads.
- * <p>
- * <strong>One risk this class cannot close on its own, and that whoever draws the sky has to
- * measure.</strong> An input a stage declares and never reads may be dropped from the SPIR-V, and
- * {@code rebind} only counts the ones that survived, so a dropped element shifts the location of
- * every one after it. {@code Position} is safe, since a vertex stage cannot avoid computing a
- * position out of it, but a sky program that ignores {@code Color} or {@code UV0} would lose them.
- * The entity family answers the same risk by reading the SPIR-V of every corpus stage back at the
- * harness and checking the variables are still there; the sky needs that check before it is
- * believed, not after.
+ * Maps the game sky's four mesh layouts to legacy GLSL inputs. Each bound
+ * attribute keeps its vertex-format location even if SPIR-V optimization removes
+ * an unused input. Sky meshes have no lightmap, overlay or normal, so the legacy
+ * attributes use full light and a viewer-facing normal.
  */
 public final class SkyVertex {
 
@@ -75,8 +42,10 @@ public final class SkyVertex {
 			Map<String, String> synthesized) {
 		List<String> lines = new ArrayList<>();
 
-		for (String attribute : bound) {
-			lines.add("in " + VertexPrologue.elementType(attribute) + " " + attribute + ";");
+		for (int location = 0; location < bound.size(); location++) {
+			String attribute = bound.get(location);
+			lines.add("layout(location = " + location + ") in "
+					+ VertexPrologue.elementType(attribute) + " " + attribute + ";");
 		}
 
 		lines.add("#define of_Vertex vec4(Position, 1.0)");

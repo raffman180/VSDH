@@ -133,6 +133,7 @@
     "voxel.VoxelShapeMixin",
     "compatibility.fml.ImmediateWindowHandlerMixin",
     "shader.WorldShaderLevelMixin",
+    "shader.WorldShaderSkyMixin",
     "shader.WorldShaderGameMixin",
     "shader.WorldShaderLightMixin"
   ],

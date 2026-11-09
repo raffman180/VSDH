@@ -1,4 +1,4 @@
-# VSDH — Entwicklungsstand 0.10.0-dev
+# VSDH — Entwicklungsstand 0.11.0-dev
 
 VSDH enthält einen eigenen **VulkanMod-Reforged-Fork** und eine native Anbindung
 für Distant Horizons. Die Durchlaufkette für Shader-Farbpuffer, HDR/Mipmaps, gespeicherte Werte zwischen
@@ -17,7 +17,7 @@ ist noch nicht fertig.** Iris und Sodium können nicht zusätzlich geladen werde
 ## Testinstallation
 
 1. Ein separates Profil für Minecraft 1.21.1 / NeoForge 21.1.264 anlegen.
-2. Die VSDH-0.10.0-dev-JAR und DH 3.3.3 in dessen `mods`-Ordner legen.
+2. Die VSDH-0.11.0-dev-JAR und DH 3.3.3 in dessen `mods`-Ordner legen.
 3. Die originale Reforged-JAR sowie alte VSDH-0.1-JARs entfernen: Ab 0.2 ersetzt
    diese eine JAR den Renderer und das bisherige Addon.
 4. Iris, Sodium und andere Renderer-Ersatzmods aus diesem Profil herauslassen.
@@ -31,7 +31,15 @@ VSDH wird ausschließlich auf dem Client installiert. Bestehende DH-Speicherung
 und Multiplayer-Protokolle bleiben bei DH. Keine eigenen Änderungen an Inventaren
 oder Weltdaten; dedizierte Server und große Modpacks sind noch ungetestet.
 
-## Aktuell 0.10
+## Aktuell 0.11
+
+Complementary kann die Himmelsgeometrie mit seinen eigenen Programmen
+zeichnen. Der Entwicklungsclient prüft Himmelsfarbe und Welttiefe auf
+der GPU. Composite und Final laufen vor dem Löschen der Tiefe für die
+Vanilla-Hand. Packprogramme für Entitäten, Partikel, Wetter und Hand
+folgen. Die Shaderaktivierung erfolgt weiterhin über den Entwicklungslauf.
+
+## Stand 0.10
 
 Im Entwicklungsclient zeichnet Complementary nun eigenes Nahterrain,
 Fernterrain und Fernwasser. Auf der RTX 4070 wurden beide DH-Tiefenbilder

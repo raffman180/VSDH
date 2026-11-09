@@ -28,15 +28,16 @@ public record PackTexturePlan(Map<String,Asset> bindings) {
     public Asset resolve(String program,String sampler) {return bindings.get(key(program,sampler));}
 
     public static PackTexturePlan read(OpenedPack pack,ShaderChainPlan chain,Map<String,PackProgramSource.Prepared> terrain,ShadowPackPlan shadow) throws IOException {
-        return read(pack,chain,terrain,shadow,null);
+        return read(pack,chain,terrain,shadow,null,SkyPackPlan.empty());
     }
-    public static PackTexturePlan read(OpenedPack pack,ShaderChainPlan chain,Map<String,PackProgramSource.Prepared> terrain,ShadowPackPlan shadow,DistantPackPlan distant) throws IOException {
+    public static PackTexturePlan read(OpenedPack pack,ShaderChainPlan chain,Map<String,PackProgramSource.Prepared> terrain,ShadowPackPlan shadow,DistantPackPlan distant,SkyPackPlan sky) throws IOException {
         var defines=pack.settings().globalDefines(pack.options());
         var textures=PackTextures.read(pack.properties(),defines,pack.source());
         var bindings=new LinkedHashMap<String,Asset>();var decoded=new HashMap<String,Asset>();
         var programs=new LinkedHashMap<String,PackProgramSource.Prepared>();
         terrain.values().forEach(p->programs.put(p.path(),p));
         if(distant!=null)distant.programs().forEach(p->programs.put(p.path(),p));
+        sky.programs().values().forEach(p->programs.put(p.path(),p));
         if(shadow!=null)shadow.programs().values().forEach(p->programs.put(p.path(),p));
         chain.stages().values().forEach(passes->passes.forEach(p->programs.put(p.program().path(),p.program())));
         for(var source:programs.values()) {

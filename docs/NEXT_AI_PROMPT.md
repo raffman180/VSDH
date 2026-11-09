@@ -1,6 +1,32 @@
-# Fortsetzungs-Prompt — VSDH 0.10
+# Fortsetzungs-Prompt — VSDH 0.11
 
-## Aktuelle Weiterarbeit an DH
+## Aktuelle Weiterarbeit am Vulkan-Renderer
+
+0.11 ergänzt gbuffers_skybasic und gbuffers_skytextured über die
+Minecraft-1.21.1-Aufrufe renderSky und renderEndSky. SkyPackPlan trennt
+CPU-Übersetzung von Minecraft-Klassen. NativeSkyPass verwendet das
+bereits hochgeladene VBO, feste Vulkan-Attributorte, die Pack-Mischregeln
+und WorldUniforms.writeSky mit tatsächlichen Draw-Matrizen und Draw-Farbe.
+Die Kamerahistorie bleibt getrennt. Testlauf verify-sky-world-1.log
+zeichnet den Himmelskreis, Sonne, Mond und Sterne mit Complementary.
+WORLD_SKY.md beschreibt die Umsetzung. Neuere Build- und Spielresultate
+im letzten Prüfbericht und in den verify-0.11-Logs lesen.
+
+GameRenderer.renderLevel löscht unmittelbar vor der Handzeichnung die
+Welttiefe. WorldShaderGameMixin schließt Composite/Final jetzt vor diesem
+Clear ab. RETURN bleibt für Frames ohne Hand-Aufruf. Die Vanilla-Hand
+wird als Overlay nach Final gerendert. NearWorldDepthProbe prüft die
+tatsächlich gefüllte Tiefe auf der GPU. Erst ein echter Pack-Handpass
+macht depthtex1 und depthtex2 zeitlich verschieden.
+
+Als Nächstes den sichtbaren Wasserübergang mit der korrigierten Tiefe
+erneut messen. Für Wetter und Partikel nutzen LevelRenderer.renderSnowAndRain
+und ParticleEngine.render bei NeoForge 1.21.1 denselben PARTICLE-Vertexaufbau,
+aber unterschiedliche Texturen und Phasen vor bzw. nach Deferred.
+Danach Entitäten und Hand, dimensionenspezifische Laufzeit und Auswahl.
+Keine öffentliche Zusage für ungeprüfte Kombinationen.
+
+## Stand 0.10 an DH
 
 0.10.0-dev zeichnet mit -PsmokeLivePack=true -PsmokeDistantPack=true die
 originalen Programme dh_terrain und dh_water aus Complementary Reimagined
@@ -8,14 +34,6 @@ r5.9.3 MEDIUM. verify-0.10-dh-client.log belegt GPU-Rücklesen beider
 DH-Tiefenbilder bei 1280×720 und 480×270 sowie die Mischregeln pro Vulkan-Ziel.
 Der sichtbare Übergang von Nah- zu Fernwasser bleibt offen. Details zu
 Mischregeln und Tiefenvertrag stehen in docs/DISTANT_PACK.md.
-
-Nächster Schritt ist echte Himmelsgeometrie. LevelRenderer.renderSky und
-renderEndSky aus NeoForge 1.21.1 liefern die genauen Aufrufstellen. Die vier
-Vertexformate müssen feste Vulkan-Attributorte behalten. RenderStage und
-tatsächliche Farbe und Matrizen des jeweiligen Draws an die Packprogramme
-geben. Die globale Kamerahistorie bleibt getrennt. Danach Entitäten, Wetter,
-Partikel, Hand, Dimensionswechsel und Shader-Auswahl bearbeiten. Die
-nachfolgenden Grenzen aus 0.9 sind Historie.
 
 NativeDistantTerrain sammelt die bestehenden DH-3.3.3-Vulkan-Puffer ohne
 neuen Upload. Opak zeichnet vor dem Minecraft-Terrain. Frühe Wasserbefehle

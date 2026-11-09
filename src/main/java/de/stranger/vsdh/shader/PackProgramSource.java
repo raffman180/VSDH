@@ -32,6 +32,11 @@ public final class PackProgramSource {
     }
 
     private static Prepared prepare(OpenedPack pack, String path, VertexInputs inputs, dev.vitrail.pack.model.AlphaTest alpha) throws IOException {
+        return prepare(pack, path, inputs, inputs.elements(), alpha);
+    }
+
+    static Prepared prepare(OpenedPack pack, String path, VertexInputs inputs, java.util.List<String> elements,
+                            dev.vitrail.pack.model.AlphaTest alpha) throws IOException {
         var expander = new IncludeExpander(pack.source(), pack.settings());
         var units = new EnumMap<ProgramStage, IncludeExpander.ExpandedUnit>(ProgramStage.class);
         for (ProgramStage stage : ProgramStage.values()) {
@@ -41,7 +46,7 @@ public final class PackProgramSource {
         if (!units.containsKey(ProgramStage.VERTEX) || !units.containsKey(ProgramStage.FRAGMENT))
             throw new IOException("Incomplete shader program: " + path);
         String bare = path.substring(path.lastIndexOf('/') + 1);
-        var translated = ProgramTranslator.translate(units, inputs, alpha, bare);
+        var translated = ProgramTranslator.translate(units, inputs, elements, alpha, bare);
         return new Prepared(path, translated, VulkanProgramCompiler.compile(path, translated));
     }
 }

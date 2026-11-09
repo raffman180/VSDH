@@ -1,6 +1,7 @@
 package de.stranger.vsdh.smoke;
 
 import de.stranger.vsdh.shader.WorldShaderSession;
+import dev.vitrail.pack.model.RenderStage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.vulkanmod.vulkan.Renderer;
@@ -13,12 +14,21 @@ import java.util.Set;
 /** Checks live pack execution and output. Does not certify all pack features or DH shader support. */
 final class RealPackWorldProbe {
     private static final Set<Integer> completed=new HashSet<>();
-    static void requireComplete(){if(!completed.equals(Set.of(100,50)))throw new AssertionError("Incomplete real-pack world checks: "+completed);}
+    static void requireComplete(){
+        if(!completed.equals(Set.of(100,50)))throw new AssertionError("Incomplete real-pack world checks: "+completed);
+        var session=WorldShaderSession.current();
+        if(session.skyDraws(RenderStage.STARS)==0)throw new AssertionError("Real sky program never drew stars");
+        LoggerFactory.getLogger("VSDH-Smoke").info("SKY WORLD NIGHT PASS: starDraws={}",session.skyDraws(RenderStage.STARS));
+    }
     static void verify(WorldShaderSession session,int ticks) {
         int scale=net.vulkanmod.Initializer.CONFIG.renderScale;
         if(session==null||session.chain()==null||ticks<800||completed.contains(scale))return;
         if(session.framesCompleted()<100||session.terrainCalls()==0||session.shadows()==null||session.shadows().drawCommands()==0)
             throw new AssertionError("Real shaderpack did not draw world and shadows");
+        long discs=session.skyDraws(RenderStage.SKY),sun=session.skyDraws(RenderStage.SUN),moon=session.skyDraws(RenderStage.MOON);
+        if(discs==0||sun==0||moon==0)throw new AssertionError("Incomplete real sky draws: "+discs+"/"+sun+"/"+moon);
+        LoggerFactory.getLogger("VSDH-Smoke").info("SKY WORLD DRAW PASS: disc={}, sun={}, moon={}, scale={}",discs,sun,moon,scale);
+        NearWorldDepthProbe.verify(session);
         var output=session.presentationImage();
         var bytes=MemoryUtil.memAlloc(output.width*output.height*output.formatSize);
         try(var scope=Renderer.getInstance().temporaryRenderTarget()) {
@@ -43,7 +53,7 @@ final class RealPackWorldProbe {
             var ray=new org.joml.Vector4f(0,.6f,0,1).mul(new org.joml.Matrix4f().set(p));ray.div(ray.w);ray.mul(new org.joml.Matrix4f().set(v));
             LoggerFactory.getLogger("VSDH-Smoke").info("REAL PACK COORDINATES: cloudHeight={}, cameraY={}, bottomWorldRay={}, inverseProjectionY={}, inverseViewY={}",
                     data.getFloat(layout.member("cloudHeight").offset()),data.getFloat(layout.member("cameraPosition").offset()+4),ray,p[5],v[5]);
-            LoggerFactory.getLogger("VSDH-Smoke").info("COMPLEMENTARY WORLD EXECUTION PASS: frames={}, terrainCalls={}, shadowDraws={}, distinctColors={}, nonblackPixels={}, size={}x{}, scale={}; dedicated sky/entity/hand/DH programs remain incomplete",
+            LoggerFactory.getLogger("VSDH-Smoke").info("COMPLEMENTARY WORLD EXECUTION PASS: frames={}, terrainCalls={}, shadowDraws={}, distinctColors={}, nonblackPixels={}, size={}x{}, scale={}; entity/hand and water transition remain incomplete",
                     session.framesCompleted(),session.terrainCalls(),session.shadows().drawCommands(),colors.size(),nonblack,output.width,output.height,scale);
             var mc=Minecraft.getInstance();Screenshot.grab(mc.gameDirectory,"vsdh-complementary-world-scale-"+scale+".png",mc.getMainRenderTarget(),message->LoggerFactory.getLogger("VSDH-Smoke").info("Real-pack screenshot: {}",message.getString()));
         } finally {MemoryUtil.memFree(bytes);}

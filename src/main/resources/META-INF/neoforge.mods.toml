@@ -10,7 +10,8 @@ authors="Stranger; Braffolk and upstream contributors (rendering)"
 description='''
 Experimental native Vulkan rendering bridge for Distant Horizons and VulkanMod Reforged.
 Development target: Minecraft 1.21.1, NeoForge 21.1.264, DH 3.3.3.
-Iris, Sodium and Complementary shaderpack support is not implemented in this milestone.
+Experimental shaderpack tests cover Complementary Reimagined with the native renderer.
+Shader selection and full world coverage are in development.
 '''
 
 [[dependencies.vsdh]]

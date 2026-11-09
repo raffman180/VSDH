@@ -70,6 +70,10 @@ public final class SmokeScene {
             if(worldNumber == 1) mc.getConnection().sendCommand("item replace entity @s weapon.offhand with minecraft:end_rod");
         }
         if (worldNumber == 1) {
+            if (!Boolean.getBoolean("vsdh.smoke.livePack")) {
+                if (ticks == 350) mc.getConnection().sendCommand("tp @s 0 100 0 45 -85");
+                if (ticks == 400) mc.getConnection().sendCommand("tp @s 0 100 0 45 35");
+            }
             if (ticks == 500) {
                 // Only this freshly created QA world is changed. Deterministic water, negative coordinates.
                 mc.getConnection().sendCommand("fill -6 56 -10 -1 64 -5 minecraft:water");
@@ -112,7 +116,14 @@ public final class SmokeScene {
         }
         if (ticks == 850) mc.getWindow().setWindowed(960, 540);
         if (ticks == 865 && worldNumber == 1) WorldHostCheck.scaleDown();
+        if (worldNumber == 1 && Boolean.getBoolean("vsdh.smoke.livePack")) {
+            if (ticks == 875) mc.getConnection().sendCommand("tp @s 0 100 0 45 -30");
+            if (ticks == 890) Screenshot.grab(mc.gameDirectory, "vsdh-complementary-sky.png", mc.getMainRenderTarget(),
+                    component -> LOGGER.info("Pack sky screenshot: {}", component.getString()));
+        }
         if (ticks == 900) {
+            if (worldNumber == 1 && Boolean.getBoolean("vsdh.smoke.livePack"))
+                mc.getConnection().sendCommand("tp @s 0 100 0 45 35");
             mc.getConnection().sendCommand("time set midnight");
             mc.getConnection().sendCommand("weather rain");
         }

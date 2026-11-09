@@ -44,7 +44,8 @@ public abstract class NativeGraphicsProgram implements AutoCloseable {
 
     protected NativeGraphicsProgram(String name, TranslatedProgram translated, VulkanProgramCompiler.Compiled compiled, VertexFormat format) {
         RenderSystem.assertOnRenderThread();
-        if ((translated.inputs() != VertexInputs.FULLSCREEN && !translated.inputs().vulkanTerrain() && translated.inputs() != VertexInputs.DISTANT) || compiled.stages().size() != 2
+        if ((translated.inputs() != VertexInputs.FULLSCREEN && !translated.inputs().vulkanTerrain() && translated.inputs() != VertexInputs.DISTANT
+                && translated.inputs() != VertexInputs.SKY) || compiled.stages().size() != 2
                 || !compiled.stages().containsKey(ProgramStage.VERTEX) || !compiled.stages().containsKey(ProgramStage.FRAGMENT))
             throw new IllegalArgumentException("Native graphics program requires a supported input format and exactly vertex and fragment stages");
         var active = new HashSet<Integer>();

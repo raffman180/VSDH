@@ -12,6 +12,8 @@ import java.util.Set;
 
 /** One actual world/camera snapshot per frame. Unknown values are rejected before activation. */
 public final class WorldUniforms implements ExpressionFrame {
+    private enum DrawSpace { WORLD, FULLSCREEN, SHADOW, DISTANT, SKY }
+
     private static final Set<String> KNOWN=Set.of("of_ModelViewMatrix","of_ProjectionMatrix","of_ModelViewProjectionMatrix",
             "of_NormalMatrix","of_TextureMatrix","of_DepthConv","gbufferModelView","gbufferModelViewInverse",
             "gbufferProjection","gbufferProjectionInverse","gbufferPreviousModelView","gbufferPreviousProjection",
@@ -37,6 +39,9 @@ public final class WorldUniforms implements ExpressionFrame {
     private final float[] scalar=new float[1]; private final int[] integer=new int[1];
     private final Matrix4f scratch=new Matrix4f(); private final Matrix3f normalScratch=new Matrix3f();
     private final Matrix4f legacyCameraProjection=new Matrix4f();
+    private final Matrix4f skyDrawProjection=new Matrix4f();
+    private final float[] skyView=new float[16],skyProjection=new float[16],skyMvp=new float[16],
+            skyNormal=new float[9],skyColorModulator=new float[4];
     private final BuiltinWorldValues builtins=new BuiltinWorldValues();
     public final ShadowCamera shadowCamera=new ShadowCamera();
     private final float[] shadowView=new float[16],shadowProjection=new float[16],shadowInverseView=new float[16],shadowInverseProjection=new float[16],shadowMvp=new float[16],shadowNormal=new float[9];
@@ -69,6 +74,7 @@ public final class WorldUniforms implements ExpressionFrame {
         var missing=new java.util.TreeSet<>(active);missing.removeIf(WorldUniforms::known);missing.removeAll(customNames);
         // Entity zero is the explicit no-entity draw context for chunk/shadow terrain, not a world default.
         if(program.translated().inputs().vulkanTerrain())missing.remove("entityId");
+        if(program.translated().inputs()==dev.vitrail.glsl.VertexInputs.SKY)missing.remove("of_PassColour");
         return Set.copyOf(missing);
     }
     public static Set<String> missing(PackProgramSource.Prepared program,WorldPackPlan plan) {
@@ -84,6 +90,7 @@ public final class WorldUniforms implements ExpressionFrame {
         if(plan.distant()!=null) {
             plan.distant().programs().forEach(p->missing.addAll(missing(p,plan)));
         }
+        plan.skyPrograms().programs().values().forEach(p->missing.addAll(missing(p,plan)));
         if (!missing.isEmpty()) throw new IllegalArgumentException("World uniforms not implemented: "+missing);
     }
     public void capture(Camera camera, Matrix4f view, Matrix4f renderedProjection, float partialTick, int width, int height) {
@@ -128,11 +135,11 @@ public final class WorldUniforms implements ExpressionFrame {
         }
     }
     public void write(NativeGraphicsProgram pass, boolean fullscreen, int renderStage, float alphaRef) {
-        write(pass,fullscreen,false,false,renderStage,alphaRef);
+        write(pass,fullscreen?DrawSpace.FULLSCREEN:DrawSpace.WORLD,renderStage,alphaRef);
     }
-    public void writeShadow(NativeGraphicsProgram pass) {write(pass,false,true,false,0,.1f);}
+    public void writeShadow(NativeGraphicsProgram pass) {write(pass,DrawSpace.SHADOW,0,.1f);}
     public void writeDistant(NativeGraphicsProgram pass, boolean water) {
-        write(pass,false,false,true,water?17:8,0);
+        write(pass,DrawSpace.DISTANT,water?17:8,0);
     }
     public void captureDistant(com.braffolk.dhvulkan.core.data.RenderUniforms frame) {
         copyDistantMatrix(frame.dhProjectionMatrix,distantProjection);
@@ -160,15 +167,42 @@ public final class WorldUniforms implements ExpressionFrame {
         dhDistance=com.braffolk.dhvulkan.core.DhConfigHelper.lodChunkRenderDistanceRadius()*16;
     }
 
-    private void write(NativeGraphicsProgram pass,boolean fullscreen,boolean shadow,boolean distant,int renderStage,float alphaRef) {
+    void writeSky(NativeGraphicsProgram pass,Matrix4f modelView,Matrix4f projection,dev.vitrail.pack.model.RenderStage stage) {
+        ForwardDepthProjection.toLegacy(projection,skyDrawProjection);
+        skyDrawProjection.m01(-skyDrawProjection.m01()).m11(-skyDrawProjection.m11())
+                .m21(-skyDrawProjection.m21()).m31(-skyDrawProjection.m31());
+        modelView.get(skyView);
+        skyDrawProjection.get(skyProjection);
+        scratch.set(skyDrawProjection).mul(modelView).get(skyMvp);
+        modelView.normal(normalScratch).get(skyNormal);
+        var color=net.vulkanmod.vulkan.VRenderSystem.getShaderColor();
+        for(int i=0;i<4;i++)skyColorModulator[i]=color.getFloat(i*4);
+        write(pass,DrawSpace.SKY,stage.ordinal(),0);
+    }
+
+    private void write(NativeGraphicsProgram pass,DrawSpace space,int renderStage,float alphaRef) {
+        float[] drawView=switch(space) {
+            case WORLD->view;case FULLSCREEN->IDENTITY;case SHADOW->shadowView;case DISTANT->dhView;case SKY->skyView;
+        };
+        float[] drawProjection=switch(space) {
+            case WORLD->projection;case FULLSCREEN->QUAD;case SHADOW->shadowProjection;case DISTANT->dhProjection;case SKY->skyProjection;
+        };
+        float[] drawMvp=switch(space) {
+            case WORLD->mvp;case FULLSCREEN->QUAD;case SHADOW->shadowMvp;case DISTANT->dhMvp;case SKY->skyMvp;
+        };
+        float[] drawNormal=switch(space) {
+            case WORLD->normal;case FULLSCREEN->NORMAL_ID;case SHADOW->shadowNormal;case DISTANT->dhNormal;case SKY->skyNormal;
+        };
         var layout=pass.layout(); var buffer=pass.uniforms();
         for (var member:pass.activeUniforms()) {
             if(expressions.write(member,layout,buffer)||packValues.write(member,layout,buffer))continue;
             if(builtins.write(member,layout,buffer))continue;
             String name=member.name(); float[] matrix=switch(name) {
-                case "of_ModelViewMatrix"->fullscreen?IDENTITY:shadow?shadowView:distant?dhView:view;
-                case "of_ProjectionMatrix","of_ModelViewProjectionMatrix"->fullscreen?QUAD:name.equals("of_ProjectionMatrix")?(shadow?shadowProjection:distant?dhProjection:projection):(shadow?shadowMvp:distant?dhMvp:mvp);
-                case "of_NormalMatrix"->fullscreen?NORMAL_ID:shadow?shadowNormal:distant?dhNormal:normal;
+                case "of_ModelViewMatrix"->drawView;
+                case "of_ProjectionMatrix"->drawProjection;
+                case "of_ModelViewProjectionMatrix"->drawMvp;
+                case "of_NormalMatrix"->drawNormal;
+                case "of_PassColour"->skyColorModulator;
                 case "dhProjection"->dhProjection;case "dhProjectionInverse"->dhInverse;case "dhPreviousProjection"->dhPrevious;
                 case "shadowModelView"->shadowView;case "shadowProjection"->shadowProjection;
                 case "shadowModelViewInverse"->shadowInverseView;case "shadowProjectionInverse"->shadowInverseProjection;
@@ -185,7 +219,7 @@ public final class WorldUniforms implements ExpressionFrame {
             }
             if (member.type().equals("int")) {
                 integer[0]=switch(name) {case "worldTime"->worldTime;case "worldDay"->worldDay;case "frameCounter"->frame;case "renderStage"->renderStage;case "dhRenderDistance"->dhDistance;
-                    case "entityId"->{if(fullscreen)throw new IllegalArgumentException("Entity context is unavailable in fullscreen passes");yield 0;}
+                    case "entityId"->{if(space==DrawSpace.FULLSCREEN)throw new IllegalArgumentException("Entity context is unavailable in fullscreen passes");yield 0;}
                     default->throw new IllegalArgumentException("Unknown integer world uniform "+name);};
                 layout.putInts(buffer,name,0,integer); continue;
             }
