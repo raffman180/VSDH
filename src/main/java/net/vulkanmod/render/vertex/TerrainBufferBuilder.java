@@ -1,6 +1,7 @@
 package net.vulkanmod.render.vertex;
 
 import com.mojang.blaze3d.vertex.VertexFormat;
+import de.stranger.vsdh.shader.ShaderTerrainVertex;
 import net.minecraft.world.level.block.state.BlockState;
 import net.vulkanmod.Initializer;
 import net.vulkanmod.render.PipelineManager;
@@ -11,6 +12,7 @@ import org.joml.Vector3f;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
+import java.util.function.ToIntFunction;
 
 public class TerrainBufferBuilder {
     private static final Logger LOGGER = Initializer.LOGGER;
@@ -34,22 +36,31 @@ public class TerrainBufferBuilder {
     private boolean indexOnly;
 
     protected VertexBuilder vertexBuilder;
+    private final ToIntFunction<BlockState> materialIds;
 
     public TerrainBufferBuilder(int size) {
         this(size, PipelineManager.TERRAIN_VERTEX_FORMAT);
     }
 
     public TerrainBufferBuilder(int size, VertexFormat format) {
+        this(size, format, null);
+    }
+
+    public TerrainBufferBuilder(int size, VertexFormat format, ToIntFunction<BlockState> materialIds) {
         if (format != com.mojang.blaze3d.vertex.DefaultVertexFormat.BLOCK
-                && format != CustomVertexFormat.COMPRESSED_TERRAIN) {
+                && format != CustomVertexFormat.COMPRESSED_TERRAIN && format != CustomVertexFormat.SHADER_TERRAIN) {
             throw new IllegalArgumentException("Unsupported terrain vertex format");
         }
         if (size <= 0) {
             throw new IllegalArgumentException("Terrain buffer capacity must be positive");
         }
+        if (format == CustomVertexFormat.SHADER_TERRAIN && materialIds == null)
+            throw new IllegalArgumentException("Shader terrain requires the pack's immutable block material table");
+        this.materialIds = materialIds;
         this.format = format;
-        this.vertexBuilder = format == CustomVertexFormat.COMPRESSED_TERRAIN
-                ? new VertexBuilder.CompressedVertexBuilder() : new VertexBuilder.DefaultVertexBuilder();
+        this.vertexBuilder = format == CustomVertexFormat.SHADER_TERRAIN ? new ShaderTerrainVertex()
+                : format == CustomVertexFormat.COMPRESSED_TERRAIN ? new VertexBuilder.CompressedVertexBuilder()
+                : new VertexBuilder.DefaultVertexBuilder();
         this.bufferPtr = ALLOCATOR.malloc(size);
         if (this.bufferPtr == 0L) {
             throw new OutOfMemoryError("Failed to allocate " + size + " terrain buffer bytes");
@@ -120,6 +131,7 @@ public class TerrainBufferBuilder {
     @Nullable
     public RenderedBuffer end() {
         this.ensureDrawing();
+        if (this.vertexBuilder instanceof ShaderTerrainVertex shader && !this.indexOnly) shader.requireComplete();
         if (this.isCurrentBatchEmpty()) {
             this.reset();
             return null;
@@ -167,6 +179,7 @@ public class TerrainBufferBuilder {
     }
 
     public void reset() {
+        if (this.vertexBuilder instanceof ShaderTerrainVertex shader) shader.reset();
         this.building = false;
         this.vertexCount = 0;
 
@@ -223,6 +236,28 @@ public class TerrainBufferBuilder {
     }
 
     public void setBlockAttributes(BlockState blockState) {
+        if (this.vertexBuilder instanceof ShaderTerrainVertex)
+            throw new IllegalStateException("Shader terrain requires the block position and fluid identity");
+    }
+
+    public void setBlockAttributes(BlockState materialState, boolean fluid, int emission, int x, int y, int z) {
+        if (this.vertexBuilder instanceof ShaderTerrainVertex shader)
+            shader.block(this.materialIds.applyAsInt(materialState), fluid, emission, x, y, z);
+    }
+
+    public boolean shaderAttributes() {
+        return this.vertexBuilder instanceof ShaderTerrainVertex;
+    }
+
+    public void vertex(float x, float y, float z, int color, float u, float v, int light, int packedNormal, int tintAndAo) {
+        vertex(x,y,z,color,u,v,light,packedNormal,tintAndAo,1);
+    }
+
+    public void vertex(float x, float y, float z, int color, float u, float v, int light, int packedNormal, int tintAndAo, float directionalShade) {
+        if (this.vertexBuilder instanceof ShaderTerrainVertex shader) {
+            shader.vertex(this.bufferPtr + this.nextElementByte, x, y, z, color, u, v, light, packedNormal, tintAndAo, directionalShade);
+            this.endVertex();
+        } else vertex(x, y, z, color, u, v, light, packedNormal);
     }
 
     public long getPtr() {

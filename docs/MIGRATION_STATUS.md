@@ -1,4 +1,4 @@
-# VSDH — Prüfstand 0.3.0-dev, 09.11.2026
+# VSDH — Prüfstand 0.4.0-dev, 09.11.2026
 
 ## Stand und Ziel
 
@@ -11,6 +11,27 @@ nicht implementiert.** Iris/Sodium werden nicht gleichzeitig geladen.
 HDR-/Mipmap-Puffer, persistente Frame-Daten, Größenvorprüfung, Tiefensnapshots und
 Stencil-Kopien. Die Basis-Vulkan-/DH-Ausgabe bleibt erhalten. Detaillierter
 Datenfluss und API-Grenzen: `docs/RENDER_GRAPH.md`.
+
+0.4 ergänzt das echte 44-Byte-Terrainformat, BlockState-Materialtabellen und die
+native indizierte Terrainpipeline. Alle vier oldLighting-/separateAo-Kombinationen
+werden mit HDR-Pixelassertionen geprüft. 36 Complementary-Terrain-/Wasser-/Shadow-
+Pipelines werden erstellt; echte Chunk-Erzeugung wird im erweiterten Format und
+nach Rückwechsel im Standardformat ausgeführt. Details: `docs/TERRAIN_FORMAT.md`.
+Die Weltkette mit Packuniforms und Schatten bleibt noch zu verbinden.
+
+Der Weltwechseltest deckte einen statischen Stride in DrawBuffers auf; er ist nun
+an den jeweiligen Bereich gebunden. Falsche Upload-Strides werden früh abgewiesen.
+TaskDispatcher erneuert auch seine synchronen Builder nach Welt-/Ressourcenwechsel.
+Der korrigierte vollständige Lauf `verify-terrain-world-fixed.log` besteht ohne
+ERROR-/FATAL-Zeilen. 23 CPU-Tests bestehen, einschließlich SPIR-V-Attributprüfung.
+
+Die frühere Git-Regel build/ hatte 28 echte Renderer-Quelldateien ausgeschlossen.
+Sie lautet jetzt /build/; diese Dateien werden mitversioniert. Alte vollständige
+source.zip-Archive aus git archive waren dadurch unvollständig. Binär-JAR und
+sources.jar wurden aus dem lokalen SourceSet erzeugt und enthielten die Klassen.
+Der neue Quellstand baut erfolgreich in einem frischen Verzeichnis; Protokoll:
+`verify-0.4-source-uncached.log`: alle Build-Tasks ohne Gradle-Build-Cache erneut
+ausgeführt. Externe Abhängigkeiten waren lokal vorhanden; kein Netz-unabhängigkeitsnachweis.
 
 ## Quellen
 
@@ -33,7 +54,7 @@ und unter `dist/0.2.0-dev` erhalten; Berichte früherer Stände bleiben separat.
 | Prüfung | Ergebnis und Aussagegrenze |
 |---|---|
 | Java-Build | `build` erfolgreich; Renderer-Fork und neue Kette kompiliert |
-| JUnit | 16 Tests, keine Fehler oder übersprungenen Tests |
+| JUnit | 23 Tests, keine Fehler oder übersprungenen Tests |
 | Pack-Compiler | alle 96 Programmpaare in drei Complementary-Dimensionen zu SPIR-V kompiliert |
 | Graph-Vorbereitung | alle drei Dimensionen; echte Reihenfolge, Zielgrößen, Mipmaps und persistente Bilder ermittelt |
 | GPU-Diagnosekette | alle Stufen mit bekanntem Ergebnis; vier aufeinanderfolgende Frames prüfen History-Kopien |
@@ -52,15 +73,17 @@ danach 960×540. Der GPU-Test für die echte Ketten-Konstruktion verwendet klein
 Zielbilder; die 1440p-Speicherzahl ist eine Berechnung, keine gemessene VRAM-Nutzung.
 Kein kontrollierter FPS-Vergleich.
 
-Letzter vollständiger Lauf: `verify-0.3-client-fixed.log`, BUILD SUCCESSFUL,
-je vier bestandene Gruppen für MRT, Diagnosepack, Kette, Complementary-FINAL und
-Complementary-Kettenaufbau. Keine ERROR-/FATAL-Zeilen. Die normale Clientausgabe
+Letzter vollständiger Lauf: `verify-0.4-final-client.log`, BUILD SUCCESSFUL,
+je vier bestandene Gruppen für MRT, Diagnosepack, Kette, Complementary-FINAL,
+Complementary-Kettenaufbau und Terrain. Zusätzlich zwei REAL-TERRAIN-Prüfungen
+mit 1.081.344 Byte bei Stride 44 und 492.800 Byte bei Stride 20. Keine ERROR-/FATAL-Zeilen. Die normale Clientausgabe
 wird durch native Pixelassertionen ergänzt; dies ist keine vollständige
 Complementary-Sichtprüfung. Die installierbare JAR wurde strukturell geprüft,
 aber nicht separat in einem normalen Launcher gestartet.
 
 Weitere Protokolle: `verify-0.3-audit.log`, `test-chain.log`.
-Maschinenlesbare Ergebnisse: `docs/verification/0.3.0-dev.json`.
+Maschinenlesbare Ergebnisse: `docs/verification/0.4.0-dev.json`; historische
+0.3-Ergebnisse bleiben erhalten.
 
 ## Entdeckte Fehler und Nachprüfung
 
@@ -80,8 +103,9 @@ DH-Abschaltpfade.
 
 ## Noch offen
 
-Die echte Weltgeometrie muss an die Kette angebunden werden: Block-/Material-IDs,
-Normalen/Tangenten, Welt-/Kamera-Uniforms und Schattengeometrie zuerst. Danach
+Die echte Weltgeometrie muss an die Kette angebunden werden: Material-/Normaldaten
+und native Terrainprogramme sind vorbereitet und getrennt geprüft; Welt-/Kamera-
+Uniforms und Schattengeometrie fehlen weiterhin. Danach
 Himmel, Entitäten, Hand, Transparenz und shaderseitiges DH-Terrain/-Wasser.
 Paket-/Profilwahl und kontrollierter Wechsel gehören ebenfalls noch dazu.
 

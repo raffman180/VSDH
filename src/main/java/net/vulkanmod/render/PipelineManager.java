@@ -11,6 +11,11 @@ import net.vulkanmod.vulkan.shader.Pipeline;
 import net.vulkanmod.vulkan.shader.SPIRVUtils;
 
 import java.util.function.Function;
+import java.util.function.ToIntFunction;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.systems.RenderSystem;
+import net.vulkanmod.render.vertex.TerrainBufferBuilder;
 
 import static net.vulkanmod.vulkan.shader.SPIRVUtils.compileShaderAbsoluteFile;
 
@@ -36,6 +41,35 @@ public abstract class PipelineManager {
 
     public static void setDefaultShader() {
         setShaderGetter(renderType -> terrainShader);
+    }
+
+    /** Install before loading a world, so no mesh or worker retains the previous stride/material table. */
+    public static void configureShaderTerrain(ToIntFunction<BlockState> materials) {
+        java.util.Objects.requireNonNull(materials, "Shader material snapshot");
+        configureTerrain(CustomVertexFormat.SHADER_TERRAIN, renderType -> new TerrainBufferBuilder(
+                TerrainRenderType.getRenderType(renderType).bufferSize(), CustomVertexFormat.SHADER_TERRAIN, materials));
+    }
+
+    public static void restoreDefaultTerrain() {
+        configureTerrain(CustomVertexFormat.COMPRESSED_TERRAIN, renderType -> new TerrainBufferBuilder(
+                TerrainRenderType.getRenderType(renderType).bufferSize(), CustomVertexFormat.COMPRESSED_TERRAIN));
+    }
+
+    private static void configureTerrain(VertexFormat format, Function<TerrainRenderType, TerrainBufferBuilder> builders) {
+        RenderSystem.assertOnRenderThread();
+        if (Minecraft.getInstance().level != null)
+            throw new IllegalStateException("Unload the world before replacing the terrain vertex contract");
+        GraphicsPipeline early = createPipeline("terrain", "terrain", "terrain_z", format);
+        GraphicsPipeline color;
+        try { color = createPipeline("terrain", "terrain", "terrain", format); }
+        catch (Throwable failure) { early.scheduleCleanUp(); throw failure; }
+        terrainShaderEarlyZ.scheduleCleanUp();
+        terrainShader.scheduleCleanUp();
+        terrainShaderEarlyZ = early;
+        terrainShader = color;
+        setTerrainVertexFormat(format);
+        ThreadBuilderPack.setTerrainBuilderConstructor(builders);
+        setDefaultShader();
     }
 
     private static void createBasicPipelines() {

@@ -23,7 +23,8 @@ import java.util.Map;
 import static org.lwjgl.vulkan.VK10.*;
 
 public class DrawBuffers {
-    private static final int VERTEX_SIZE = PipelineManager.TERRAIN_VERTEX_FORMAT.getVertexSize();
+    private final int vertexSize;
+    private final float positionOffset;
     private static final int INDEX_SIZE = Short.BYTES;
     private static final int SOLID_VERTEX_BUFFER_BYTES = 2_097_152;
     private static final int CUTOUT_VERTEX_BUFFER_BYTES = 2_097_152;
@@ -38,6 +39,8 @@ public class DrawBuffers {
     private final EnumMap<TerrainRenderType, AreaBuffer> vertexBuffers = new EnumMap<>(TerrainRenderType.class);
 
     public DrawBuffers(int index, Vector3i origin, int minHeight) {
+        this.vertexSize = PipelineManager.TERRAIN_VERTEX_FORMAT.getVertexSize();
+        this.positionOffset = CustomVertexFormat.compressedPosition(PipelineManager.TERRAIN_VERTEX_FORMAT) ? 4.0f : 0.0f;
         this.index = index;
         this.origin = origin;
         this.minHeight = minHeight;
@@ -45,6 +48,8 @@ public class DrawBuffers {
 
     public PendingUpload stageUpload(RenderSection section, UploadBuffer buffer,
                                      TerrainRenderType renderType, boolean fullReplacement) {
+        if (buffer.vertexSize != this.vertexSize)
+            throw new IllegalArgumentException("Terrain upload format changed: mesh=" + buffer.vertexSize + ", area=" + this.vertexSize);
         DrawParameters current = section.getDrawParameters(renderType);
         DrawParameters staged = new DrawParameters();
         if (!fullReplacement) {
@@ -59,7 +64,7 @@ public class DrawBuffers {
             if (!buffer.indexOnly) {
                 AreaBuffer.Segment segment = this.getAreaBufferOrAlloc(renderType)
                         .upload(buffer.getVertexBuffer(), -1, staged);
-                vertexOffset = segment.offset / VERTEX_SIZE;
+                vertexOffset = segment.offset / this.vertexSize;
                 staged.vertexOffset = vertexOffset;
                 pending.uploadedVertex = true;
 
@@ -163,12 +168,16 @@ public class DrawBuffers {
         return this.vertexBuffers.computeIfAbsent(
                 renderType, renderType1 -> {
                     net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordAreaBufferCreated();
-                    return new AreaBuffer(AreaBuffer.Usage.VERTEX, initialVertexBufferElementCount(renderType), VERTEX_SIZE);
+                    return new AreaBuffer(AreaBuffer.Usage.VERTEX, initialVertexBufferElementCount(renderType, this.vertexSize), this.vertexSize);
                 });
     }
 
     static int initialVertexBufferElementCount(TerrainRenderType renderType) {
-        return Math.max(1, (initialVertexBufferBytes(renderType) + VERTEX_SIZE - 1) / VERTEX_SIZE);
+        return initialVertexBufferElementCount(renderType, PipelineManager.TERRAIN_VERTEX_FORMAT.getVertexSize());
+    }
+
+    private static int initialVertexBufferElementCount(TerrainRenderType renderType, int vertexSize) {
+        return Math.max(1, (initialVertexBufferBytes(renderType) + vertexSize - 1) / vertexSize);
     }
 
     private static int initialVertexBufferBytes(TerrainRenderType renderType) {
@@ -184,6 +193,8 @@ public class DrawBuffers {
         return this.vertexBuffers.get(r);
     }
 
+    public int getVertexSize() { return this.vertexSize; }
+
     private boolean hasRenderType(TerrainRenderType r) {
         return this.vertexBuffers.containsKey(r);
     }
@@ -195,12 +206,14 @@ public class DrawBuffers {
         return yOffset1 << 16 | zOffset1 << 8 | xOffset1;
     }
 
-    public static final float POS_OFFSET = PipelineManager.TERRAIN_VERTEX_FORMAT == CustomVertexFormat.COMPRESSED_TERRAIN ? 4.0f : 0.0f;
+    /** @deprecated A legacy snapshot; internal draws use their area's format snapshot. */
+    @Deprecated
+    public static final float POS_OFFSET = CustomVertexFormat.compressedPosition(PipelineManager.TERRAIN_VERTEX_FORMAT) ? 4.0f : 0.0f;
 
     private void updateChunkAreaOrigin(VkCommandBuffer commandBuffer, Pipeline pipeline, double camX, double camY, double camZ, MemoryStack stack) {
-        float xOffset = (float) ((this.origin.x) + POS_OFFSET - camX);
-        float yOffset = (float) ((this.origin.y) + POS_OFFSET - camY);
-        float zOffset = (float) ((this.origin.z) + POS_OFFSET - camZ);
+        float xOffset = (float) ((this.origin.x) + positionOffset - camX);
+        float yOffset = (float) ((this.origin.y) + positionOffset - camY);
+        float zOffset = (float) ((this.origin.z) + positionOffset - camZ);
 
         ByteBuffer byteBuffer = stack.malloc(12);
 

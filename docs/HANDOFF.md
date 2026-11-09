@@ -6,6 +6,51 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
+## Aktuell 0.4 — Terrain
+
+ShaderTerrainVertex/CustomVertexFormat.SHADER_TERRAIN: 44 Byte, echte Normalen und
+Tangenten aus Quad-Ecken/UVs, 32-Bit-Packmaterial, Fluidkennung, Mittelpunkte,
+Emission und zwei Farben mit getrennten AO-/Flächenschattierungsdaten. Nicht die
+Sodium-Dekodierung verwenden. dev.vitrail.glsl.VulkanTerrainVertex hat explizite
+Locations; alle vier oldLighting/separateAo-Regeln sind implementiert/geprüft.
+PackProgramSource.prepareTerrain liest die tatsächlichen Pack-Einstellungen.
+ShaderBlockMaterials erzeugt eine unveränderliche Registry-/Tag-Tabelle.
+
+NativeGraphicsProgram teilt Descriptor-/UBO-Eigentum; NativeFullscreenPass behält
+seine API, NativeTerrainPass zeichnet opak indiziert mit 12-Byte-Chunk-Push-Constant.
+TerrainBufferBuilder und echte Block-/Fluid-Bauer schreiben das Format. Der
+Standardmodus bleibt 20 Byte; keine Shaderauswahl aktivieren oder behaupten.
+PipelineManager.configureShaderTerrain(snapshot)/restoreDefaultTerrain verlangen
+eine entladene Welt. Smoke nutzt 44 Byte in Welt 1 und 20 in Welt 2.
+
+Neue Fehlerbefunde und Korrekturen:
+- DrawBuffers' statischer Stride verursachte im Rückwechsel fehlende Segmente.
+  Nun Stride/Bias je Bereich, UploadBuffer trägt den Stride, AreaBuffer prüft
+  Ausrichtung immer. verify-terrain-world-client.log ist der Fehlerlauf;
+  verify-terrain-world-fixed.log besteht vollständig ohne ERROR/FATAL.
+- TaskDispatcher.fixedBuffers wurde beim Stop geschlossen, aber wiederverwendet.
+  Nun werden synchroner Pack und Worker bei createThreads neu erzeugt.
+- .gitignore build/ schloss 28 echte Renderer-Quelldateien aus. /build/ korrigiert,
+  alle 28 Dateien mitversionieren! Alte source.zip-Archive waren unvollständig;
+  neue Quelle baut separat erfolgreich: verify-0.4-source-uncached.log, alle Tasks
+  ohne Gradle-Build-Cache ausgeführt. build/source-probe.json enthält Input-Hashes.
+
+23 Tests bestehen. Letzter vollständiger Lauf: verify-0.4-final-client.log, ohne
+ERROR/FATAL, vier bestandene Gruppen und zwei REAL-TERRAIN-Stridenachweise.
+Große Integer-Material-IDs dürfen nicht über float zurück nach int laufen. Die
+GPU-Prüfung kontrolliert deshalb das untere Byte von 33554559. TerrainGpuCheck liest alle Pixel aus vier HDR-Zielen unter
+vier Lichtregeln zurück, prüft reale Registry-Mappings und erstellt 36 tatsächliche
+Complementary-Terrain/Wasser/Shadow-Pipelines. Reale Chunks laufen zum Layouttest
+durch die normale Terrainpipeline: weiterhin KEINE vollständige Complementary-
+Weltgrafik. Details: docs/TERRAIN_FORMAT.md.
+
+Nächster funktionaler Schritt: native Terrainprogramme an WorldRenderer.renderSectionLayer
+und NativeShaderChain anbinden, tatsächliche Kamera-/Welt-/Texturuniforms und
+Schattenkamera/-geometrie liefern. Danach übrige Geometriefamilien und DH-Packausgabe,
+bevor Shader-Auswahl/Hotreload freigegeben werden. Originalzip niemals beilegen.
+
+Die folgenden Abschnitte dokumentieren die älteren Schritte 0.2/0.3.
+
 Baseline `6699fe6` und `dist/0.1`-Artefakte erhalten. Renderer-Import: `783f068`.
 Pin und Credits: `AGENTS.md`, `NOTICE`, `docs/upstream`.
 

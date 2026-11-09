@@ -1,0 +1,128 @@
+{
+  "version": "0.4.0-dev",
+  "date": "2026-11-09",
+  "minecraft": "1.21.1",
+  "neoforge": "21.1.264",
+  "java": 21,
+  "dh": "3.3.3",
+  "gpu": "NVIDIA RTX 4070",
+  "os": "Windows",
+  "goalComplete": false,
+  "fullShaderPackWorldRendering": false,
+  "testSuites": [
+    {
+      "name": "com.braffolk.dhvulkan.api.DhRegistrationTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.braffolk.dhvulkan.core.data.VkVertexDataTest",
+      "tests": "4",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.compat.ExecutorShutdownTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.compat.SqliteRegenCancellationTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.shader.BlockIdsTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.shader.ShaderChainPlanTest",
+      "tests": "4",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.shader.ShaderTerrainVertexTest",
+      "tests": "4",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.shader.Std140LayoutTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.shader.VulkanTerrainTranslationTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    }
+  ],
+  "build": {
+    "mainLog": "verify-0.4-build.log",
+    "freshSourceLog": "verify-0.4-source-uncached.log",
+    "allTasksRerunWithoutGradleBuildCache": true,
+    "freshBuildIdenticalJarEntryContents": true,
+    "mainSourceFiles": 631,
+    "allMainSourcesInSourcesJar": true,
+    "mainJarSha256": "1098f55b6574bfe23a080bf06b69a86893d14d880f7f241bd9c0a87236bd5f15"
+  },
+  "game": {
+    "log": "verify-0.4-final-client.log",
+    "isolatedWorlds": 2,
+    "resize": true,
+    "nightRain": true,
+    "errorFatalLines": 0,
+    "gpuChecks": {
+      "MRT GPU PASS:": 4,
+      "PACK GPU PASS:": 4,
+      "CHAIN GPU PASS:": 4,
+      "COMPLEMENTARY FINAL GPU PASS:": 4,
+      "COMPLEMENTARY CHAIN PREPARE PASS:": 4,
+      "TERRAIN GPU PASS:": 4
+    },
+    "realTerrainUploads": [
+      {
+        "world": 1,
+        "stride": 44,
+        "uploadedBytes": 1081344
+      },
+      {
+        "world": 2,
+        "stride": 20,
+        "uploadedBytes": 492800
+      }
+    ],
+    "integerMaterialLowByteTest": 33554559,
+    "complementaryTerrainPipelines": 36,
+    "screenshotsInspected": [
+      "world-1 day",
+      "world-2 resized night/rain"
+    ]
+  },
+  "limits": [
+    "World camera/uniform/shadow/other-geometry and shader DH integration remain unfinished",
+    "No full shaderpack selection or universal shader/DH version support",
+    "Development client tested; packaged JAR not separately launched in normal launcher",
+    "No controlled FPS benchmark",
+    "44-byte shader mesh vs 20-byte default; no complete VRAM measurement",
+    "Visible blocky water/LOD transitions remain; the complete shared shader renderer is unfinished"
+  ],
+  "sourcePackagingFix": "Anchored /build/ ignore restores 28 required renderer source files; old git-archive source ZIPs were incomplete"
+}

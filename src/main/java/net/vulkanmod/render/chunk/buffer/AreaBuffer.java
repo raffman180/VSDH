@@ -53,8 +53,8 @@ public class AreaBuffer {
 
         int size = byteBuffer.remaining();
 
-        if (DEBUG && size % elementSize != 0)
-            throw new RuntimeException("Unaligned buffer");
+        if (size % elementSize != 0)
+            throw new IllegalArgumentException("Unaligned area-buffer upload: " + size + " bytes for " + elementSize + "-byte elements");
 
         Segment segment = findSegment(size);
 

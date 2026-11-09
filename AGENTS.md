@@ -29,3 +29,11 @@ NativeWorldDepth. Synthetic stage/history/mip/depth/stencil GPU checks pass;
 all 9 Complementary fullscreen Vk pipelines are prewarmed. Full world geometry,
 material/uniform/shadow/DH integration is still missing. Read docs/RENDER_GRAPH.md
 and docs/verification/0.3.0-dev.json; do not call the synthetic inputs a world shader.
+
+0.4 adds the 44-byte native terrain format, immutable material tables and native
+indexed terrain draws. Four lighting contracts and 36 real Complementary terrain/
+water/shadow pipelines are checked; the complete world chain still lacks runtime
+uniforms, shadows and other geometry/DH integration. Read docs/TERRAIN_FORMAT.md.
+Keep /build/ anchored in .gitignore: render/chunk/build contains required source.
+DrawBuffers stride and bias belong to each area's immutable format snapshot;
+never restore the old static stride. Recreate synchronous builders with workers.

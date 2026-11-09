@@ -15,6 +15,14 @@ public final class PackProgramSource {
     public record Prepared(String path, ProgramTranslator.TranslatedProgram translated,
                            VulkanProgramCompiler.Compiled compiled) {}
 
+    public static Prepared prepareTerrain(OpenedPack pack, String path) throws IOException {
+        var defines = pack.settings().globalDefines(pack.options());
+        boolean separateAo = pack.properties().separateAo(defines), oldLighting = pack.properties().oldLighting(defines);
+        var inputs = oldLighting ? (separateAo ? VertexInputs.VULKAN_TERRAIN_OLD_LIGHTING_SEPARATE_AO : VertexInputs.VULKAN_TERRAIN_OLD_LIGHTING)
+                : separateAo ? VertexInputs.VULKAN_TERRAIN_SEPARATE_AO : VertexInputs.VULKAN_TERRAIN;
+        return prepare(pack, path, inputs);
+    }
+
     public static Prepared prepare(OpenedPack pack, String path, VertexInputs inputs) throws IOException {
         var expander = new IncludeExpander(pack.source(), pack.settings());
         var units = new EnumMap<ProgramStage, IncludeExpander.ExpandedUnit>(ProgramStage.class);

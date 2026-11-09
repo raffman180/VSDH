@@ -36,10 +36,11 @@ public final class SmokeScene {
     public static void render(RenderLevelStageEvent event) {
         if (!Boolean.getBoolean("vsdh.smoke") || event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) return;
         int check = (worldNumber - 1) * 2 + (ticks >= 950 ? 2 : 1);
-        if (ticks >= 100 && check > gpuChecks && NativePassGpuCheck.ready() && ChainGpuCheck.ready()) {
+        if (ticks >= 100 && check > gpuChecks && NativePassGpuCheck.ready() && ChainGpuCheck.ready() && TerrainGpuCheck.ready()) {
             MrtGpuCheck.run();
             NativePassGpuCheck.run();
             ChainGpuCheck.run();
+            TerrainGpuCheck.run();
             gpuChecks = check;
             gpuGroupsCompleted++;
         }
@@ -50,8 +51,11 @@ public final class SmokeScene {
         if (!Boolean.getBoolean("vsdh.smoke")) return;
         NativePassGpuCheck.prepare();
         ChainGpuCheck.prepare();
+        TerrainGpuCheck.prepare();
         Minecraft mc = Minecraft.getInstance();
         if (!started && (mc.screen instanceof TitleScreen || mc.screen instanceof AccessibilityOnboardingScreen)) {
+            if (!TerrainGpuCheck.ready()) return;
+            net.vulkanmod.render.PipelineManager.configureShaderTerrain(TerrainGpuCheck.materials());
             startWorld(mc);
         }
         if (mc.level == null || mc.player == null) return;
@@ -63,6 +67,24 @@ public final class SmokeScene {
             mc.getConnection().sendCommand("weather clear");
         }
         if (ticks == 800) {
+            var renderer = net.vulkanmod.render.chunk.WorldRenderer.getInstance();
+            var areas = renderer.getChunkAreaManager();
+            int expectedStride = worldNumber == 1 ? 44 : 20;
+            long uploadedBytes = 0;
+            for (int i = 0; i < areas.size; i++) {
+                var buffers = areas.getChunkArea(i).getDrawBuffers();
+                if (buffers.getVertexSize() != expectedStride)
+                    throw new AssertionError("World " + worldNumber + " retained the previous terrain format");
+                for (var buffer : buffers.getVertexBuffers().values()) {
+                    if (buffer.getUsed() % expectedStride != 0) throw new AssertionError("Unaligned real world terrain");
+                    uploadedBytes += buffer.getUsed();
+                }
+            }
+            if (uploadedBytes == 0) throw new AssertionError("No actual chunk vertices uploaded");
+            var fixed = renderer.getTaskDispatcher().fixedBuffers.builder(net.vulkanmod.render.vertex.TerrainRenderType.SOLID);
+            if (fixed == null || fixed.shaderAttributes() != (worldNumber == 1))
+                throw new AssertionError("Synchronous builder did not switch with worker builders");
+            LOGGER.info("REAL TERRAIN WORLD PASS: world={} stride={} uploadedBytes={}", worldNumber, expectedStride, uploadedBytes);
             long draws = ((VulkanRenderEngine) ApiDhIntegration.getInstance().getBackend()).getTotalTerrainDrawCalls();
             LOGGER.info("Smoke world {}: {} terrain draw commands recorded", worldNumber, draws);
             if (draws <= drawsBeforeReload) throw new IllegalStateException("Smoke scene recorded no new DH draws");
@@ -85,6 +107,7 @@ public final class SmokeScene {
             // server to stop before Minecraft waits for its shutdown.
             mc.level.disconnect();
             mc.disconnect(new TitleScreen());
+            net.vulkanmod.render.PipelineManager.restoreDefaultTerrain();
             ticks = 0;
             startWorld(mc);
             return;

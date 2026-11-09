@@ -71,3 +71,21 @@ Transparenz und danach bleiben in den korrekten Snapshots erhalten.
 Parsec wurde auf ausdrücklichen Nutzerwunsch gestartet; Prozess und Fenstername
 Parsec wurden beobachtet. Es wurde keine Remote-Verbindung oder Kontoeinstellung
 bedient. Kein direkter Eingriff in andere Anwendungen während der Spieltests.
+
+
+## 2026-11-09 — Native Terrain-Anbindung 0.4
+
+44-Byte-Shaderformat mit Quadnormalen, Tangenten, Block-/Fluidmaterialien,
+Mittelpunkten, Emission und getrennter AO/Flächenschattierung. Native indizierte
+Terrainprogramme und gemeinsame Descriptor-/UBO-Verwaltung; keine vollständige
+Complementary-Weltgrafik. Materialtabellen sind unveränderliche Registry-Snapshots.
+
+Behoben: statischer DrawBuffers-Stride beim Formatwechsel, Wiederverwendung
+bereits geschlossener synchroner Builder, Präzisionsverlust bei Integer-Material-IDs.
+Git-Ausschluss /build/ verankert, 28 zuvor nicht versionierte Renderer-Quelldateien
+aufgenommen. Ältere git-archive-Quellpakete waren unvollständig.
+
+23 CPU-Tests, MRT-Pixelprüfungen unter vier Lichtregeln und 36 vorab erstellte
+Complementary-Terrain/Wasser/Shadow-Pipelines. Zwei reale Testwelten belegen
+44-/20-Byte-Uploads, Resize, Nacht/Regen und DH-Neuanlage ohne ERROR/FATAL.
+Details und verbleibende Gesamtaufgabe: docs/TERRAIN_FORMAT.md und HANDOFF.md.

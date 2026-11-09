@@ -45,6 +45,12 @@ public enum VertexInputs {
 	 */
 	TERRAIN_SEPARATE_AO,
 
+	/** Native VSDH/Reforged 44-byte terrain, not a Sodium vertex buffer. */
+	VULKAN_TERRAIN,
+	VULKAN_TERRAIN_SEPARATE_AO,
+	VULKAN_TERRAIN_OLD_LIGHTING,
+	VULKAN_TERRAIN_OLD_LIGHTING_SEPARATE_AO,
+
 	/**
 	 * The entity mesh: the six elements of {@code DefaultVertexFormat.ENTITY} and the one this engine
 	 * appends after them, out of which the names a pack reads are made. {@link EntityVertex} carries
@@ -164,7 +170,15 @@ public enum VertexInputs {
 
 	/** Whether this is Sodium's chunk mesh, under either of the two colours it may be read with. */
 	public boolean terrain() {
-		return this == TERRAIN || this == TERRAIN_SEPARATE_AO;
+		return this == TERRAIN || this == TERRAIN_SEPARATE_AO || vulkanTerrain();
+	}
+
+	public boolean vulkanTerrain() {
+		return this == VULKAN_TERRAIN || this == VULKAN_TERRAIN_SEPARATE_AO || oldLighting();
+	}
+
+	public boolean oldLighting() {
+		return this == VULKAN_TERRAIN_OLD_LIGHTING || this == VULKAN_TERRAIN_OLD_LIGHTING_SEPARATE_AO;
 	}
 
 	/**
@@ -172,7 +186,7 @@ public enum VertexInputs {
 	 * word, which is a pack's {@code separateAo} and nothing else.
 	 */
 	public boolean separateAo() {
-		return this == TERRAIN_SEPARATE_AO;
+		return this == TERRAIN_SEPARATE_AO || this == VULKAN_TERRAIN_SEPARATE_AO || this == VULKAN_TERRAIN_OLD_LIGHTING_SEPARATE_AO;
 	}
 
 	/**
@@ -236,6 +250,7 @@ public enum VertexInputs {
 		return switch (this) {
 			case FULLSCREEN -> LegacyGlsl.FULLSCREEN_ELEMENTS;
 			case TERRAIN, TERRAIN_SEPARATE_AO -> SodiumVertex.ATTRIBUTES;
+			case VULKAN_TERRAIN, VULKAN_TERRAIN_SEPARATE_AO, VULKAN_TERRAIN_OLD_LIGHTING, VULKAN_TERRAIN_OLD_LIGHTING_SEPARATE_AO -> VulkanTerrainVertex.ATTRIBUTES;
 			case ENTITY, ENTITY_FULLBRIGHT -> EntityVertex.ATTRIBUTES;
 			case GLINT -> GlintVertex.ATTRIBUTES;
 			case CRUMBLING -> CrumblingVertex.ATTRIBUTES;

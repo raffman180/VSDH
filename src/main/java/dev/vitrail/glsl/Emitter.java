@@ -151,6 +151,8 @@ record Emitter(ProgramStage stage, VertexInputs inputs, List<String> bound, Alph
 				}
 				case TERRAIN, TERRAIN_SEPARATE_AO -> lines.addAll(SodiumVertex.prologue(this.bound,
 						this.used, this.synthesized, this.inputs.separateAo()));
+				case VULKAN_TERRAIN, VULKAN_TERRAIN_SEPARATE_AO, VULKAN_TERRAIN_OLD_LIGHTING, VULKAN_TERRAIN_OLD_LIGHTING_SEPARATE_AO -> lines.addAll(VulkanTerrainVertex.prologue(
+						this.bound, this.used, this.synthesized, this.inputs.separateAo(), this.inputs.oldLighting()));
 				case ENTITY, ENTITY_FULLBRIGHT -> lines.addAll(
 						EntityVertex.prologue(this.used, this.synthesized, this.inputs.fullbright()));
 				case GLINT -> lines.addAll(GlintVertex.prologue(this.used, this.synthesized));
@@ -514,7 +516,7 @@ record Emitter(ProgramStage stage, VertexInputs inputs, List<String> bound, Alph
 		// The mask goes last of all, after the discard: a fragment the alpha test threw away
 		// covered nothing, and marking it covered would leave a hole where a leaf was.
 		return "void main() { "
-				+ (this.terrainPrologue ? SodiumVertex.PROLOGUE + "(); " : "")
+				+ (this.terrainPrologue ? (this.inputs.vulkanTerrain() ? VulkanTerrainVertex.PROLOGUE : SodiumVertex.PROLOGUE) + "(); " : "")
 				+ (this.distantPrologue ? DistantVertex.PROLOGUE + "(); " : "")
 				+ overlayPrologue()
 				+ identifierPrologue(varyings)

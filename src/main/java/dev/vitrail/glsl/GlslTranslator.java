@@ -993,6 +993,7 @@ public final class GlslTranslator {
 				return DistantVertex.reads(this.translator.used, this.translator.synthesized);
 			}
 
+			if (this.translator.inputs.vulkanTerrain()) return Set.copyOf(VulkanTerrainVertex.ATTRIBUTES);
 			return this.translator.inputs.terrain()
 					? SodiumVertex.reads(this.translator.used, this.translator.synthesized,
 							this.translator.inputs.separateAo())

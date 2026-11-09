@@ -42,7 +42,7 @@ public class QuadSorter {
         int quadStride = vertexSize * 4;
         int offset = vertexSize * 2;
 
-        if (format == CustomVertexFormat.COMPRESSED_TERRAIN) {
+        if (CustomVertexFormat.compressedPosition(format)) {
             final float invConv = 1.0f / VertexBuilder.CompressedVertexBuilder.POS_CONV_MUL;
             final float convOffset = -VertexBuilder.CompressedVertexBuilder.POS_OFFSET;
 

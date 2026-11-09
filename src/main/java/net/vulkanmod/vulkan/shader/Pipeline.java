@@ -570,6 +570,10 @@ public abstract class Pipeline {
             this.imageDescriptors = imageDescriptors;
         }
 
+        public void setPushConstants(PushConstants pushConstants) {
+            this.pushConstants = pushConstants;
+        }
+
         public List<UBO> uniformBuffers() { return List.copyOf(this.UBOs); }
 
         public RawShaderBytecode snapshotGraphicsBytecode() {

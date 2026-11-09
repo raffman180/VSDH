@@ -1,36 +1,29 @@
-# Nächster Schritt: Shader-Backend
+# Nächster Schritt nach 0.4: vollständige Welt-Anbindung
 
-Noch nicht implementiert. Erstes Ziel: Complementary Reimagined, vom Nutzer gewählt.
-Die native DH-Anbindung ist der erste Prototyp, kein Shaderpack-Loader.
+Der Nutzer hat den eigenen Reforged-Fork bereits beauftragt. Diese Entscheidung
+nicht erneut abfragen. Minecraft 1.21.1 / NeoForge 21.1.264 / DH 3.3.3 bleiben
+festgelegt; Complementary Reimagined r5.9.3 MEDIUM ist das erste Pack-Ziel.
 
-## Konkrete Grenze im geprüften Renderer
+Vorhanden und separat geprüft sind MRT/HDR, Shaderübersetzung, native Vollbild-
+und Terrainprogramme, Farb-/Tiefen-Rendergraph, persistente Puffer, Mipmaps und
+Terrainmaterialien/Normalen/Tangenten. Die normale Vulkan-/DH-Weltdarstellung läuft.
+Das ist weiterhin keine vollständige Complementary-Weltdarstellung.
 
-Reforged 0.3.5-ALPHA+1.21.1, Commit
-`0618965fbedb71ca2ee2e5d4528fcedc4fb27551`:
+1. WorldRenderer.renderSectionLayer und Frame-Grenzen mit NativeShaderChain
+   verbinden. Echte Kamera-/Welt-/Zeit-/Wetter-/Lichtuniforms und Texturen liefern.
+   Pack-Alpha-/Blend-/Cull-Zustände beachten; den Shaderpfad erst nach erfolgreicher
+   Vorbereitung samt sauberem Rückfall aktivieren.
+2. Schattenkamera und passende Schattengeometrie einbauen. Danach Himmel,
+   Entitäten, Blockentitäten, Hand, Partikel, Wetter und Transparenz durch die
+   jeweiligen Pack-Programme führen. Keine fehlenden Familien verstecken.
+3. DH-Terrain/-Wasser durch Pack-Programme und gemeinsame Tiefenkomposition führen.
+   Übergänge mit realen Szenen prüfen. Erst danach Pack-/Profilwahl und kontrollierte
+   Ressourcenwechsel freigeben.
 
-- `Framebuffer.java` hält einen Farbanhang; der Builder prüft ausdrücklich
-  `colorAttachments <= 1` (Zeile 247 im geprüften Original).
-- `GraphicsPipeline.java` erstellt einen Farb-Mischzustand.
-- `RenderPass.java` verwendet ebenfalls einen einzelnen Farbanhang.
+Zum Abschluss Tag/Nacht/Regen, Wasser/Glas/Laub, Emission/Normalmaps, verschiedene
+Dimensionen, Weltwechsel, Resize und Multiplayer prüfen. Weitere Shaderpacks,
+DH-Versionen und GPUs erhalten erst nach eigenen Prüfungen eine Kompatibilitätsaussage.
+Keine FPS-Zusagen ohne Messung und keine absolute Fehlerfreiheitszusage.
 
-Quelle: [Framebuffer des festgelegten Reforged-Stands](https://github.com/TrulyRin/VulkanMod-Reforged/blob/0618965fbedb71ca2ee2e5d4528fcedc4fb27551/src/main/java/net/vulkanmod/vulkan/framebuffer/Framebuffer.java#L247).
-
-Ein größerer Shaderpack-Backend benötigt unter anderem mehrere Bildpuffer,
-Schattenausgabe und die passende Zuordnung der Gelände- und Materialdaten.
-Eine Shaderdatei lediglich nach SPIR-V zu kompilieren reicht dafür nicht.
-
-## Architektur zur Entscheidung
-
-| Weg | Nutzen | Aufwand / Kompatibilität |
-|---|---|---|
-| Eigener Reforged-Fork — Empfehlung | Renderer direkt erweitern, klare Schnittstellen für VSDH schaffen | Großer Aufwand; Reforged-Updates müssen übernommen werden. Der Nutzer ersetzt die originale Renderer-JAR durch unseren Fork. |
-| Separates VSDH-Addon beibehalten | Originale Reforged-JAR bleibt installiert | Ebenfalls großer Aufwand; erhebliche Eingriffe per Mixins oder parallele eigene Vulkan-Pipelines, stärkere Bindung an interne Details. |
-
-Beide Wege haben noch keinen Nachweis für Complementary. Es gibt keine
-begründete FPS-Zusage. Diese Entscheidung verändert Installation und Wartung
-und wird deshalb vor der Implementierung mit dem Nutzer abgestimmt.
-
-Danach in getrennten prüfbaren Schritten: mehrere Farbpuffer → passendes
-Terrain-/Materialformat → Schatten → Pack-Übersetzung und Render-Reihenfolge →
-DH-Puffer mit demselben Shader verarbeiten → Reload/Resize/Weltwechsel testen.
-Weitere Packs und DH-Versionen folgen erst nach eigenen Prüfungen.
+Einstiegspunkte: TERRAIN_FORMAT.md, RENDER_GRAPH.md, HANDOFF.md und
+MIGRATION_STATUS.md. Shader-ZIP und private Referenzquellen nie mitliefern.
