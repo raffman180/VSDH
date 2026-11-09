@@ -1,4 +1,4 @@
-# VSDH — Entwicklungsstand 0.5.0-dev
+# VSDH — Entwicklungsstand 0.6.0-dev
 
 VSDH enthält einen eigenen **VulkanMod-Reforged-Fork** und eine native Anbindung
 für Distant Horizons. Die Durchlaufkette für Shader-Farbpuffer, HDR/Mipmaps, gespeicherte Werte zwischen
@@ -17,7 +17,7 @@ ist noch nicht fertig.** Iris und Sodium können nicht zusätzlich geladen werde
 ## Testinstallation
 
 1. Ein separates Profil für Minecraft 1.21.1 / NeoForge 21.1.264 anlegen.
-2. Die VSDH-0.5.0-dev-JAR und DH 3.3.3 in dessen `mods`-Ordner legen.
+2. Die VSDH-0.6.0-dev-JAR und DH 3.3.3 in dessen `mods`-Ordner legen.
 3. Die originale Reforged-JAR sowie alte VSDH-0.1-JARs entfernen: Ab 0.2 ersetzt
    diese eine JAR den Renderer und das bisherige Addon.
 4. Iris, Sodium und andere Renderer-Ersatzmods aus diesem Profil herauslassen.
@@ -31,12 +31,16 @@ VSDH wird ausschließlich auf dem Client installiert. Bestehende DH-Speicherung
 und Multiplayer-Protokolle bleiben bei DH. Keine eigenen Änderungen an Inventaren
 oder Weltdaten; dedizierte Server und große Modpacks sind noch ungetestet.
 
-## Aktuell 0.5
+## Aktuell 0.6
 
 Die native Welt-Renderkette wird mit einem eigenen Diagnosepack auf tatsächlichen
 Chunks samt DH geprüft, einschließlich reduziertem Rendermaßstab. Eine vollständige
-Complementary-Auswahl ist weiterhin nicht verfügbar. Technischer Stand:
-`docs/WORLD_SHADER_HOST.md`; Fortsetzungs-Prompt: `docs/NEXT_AI_PROMPT.md`.
+Complementary-Auswahl ist weiterhin nicht verfügbar. Neu sind echte Kamera-,
+Augenlicht-, Effekt-, Atlas- und Nebelwerte sowie die Erkennung tatsächlich
+gelesener Uniforms. 36 CPU-Tests bestehen; GPU-Messungen prüfen die Werte in Luft,
+Wasser an negativen Koordinaten und mit Statuseffekten. Technischer Stand:
+`docs/WORLD_SHADER_HOST.md`, `docs/WORLD_UNIFORMS.md`; Fortsetzungs-Prompt:
+`docs/NEXT_AI_PROMPT.md`.
 
 ## Enthalten
 
@@ -66,7 +70,7 @@ Complementary-Auswahl ist weiterhin nicht verfügbar. Technischer Stand:
 
 Die Integration der echten Weltgeometrie mit Materialdaten, Schatten, Himmel,
 Entitäten, Transparenz und shaderseitigen DH-Ausgaben ist noch zu vervollständigen.
-Die neue Kette ist bislang mit kontrollierter Testgeometrie ausgeführt worden;
+Die neue Kette ist mit einem eigenen Diagnosepack auf echten Chunks geprüft;
 alle neun Vollbild-Pipelines des echten Complementary-Packs wurden auf der GPU
 angelegt. Das aktiviert noch keinen vollständigen Shader-Modus. Erfolgreich übersetzte
 Programme allein bedeuten keine vollständige Pack-Unterstützung. Es gibt keine

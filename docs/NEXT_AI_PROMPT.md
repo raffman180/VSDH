@@ -13,13 +13,14 @@ als zusätzliche Renderer-JARs installieren; dieser Fork soll deren Shaderfunkti
 nativ unter Vulkan ersetzen.
 
 Lies zuerst AGENTS.md, docs/HANDOFF.md, docs/MIGRATION_STATUS.md,
-docs/WORLD_SHADER_HOST.md sowie docs/verification/0.5.0-dev.json, sofern vorhanden.
+docs/WORLD_SHADER_HOST.md, docs/WORLD_UNIFORMS.md und den neuesten Bericht unter
+docs/verification/.
 Prüfe anschließend git status und die neuesten Build-/Spielprotokolle. Es können
 noch nicht versionierte Änderungen der laufenden Arbeit vorhanden sein. Nicht
 blind zurücksetzen oder schon geprüfte Teile erneut entwickeln.
 
-Branch: codex/renderer-shaders. Letzter Ausgangs-Commit vor 0.5 war
-473115c2963373c0f23918e97a85cf8f68a2ac0c (0.4). Den aktuellsten Commit selbst prüfen.
+Branch: codex/renderer-shaders. Ausgangs-Commit vor 0.6 war
+5d9820007c243a51a53248b878045dd7142e1a3f (0.5). Den aktuellsten Commit selbst prüfen.
 Der vollständige Complementary-Renderer ist ausdrücklich noch NICHT fertig.
 
 Stand 0.5: WorldShaderSession leitet echte Weltzeichnungen in die native
@@ -45,15 +46,44 @@ Viewport immer in logischen Koordinaten übergeben, sonst wird RenderScale doppe
 angewendet. Stride/Bias je DrawBuffers-Instanz, keine statischen Formatwerte.
 /build/ in .gitignore muss verankert bleiben, sonst fehlen 28 Renderer-Quelldateien.
 
-Konkreter nächster Schritt: `build/world-host-audit.json` auswerten.
-`auditWorldHost` meldet für Complementary derzeit 59 fehlende Weltwerte je
-Dimension sowie benötigte Schatten-/Noise-/weitere Texturen. Implementiere echte
-Werte und die benutzerdefinierten Uniform-Ausdrücke aus shaders.properties;
-keine Null-/Identitätswerte als Ersatz für fehlende Pflichtdaten einsetzen.
-Danach Schattenkamera/-geometrie und native Pack-Ausgabe für DH-Terrain/Wasser
-anschließen, gefolgt von den übrigen Geometriefamilien. Erst nach Prüfung eine
-vollständige Pack-Auswahl und Hotreload freigeben. Der Diagnosepack ist kein
-Nachweis vollständiger Complementary-Unterstützung.
+Aktuelle Weiterarbeit 0.6: UniformUsage erkennt tatsächlich gelesene Member im
+optimierten SPIR-V-Uniformblock anhand der Byteoffsets, ohne Debugnamen.
+Unklare Pointerpfade behalten konservativ alle Werte. NativeGraphicsProgram cached
+aktive Member; WorldUniforms validiert/beschreibt diese. BuiltinWorldValues ergänzt
+18 echte MC-1.21.1-Provider: Int-/Fract-Kamera, Augen-/Blickwerte, Augenlicht,
+Kameramedium, Effekte, Wolkenhöhe, Sonnenwinkel, Mondphase, Gamma, reale Atlasgröße
+und OfFog. CameraCoordinates zerlegt negative/große Koordinaten mit floor.
+Keine erfundenen Pflichtdaten oder Null-Schattenmatrizen einsetzen.
+
+36 CPU-Tests, Build und verifyBundledLwjgl bestehen; alle Build-Tasks erneut ohne
+Gradle-Build-Cache ausgeführt (verify-0.6-build.log). verify-0.6-client-2.log besteht
+vollständig mit zwei Welten, drei neuen Werte-Probes, beiden Weltketten-/FINAL-
+Scale-Prüfungen und allen sechs bisherigen GPU-Gruppen je viermal, ohne ERROR/FATAL.
+Aktuellen Stand auch im versionierten Bericht prüfen. Der erste Lauf deckte einen
+Fehler im Diagnosepack auf: Messwerte im Alpha-Kanal wurden bei transparenten
+Flächen vermischt (erwartet 1.0, gemessen 0.75). Die Korrektur nutzt Alpha=1 und
+benachbarte gerade/ungerade Pixel für zusätzliche Werte; keine Prüfung abschwächen.
+BuiltinWorldProbe belegt Luft, echtes Wasser bei (-3.25,59.62,-7.125) und drei
+aktive Statuseffekte auf echten Terrainpixeln. Weltkette/FINAL belegen 444.850
+Normalenpixel bei 1280x720/100% und 62.562 bei 480x270/50%. Welt 2 nutzt wieder
+20 statt 44 Byte; Shader-Deinstallation und DH zeichnen weiter erfolgreich.
+Der Wasserpool und die Effekte betreffen nur eine frisch erzeugte isolierte QA-Welt.
+
+Nächster funktionaler Schritt: build/world-host-audit.json auswerten. Aktiv fehlen
+Oberwelt 17, Nether 14, Ende 12 Werte. Die alte Zahl 59 zählte alle Deklarationen;
+vor den neuen Providern waren in der Oberwelt 31 wirklich gelesen. Offen sind u.a.
+eyeBrightnessM/frameTimeSmooth, Held-Item-Materialtabellen, darknessLightFactor,
+Pack-Ausdrücke (inDry/inSnowy/inRainy, rainFactor/wetness/maxBlindnessDarkness)
+und shadowModelView/shadowProjection. Tatsächliche Semantiken und zeitabhängige
+Glättung implementieren, keine bloßen Namen mit Nullwerten freischalten.
+Float-cameraPosition benötigt separat Iris-Origin-Rebasing; die neuen absoluten
+Int-/Fract-Werte ersetzen dies nicht. Danach Schattenkamera/-geometrie, Noise- und
+weitere Texturen sowie native Pack-Ausgabe für DH-Terrain/Wasser anschließen,
+gefolgt von den übrigen Geometriefamilien. DH läuft bisher als später Composite
+ins Szenenbild, noch nicht über dh_terrain/dh_water. Hand-Reihenfolge/depthtex1/2,
+Pack-Blend/Cull, Dimensionwechsel, Auswahl/Hotreload sind ebenfalls offen.
+Der Diagnosepack beweist keine vollständige Complementary-Unterstützung.
+Bestehende stabile dist/0.5.0-dev-Artefakte nicht überschreiben.
 
 Referenzen/Pins und Lizenzen stehen in AGENTS.md/NOTICE/docs/upstream. Private
 Referenzen liegen außerhalb des Projekts unter

@@ -47,3 +47,11 @@ docs/WORLD_SHADER_HOST.md and docs/verification/0.5-complementary-requirements.j
 Keep docs/NEXT_AI_PROMPT.md current; user explicitly requests a usable handoff
 prompt before ending the current work. Do not infer renderer completion from the
 own diagnostic pack. Invalid startup matrices retain the normal frame target.
+
+0.6 adds active SPIR-V uniform-member reflection and 18 actual MC-1.21.1 providers.
+Keep original std140 offsets; unknown alias/block paths require all members.
+An unused declaration is not a missing active value. Complementary audit now lists
+17/14/12 missing active values (Overworld/Nether/End); old 59 counted declarations.
+Read docs/WORLD_UNIFORMS.md. Diagnostic MRT alpha must be one: data in alpha would
+be blended on translucent terrain and corrupt the measurement. Extra values are
+encoded at adjacent even/odd pixels. GPU probes/readbacks remain smoke-only.

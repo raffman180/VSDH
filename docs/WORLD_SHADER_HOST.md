@@ -1,4 +1,10 @@
-# Welt-Renderkette — 0.5.0-dev
+# Welt-Renderkette — 0.6.0-dev
+
+0.6 ergänzt aktive Uniform-Member-Erkennung und 18 echte Minecraft-Provider.
+Details: WORLD_UNIFORMS.md. 36 CPU-Tests bestehen; neue GPU-Prüfungen vergleichen
+Werte in Luft, Wasser bei negativen Koordinaten und mit Statuseffekten. Der
+vollständige Nachweis steht in verification/0.6.0-dev.json. Die Beschreibung
+der grundlegenden Weltkette und die historischen 0.5-Messwerte folgen unten.
 
 Minecraft 1.21.1 / NeoForge 21.1.264 / Java 21 / DH 3.3.3. Der eigene
 Diagnosepack wird erstmals auf echten Welt-Chunks ausgeführt. Das ist keine
@@ -69,8 +75,10 @@ Keine ERROR-/FATAL-Zeilen. Kein kontrollierter FPS-Vergleich.
 
 Der Diagnosepack ist eigenes Testmaterial, nicht Complementary. Der Audit
 `auditWorldHost` übersetzt die fünf Terrainvarianten von Complementary r5.9.3
-MEDIUM in allen drei Dimensionen und meldet noch 59 unbediente Weltwerte pro
-Dimension. Aufstellung: verification/0.5-complementary-requirements.json.
+MEDIUM in allen drei Dimensionen. In 0.5 wurden 59 unbediente Deklarationen je
+Dimension gezählt; 0.6 unterscheidet tatsächliche Lesezugriffe und ergänzt echte
+Provider. Aktiv fehlen jetzt 17/14/12 Werte für Oberwelt/Nether/Ende. Aktuelle
+Aufstellung: verification/0.6-complementary-requirements.json.
 Dazu fehlen Schatten-/Noise-/weitere Texturen und die vollständigen Packprogramme
 für Himmel, Entitäten, Hand sowie DH-Terrain/-Wasser. Hand-Reihenfolge ist noch
 Vanilla; depthtex1/2 sind am Prä-Transparenz-Punkt derzeit gleich. Die übrigen

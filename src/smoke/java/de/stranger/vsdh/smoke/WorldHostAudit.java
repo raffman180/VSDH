@@ -16,8 +16,9 @@ public final class WorldHostAudit {
             for(String dimension:List.of("world0","world-1","world1")) {
                 var plan=WorldPackPlan.prepare(pack,dimension);
                 var missing=new TreeSet<String>();
-                plan.terrain().values().forEach(p->missing.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms()))));
-                plan.chain().stages().values().forEach(passes->passes.forEach(p->missing.addAll(WorldUniforms.missing(new Std140Layout(p.program().translated().uniforms())))));
+                var declared=new TreeSet<String>();
+                plan.terrain().values().forEach(p->{missing.addAll(WorldUniforms.missing(p));declared.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms())));});
+                plan.chain().stages().values().forEach(passes->passes.forEach(p->{missing.addAll(WorldUniforms.missing(p.program()));declared.addAll(WorldUniforms.missing(new Std140Layout(p.program().translated().uniforms())));}));
                 var resources=new TreeSet<>(plan.chain().externalSamplers());
                 plan.terrain().values().forEach(p->{
                     var active=new HashSet<Integer>();p.compiled().stages().values().forEach(bytes->active.addAll(SpirvInterface.bindings(bytes)));
@@ -25,6 +26,7 @@ public final class WorldHostAudit {
                 });
                 var entry=new LinkedHashMap<String,Object>();entry.put("dimension",dimension);entry.put("terrainVariantsCompiled",plan.terrain().size());
                 entry.put("missingWorldUniforms",missing);entry.put("requiredResources",resources);
+                entry.put("unimplementedDeclaredWorldUniforms",declared);
                 entry.put("completeWorldRendererSupported",false);dimensions.add(entry);
             }
         }

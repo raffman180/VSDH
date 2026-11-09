@@ -64,9 +64,23 @@ public final class SmokeScene {
         ticks++;
         if (ticks == 40) {
             mc.getConnection().sendCommand("gamemode spectator");
-            mc.getConnection().sendCommand("tp @s 0 140 0 45 15");
+            mc.getConnection().sendCommand("tp @s 0 100 0 45 35");
             mc.getConnection().sendCommand("time set noon");
             mc.getConnection().sendCommand("weather clear");
+        }
+        if (worldNumber == 1) {
+            if (ticks == 500) {
+                // Only this freshly created QA world is changed. Deterministic water, negative coordinates.
+                mc.getConnection().sendCommand("fill -6 56 -10 -1 64 -5 minecraft:water");
+                mc.getConnection().sendCommand("tp @s -3.25 58 -7.125 45 35");
+            }
+            if (ticks == 650) mc.getConnection().sendCommand("tp @s 0 100 0 45 35");
+            if (ticks == 700) {
+                mc.getConnection().sendCommand("effect give @s minecraft:night_vision 20 0 true");
+                mc.getConnection().sendCommand("effect give @s minecraft:blindness 20 0 true");
+                mc.getConnection().sendCommand("effect give @s minecraft:darkness 20 0 true");
+            }
+            if (ticks == 780) mc.getConnection().sendCommand("effect clear @s");
         }
         if (ticks == 800) {
             var renderer = net.vulkanmod.render.chunk.WorldRenderer.getInstance();

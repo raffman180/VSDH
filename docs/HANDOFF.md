@@ -6,7 +6,38 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.5 — echte Welt-Renderkette
+## Aktuell 0.6 — aktive Uniforms und echte Weltwerte
+
+UniformUsage liest aktive OfGlobals-Member aus optimiertem SPIR-V. Zuordnung über
+Byteoffsets, unverändertes std140-Layout, unbekannte Pointerpfade konservativ.
+NativeGraphicsProgram cached die aktive Liste. WorldUniforms validiert und schreibt
+nur diese; unbenutzte unbekannte Deklarationen werden nicht künstlich bedient.
+
+BuiltinWorldValues ergänzt 18 echte Provider für Minecraft 1.21.1. CameraCoordinates
+zerlegt absolute Kamera-/Vorkamera-Koordinaten vor der float-Umwandlung mit floor.
+Weitere Provider: Auge/Blick, Licht, Medium, Effekte, Wolkenhöhe, Mond/Sonne, Gamma,
+wirklich gebundene Atlasgröße und OfFog. Details/Grenzen: WORLD_UNIFORMS.md.
+36 CPU-Tests bestehen. GPU-Probes prüfen tatsächliche Terrainpixel in Luft,
+Wasser an negativen Koordinaten und mit Nachtsicht/Blindheit/Darkness.
+
+Erster Fehlversuch verify-0.6-client.log: Daten im MRT-Alpha wurden auf transparenten
+Flächen vermischt. Diagnosepack verwendet jetzt Alpha=1 und gerade/ungerade Pixel
+für zusätzliche Messwerte. verify-0.6-client-2.log besteht vollständig: zwei Welten,
+drei neue Werte-Probes, beide Weltketten-/FINAL-/Scale-Prüfungen, sechs GPU-Gruppen
+je viermal, keine ERROR/FATAL-Zeilen. 444.850/62.562 echte Normalenpixel bei 100%/50%.
+Build und verifyBundledLwjgl ohne Build-Cache mit allen Tasks erneut bestanden.
+Vollständige Nachweise: verification/0.6.0-dev.json.
+
+Aktiv fehlen Complementary MEDIUM nun 17/14/12 Weltwerte für Oberwelt/Nether/Ende.
+Die alte Zahl 59 zählte Deklarationen, vor neuen Providern waren in der Oberwelt
+31 wirklich gelesen. Nächster Schritt sind verbleibende echte Provider, Glättung
+und Pack-Ausdrücke, danach Schatten/Ressourcen/weitere Geometrie/DH-Packprogramme.
+Keine Schatten-Identitätsmatrizen, erfundenen Material-IDs oder Null-Provider.
+Float-cameraPosition benötigt weiterhin das separate Origin-Rebasing.
+Der vollständige Renderer ist nicht fertig; normale Installation bietet keine
+vollständige Shader-Auswahl. Ältere stabile Pakete unter dist erhalten.
+
+## Stand 0.5 — echte Welt-Renderkette
 
 WorldPackPlan/WorldShaderSession/WorldMatrices/WorldUniforms und zwei Client-Mixins
 sind implementiert. Der Host umschließt MainPass und wird nur ausdrücklich vor
@@ -28,7 +59,7 @@ RenderPass/Framebuffer/Image-Freigaben bleiben in der vorhandenen verzögerten
 GPU-Verwaltung. Keine Warteschleifen/Readbacks im Produktions-Shaderpfad; der
 Frame-Observer und die Rückleseassertionen werden nur im Smoke-Test verwendet.
 
-Nächstes Ziel: 59 fehlende Complementary-Weltwerte je Dimension implementieren,
+Damals gemeldet: 59 unbediente Complementary-Deklarationen je Dimension,
 inklusive echter Provider und benutzerdefinierter Uniform-Ausdrücke. Konkrete Liste
 in docs/verification/0.5-complementary-requirements.json. Shader-Ressourcen,
 Schattenkamera/-geometrie, weitere Pack-Geometriefamilien und DH-Pack-Terrain/-Wasser

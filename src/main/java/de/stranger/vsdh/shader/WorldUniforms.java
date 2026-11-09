@@ -27,24 +27,30 @@ public final class WorldUniforms {
     private final float[] camera=new float[3], previousCamera=new float[3], fog=new float[3], sky=new float[3];
     private final float[] scalar=new float[1]; private final int[] integer=new int[1];
     private final Matrix4f scratch=new Matrix4f(); private final Matrix3f normalScratch=new Matrix3f();
+    private final BuiltinWorldValues builtins=new BuiltinWorldValues();
     private int width,height,worldTime,worldDay,frame;
     private float rain,far,frameTime,elapsed;
     private long lastNanos;
 
     public static Set<String> missing(Std140Layout layout) {
         var missing=new java.util.TreeSet<String>();
-        for (var member:layout.members()) if (!KNOWN.contains(member.name())) missing.add(member.name());
+        for (var member:layout.members()) if (!KNOWN.contains(member.name()) && !BuiltinWorldValues.NAMES.contains(member.name())) missing.add(member.name());
         return Set.copyOf(missing);
+    }
+    public static Set<String> missing(PackProgramSource.Prepared program) {
+        var active=UniformUsage.names(program.compiled(),new Std140Layout(program.translated().uniforms()));
+        var missing=new java.util.TreeSet<>(active);missing.removeAll(KNOWN);missing.removeAll(BuiltinWorldValues.NAMES);return Set.copyOf(missing);
     }
     public static void validate(WorldPackPlan plan) {
         var missing=new java.util.TreeSet<String>();
-        plan.terrain().values().forEach(p->missing.addAll(missing(new Std140Layout(p.translated().uniforms()))));
-        plan.chain().stages().values().forEach(passes->passes.forEach(p->missing.addAll(missing(new Std140Layout(p.program().translated().uniforms())))));
+        plan.terrain().values().forEach(p->missing.addAll(missing(p)));
+        plan.chain().stages().values().forEach(passes->passes.forEach(p->missing.addAll(missing(p.program()))));
         if (!missing.isEmpty()) throw new IllegalArgumentException("World uniforms not implemented: "+missing);
     }
     public void capture(Camera camera, Matrix4f view, Matrix4f legacyProjection, float partialTick, int width, int height) {
         Minecraft mc=Minecraft.getInstance(); var pos=camera.getPosition();
         matrices.begin(mc.level,view,legacyProjection,pos.x,pos.y,pos.z,width,height);
+        builtins.capture(camera,matrices,partialTick);
         this.width=width; this.height=height; this.far=mc.gameRenderer.getRenderDistance();
         matrices.view.get(this.view); matrices.projection.get(projection);
         scratch.set(matrices.projection).mul(matrices.view).get(mvp);
@@ -62,7 +68,8 @@ public final class WorldUniforms {
     }
     public void write(NativeGraphicsProgram pass, boolean fullscreen, int renderStage, float alphaRef) {
         var layout=pass.layout(); var buffer=pass.uniforms();
-        for (var member:layout.members()) {
+        for (var member:pass.activeUniforms()) {
+            if(builtins.write(member,layout,buffer))continue;
             String name=member.name(); float[] matrix=switch(name) {
                 case "of_ModelViewMatrix"->fullscreen?IDENTITY:view;
                 case "of_ProjectionMatrix","of_ModelViewProjectionMatrix"->fullscreen?QUAD:name.equals("of_ProjectionMatrix")?projection:mvp;

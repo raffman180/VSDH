@@ -1,6 +1,20 @@
-# VSDH — Prüfstand 0.5.0-dev, 09.11.2026
+# VSDH — Prüfstand 0.6.0-dev, 09.11.2026
 
-## Aktuell 0.5
+## Aktuell 0.6
+
+Aktive SPIR-V-Member werden über ihre unveränderten std140-Byteoffsets erkannt.
+18 echte Minecraft-Provider ergänzen Kamera-/Augen-/Licht-/Medium-/Effektwerte,
+Atlasgröße, Nebel sowie Mond/Sonne/Wolken/Gamma. 36 CPU-Tests bestehen. Neue
+GPU-Probes prüfen Luft, Wasser an negativen Koordinaten und aktive Statuseffekte
+auf tatsächlichen Terrainpixeln. Die erste Diagnose-Ausgabe wurde wegen
+Alpha-Blending korrigiert; Details in WORLD_UNIFORMS.md und im 0.6-Prüfbericht.
+
+Vollständiges Complementary bleibt offen. Aktiv fehlen 17/14/12 Werte in
+Oberwelt/Nether/Ende, zusätzlich Schatten und Ressourcen. Die alte Zahl 59 war
+eine Liste unbedienter Deklarationen. Beides wird jetzt getrennt ausgewiesen.
+Die folgenden Abschnitte beschreiben den historischen Stand 0.5 und früher.
+
+## Stand 0.5
 
 Die Weltzeichnung ist mit NativeShaderChain verbunden. Eigener Diagnosepack auf
 realen Chunks, echte Kamera-/Projektionswerte, Schatten noch nicht implementiert.

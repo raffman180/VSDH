@@ -35,6 +35,7 @@ import static org.lwjgl.vulkan.VK10.*;
 public abstract class NativeGraphicsProgram implements AutoCloseable {
     protected final GraphicsPipeline pipeline;
     private final Std140Layout layout;
+    private final java.util.List<Std140Layout.Member> activeUniforms;
     private final ByteBuffer uniforms;
     private final Map<String, VulkanImage> images = new HashMap<>();
     private final Map<String, Boolean> samplers = new HashMap<>();
@@ -53,6 +54,8 @@ public abstract class NativeGraphicsProgram implements AutoCloseable {
         if (translated.stages().values().stream().anyMatch(unit -> !unit.notes().storageBlocks().isEmpty()))
             throw new IllegalArgumentException("Native graphics storage buffers are not implemented: " + name);
         layout = new Std140Layout(translated.uniforms());
+        var usedUniforms=UniformUsage.names(compiled,layout);
+        activeUniforms=layout.members().stream().filter(member->usedUniforms.contains(member.name())).toList();
         if (layout.size() > DeviceManager.deviceProperties.limits().maxUniformBufferRange())
             throw new IllegalArgumentException("Shader uniform block exceeds device limit: " + name);
         for (var sampler : translated.samplers()) {
@@ -108,6 +111,7 @@ public abstract class NativeGraphicsProgram implements AutoCloseable {
     }
 
     public Std140Layout layout() { return layout; }
+    public java.util.List<Std140Layout.Member> activeUniforms() { return activeUniforms; }
     public ByteBuffer uniforms() { requireOpen(); return uniforms; }
     public java.util.Set<String> requiredSamplers() { return samplerNames; }
     /** Build a render-pass-compatible Vulkan pipeline before the pack's first visible frame. */
