@@ -6,7 +6,15 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.13 — Dimensionspläne
+## Aktuell 0.14 — Experimentelle Auswahl
+
+ShaderPackStartup liest die Auswahl aus config/vsdh.json. Die bereits
+geladene Clientkonfiguration wird unverändert verwendet. Das Pack und
+seine Dimensionspläne entstehen auf einem Worker. Die Installation erfolgt
+im Menü auf dem Renderthread. Testprofile befinden sich unter build/.
+Die tatsächlichen Resultate stehen in verify-0.14-Logs.
+
+## Stand 0.13 — Dimensionspläne
 
 WorldPackSet bereitet die Programme für Oberwelt, Nether und Ende vor.
 WorldShaderSession wählt den neuen Plan am ClientLevel-Wechsel. Ein

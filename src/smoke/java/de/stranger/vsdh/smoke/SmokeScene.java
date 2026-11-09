@@ -50,6 +50,10 @@ public final class SmokeScene {
     @SubscribeEvent
     public static void tick(ClientTickEvent.Post event) {
         if (!Boolean.getBoolean("vsdh.smoke")) return;
+        if(Boolean.getBoolean("vsdh.smoke.rejectConfiguredPack")) {
+            checkRejectedConfig(Minecraft.getInstance());
+            return;
+        }
         NativePassGpuCheck.prepare();
         ChainGpuCheck.prepare();
         TerrainGpuCheck.prepare();
@@ -162,6 +166,17 @@ public final class SmokeScene {
             mc.stop();
         }
     }
+    private static int rejectionTicks;
+
+    private static void checkRejectedConfig(Minecraft mc) {
+        if(!(mc.screen instanceof TitleScreen || mc.screen instanceof AccessibilityOnboardingScreen))return;
+        if(++rejectionTicks<120)return;
+        if(de.stranger.vsdh.shader.WorldShaderSession.current()!=null)
+            throw new AssertionError("Invalid config unexpectedly activated a shader session");
+        LOGGER.info("REJECTED PACK STARTUP PASS: reached the menu and kept the standard renderer");
+        mc.stop();
+    }
+
     private static void startWorld(Minecraft mc) {
             started = true;
             worldNumber++;

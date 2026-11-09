@@ -1,4 +1,4 @@
-# VSDH — Entwicklungsstand 0.13.0-dev
+# VSDH — Entwicklungsstand 0.14.0-dev
 
 VSDH enthält einen eigenen **VulkanMod-Reforged-Fork** und eine native Anbindung
 für Distant Horizons. Die Durchlaufkette für Shader-Farbpuffer, HDR/Mipmaps, gespeicherte Werte zwischen
@@ -17,21 +17,42 @@ ist noch nicht fertig.** Iris und Sodium können nicht zusätzlich geladen werde
 ## Testinstallation
 
 1. Ein separates Profil für Minecraft 1.21.1 / NeoForge 21.1.264 anlegen.
-2. Die VSDH-0.13.0-dev-JAR und DH 3.3.3 in dessen `mods`-Ordner legen.
+2. Die VSDH-0.14.0-dev-JAR und DH 3.3.3 in dessen `mods`-Ordner legen.
 3. Die originale Reforged-JAR sowie alte VSDH-0.1-JARs entfernen: Ab 0.2 ersetzt
    diese eine JAR den Renderer und das bisherige Addon.
 4. Iris, Sodium und andere Renderer-Ersatzmods aus diesem Profil herauslassen.
 5. Eine neue Testwelt ohne Shader starten und die LOD-Erstellung abwarten.
 
-Es gibt noch keine funktionierende Auswahl für vollständige Shaderpacks.
-Ein Shader-ZIP im Ordner allein aktiviert deshalb keinen Shader. Die unten
-beschriebenen Compiler-/GPU-Prüfungen sind Entwicklungstests.
+## Shader aktivieren
+
+Die Aktivierung ist experimentell. Die erste geprüfte Kombination verwendet
+Complementary Reimagined r5.9.3 MEDIUM und DH 3.3.3.
+
+1. Die Originaldatei `ComplementaryReimagined_r5.9.3.zip` in den Ordner
+   `shaderpacks` des Testprofils legen.
+2. Im selben Profil in `config/vsdh.json` die folgenden Einstellungen
+   ergänzen. Den Wert für `shaderPack` auf den genauen ZIP-Namen setzen.
+3. Minecraft neu starten, im Menü auf die Meldung „Vulkan-Shaderpack bereit“
+   warten und eine Testwelt öffnen.
+
+```json
+{
+  "vulkanRenderMode": 0,
+  "shaderPack": "ComplementaryReimagined_r5.9.3.zip",
+  "shaderProfile": "MEDIUM",
+  "shaderDistantHorizons": true
+}
+```
+
+Ein leerer `shaderPack`-Wert aktiviert nach dem Neustart den Standardmodus.
+Bei Fehlern in Pfad oder Pack-Aufbereitung steht die Ursache in
+`logs/latest.log`. Die Wahl greift im Menü, bevor eine Welt geladen ist.
 
 VSDH wird ausschließlich auf dem Client installiert. Bestehende DH-Speicherung
 und Multiplayer-Protokolle bleiben bei DH. Keine eigenen Änderungen an Inventaren
 oder Weltdaten; dedizierte Server und große Modpacks sind noch ungetestet.
 
-## Aktuell 0.13
+## Stand 0.13
 
 Der Entwicklungsclient kann für die drei Vanilla-Dimensionen getrennte
 Pack-Pläne vorbereiten. Beim Dimensionswechsel tauscht er Renderziele

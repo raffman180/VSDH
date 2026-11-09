@@ -36,8 +36,15 @@ final class WorldHostCheck {
             }catch(Exception error){throw new java.util.concurrent.CompletionException(error);}
         });
     }
-    static boolean ready(){return pending!=null&&pending.isDone();}
-    static void install(){savedScale=net.vulkanmod.Initializer.CONFIG.renderScale;session=WorldShaderSession.install(pending.join());session.frameObserver(ignored->verify());}
+    static boolean ready(){return pending!=null&&pending.isDone()&&(!configured()||WorldShaderSession.current()!=null);}
+    private static boolean configured(){return Boolean.getBoolean("vsdh.smoke.configuredPack");}
+    static void install(){
+        savedScale=net.vulkanmod.Initializer.CONFIG.renderScale;
+        var plans=pending.join();
+        session=configured()?WorldShaderSession.current():WorldShaderSession.install(plans);
+        if(configured())LoggerFactory.getLogger("VSDH-Smoke").info("CONFIGURED PACK STARTUP PASS: normal startup installed the session before loading a world");
+        session.frameObserver(ignored->verify());
+    }
     static void scaleDown(){net.vulkanmod.Initializer.CONFIG.renderScale=50;}
     static void uninstall(){if(Boolean.getBoolean("vsdh.smoke.livePack")){DimensionWorldProbe.requireComplete();RealPackWorldProbe.requireComplete();}else{WeatherWorldProbe.requireDraws(session);WeatherWorldProbe.requireComplete();SkyWorldProbe.requireComplete();BuiltinWorldProbe.requireComplete();ExpressionWorldProbe.requireComplete();if(!verified || !scaledVerified)throw new AssertionError("World shader did not complete its live-world check");}net.vulkanmod.Initializer.CONFIG.renderScale=savedScale;session.uninstall();}
     static void verifyIfReady(int ticks) {

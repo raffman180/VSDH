@@ -1,6 +1,22 @@
-# Fortsetzungs-Prompt — VSDH 0.13
+# Fortsetzungs-Prompt — VSDH 0.14
 
 ## Aktuelle Arbeit
+
+0.14 ergänzt die experimentelle Shader-Auswahl über config/vsdh.json.
+ShaderPackStartup liest das ZIP oder Verzeichnis asynchron und installiert
+WorldPackSet erst bei ungeladener Welt. Ein leerer Name behält den
+Standardrenderer. Kein Pack ist Bestandteil der JAR. Die beiden
+Entwicklungsprofile unter build/configured-smoke-valid und
+build/configured-smoke-invalid sind isoliert. Logs verify-0.14-rejected-pack-2
+und verify-0.14-configured-client prüfen Ablehnung und echte Aktivierung.
+Bestätige die Ergebnisse und prüfe git status, bevor du den Stand als
+Spieltest ausgibst.
+
+Nach Aktivierung fehlen weiterhin vollständige Entitäts-/Hand-Pässe,
+verifizierte Abdeckung weiterer Shaderpacks und DH-Versionen sowie
+die Ursache der dunkleren Nahwasser-Färbung. Nutze den MEDIUM-Vergleich
+und die Shaderzielpuffer für gezielte Messungen.
+
 
 0.13 bereitet alle drei Vanilla-Dimensionen in WorldPackSet vor und tauscht
 den aktiven Plan bei LevelRenderer.setLevel. Die Materialtabellen müssen

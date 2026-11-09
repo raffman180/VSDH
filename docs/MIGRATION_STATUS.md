@@ -1,6 +1,13 @@
-# VSDH — Prüfstand 0.13.0-dev, 09.11.2026
+# VSDH — Prüfstand 0.14.0-dev, 09.11.2026
 
-## Aktuell 0.13
+## Aktuell 0.14
+
+Eine optional konfigurierte Packauswahl wird asynchron vorbereitet und im
+Menü installiert. Ungültige Dateinamen und Aufbereitungsfehler werden
+protokolliert. Die normale Shaderwahl steht in README.md. Der getestete
+Umfang und die verbleibenden Bildunterschiede stehen im Prüfbericht.
+
+## Stand 0.13
 
 WorldPackSet bereitet die drei Vanilla-Dimensionen vor. Die Sitzung tauscht
 bei jedem ClientLevel-Wechsel ihre Renderziele und Historie aus. Im

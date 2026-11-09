@@ -86,3 +86,7 @@ Keep weather after deferred. Verify real rain texture and both particle batches.
 0.13 prepares vanilla dimension programs off-thread and switches the graph on
 ClientLevel changes. Keep one material table and terrain format across the
 dimensions. Test all three live, return to Overworld, then a standard world.
+
+0.14 adds opt-in startup selection. Read and compile the selected pack on a
+worker, then install it on the render thread only while no level is loaded.
+Keep invalid or blank settings on the standard renderer. Never bundle the pack.

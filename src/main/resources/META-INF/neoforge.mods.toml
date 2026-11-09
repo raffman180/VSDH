@@ -11,7 +11,7 @@ description='''
 Experimental native Vulkan rendering bridge for Distant Horizons and VulkanMod Reforged.
 Development target: Minecraft 1.21.1, NeoForge 21.1.264, DH 3.3.3.
 Experimental shaderpack tests cover Complementary Reimagined with the native renderer.
-Shader selection and full world coverage are in development.
+Experimental shader selection is available through config/vsdh.json. Full world coverage is in development.
 '''
 
 [[dependencies.vsdh]]

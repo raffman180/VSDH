@@ -1,0 +1,6 @@
+{
+  "vsdh.shader.ready": "Vulkan-Shaderpack bereit",
+  "vsdh.shader.waiting": "Zum Aktivieren des Shaderpacks ins Menü zurückkehren",
+  "vsdh.shader.failed": "Vulkan-Shaderpack konnte nicht aktiviert werden",
+  "vsdh.shader.failed.details": "Details stehen in logs/latest.log."
+}

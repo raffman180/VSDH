@@ -17,6 +17,9 @@ public final class DhVulkanConfig {
     private static volatile DhVulkanConfig instance;
     /** 0=normal, 1=DH depth, 2=SSAO, 3=fog alpha, 4=fog color, 5=normals, 6=MC depth. */
     public int vulkanRenderMode = 0;
+    public String shaderPack = "";
+    public String shaderProfile = "MEDIUM";
+    public boolean shaderDistantHorizons = true;
 
     public static synchronized DhVulkanConfig get() {
         if (instance != null) return instance;

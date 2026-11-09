@@ -42,6 +42,10 @@ neoForge {
             systemProperty 'vsdh.smoke', 'true'
             systemProperty 'vsdh.smoke.livePack', providers.gradleProperty('smokeLivePack').getOrElse('false')
             systemProperty 'vsdh.smoke.dimensions', providers.gradleProperty('smokeDimensions').getOrElse('false')
+            systemProperty 'vsdh.smoke.configuredPack', providers.gradleProperty('smokeConfiguredPack').getOrElse('false')
+            systemProperty 'vsdh.smoke.rejectConfiguredPack', providers.gradleProperty('smokeRejectConfiguredPack').getOrElse('false')
+            if (providers.gradleProperty('smokeGameDir').isPresent())
+                gameDirectory.set(file(providers.gradleProperty('smokeGameDir').get()))
             systemProperty 'vsdh.smoke.distantPack', providers.gradleProperty('smokeDistantPack').getOrElse('false')
             if (providers.gradleProperty('smokeShaderPack').isPresent())
                 systemProperty 'vsdh.smoke.pack', providers.gradleProperty('smokeShaderPack').get()

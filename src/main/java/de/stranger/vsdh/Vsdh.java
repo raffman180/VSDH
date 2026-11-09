@@ -3,6 +3,7 @@ package de.stranger.vsdh;
 import com.braffolk.dhvulkan.api.ApiDhIntegration;
 import com.braffolk.dhvulkan.core.VulkanRenderEngine;
 import com.braffolk.dhvulkan.config.DhVulkanConfig;
+import de.stranger.vsdh.shader.ShaderPackStartup;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
@@ -19,10 +20,12 @@ public final class Vsdh {
 
     public Vsdh() {
         // Load the small config on the mod-loading worker, before rendering.
-        DhVulkanConfig.get();
+        var config=DhVulkanConfig.get();
         ApiDhIntegration integration = new ApiDhIntegration();
         integration.initialize(new VulkanRenderEngine());
         NeoForge.EVENT_BUS.addListener(this::onLogout);
+        if(!Boolean.getBoolean("vsdh.smoke") || Boolean.getBoolean("vsdh.smoke.configuredPack"))
+            ShaderPackStartup.start(config.shaderPack,config.shaderProfile,config.shaderDistantHorizons);
         LOGGER.info("VSDH native renderer initialized; complete shaderpack and DH-pack integration remain in development.");
     }
 
