@@ -28,7 +28,7 @@ public final class WorldShaderSession implements MainPass {
     private static final java.util.Set<String> DEPTH_NAMES=java.util.Set.of("depthtex0","depthtex1","depthtex2","gdepthtex");
     private final MainPass delegate;
     private final WorldPackPlan plan;
-    private final WorldUniforms uniforms=new WorldUniforms();
+    private final WorldUniforms uniforms;
     private final Map<TerrainRenderType,NativeTerrainPass> terrain=new EnumMap<>(TerrainRenderType.class);
     private final Map<TerrainRenderType,PackProgramSource.Prepared> sources=new EnumMap<>(TerrainRenderType.class);
     private final Map<Long,Integer> aliases=new HashMap<>();
@@ -42,7 +42,7 @@ public final class WorldShaderSession implements MainPass {
     private Consumer<WorldShaderSession> frameObserver;
 
     private WorldShaderSession(MainPass delegate, WorldPackPlan plan) {
-        this.delegate=delegate;this.plan=plan;
+        this.delegate=delegate;this.plan=plan;this.uniforms=new WorldUniforms(plan);
         for(var type:TerrainRenderType.values())sources.put(type,plan.terrain().get(type.name().toLowerCase(java.util.Locale.ROOT)));
     }
     public static WorldShaderSession current() { return current; }

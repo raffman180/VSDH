@@ -26,3 +26,9 @@ from avpbynf/Vitrail-Shaders commit 7a3cdcbe1dfd7e04fb2b3021ee8352d341e7647e,
 LGPL-3.0. Its complete third-party attribution notice is preserved in
 docs/upstream/VITRAIL_NOTICE.txt. This is not the Vitrail Minecraft 26.x runtime.
 VSDH changes target the Reforged 1.21.1 renderer and Java 21.
+
+The portable custom-uniform expression evaluator, StarEval subtree, Val and Smoothed
+are also adapted from that pinned Vitrail commit. VSDH supplies its own small input
+catalogue and render-frame interface, removes the MC-26 runtime/global smoothing
+tracker and retains session-owned graph state. Original Iris/StarEval attributions
+and licenses are retained in docs/upstream/VITRAIL_NOTICE.txt.

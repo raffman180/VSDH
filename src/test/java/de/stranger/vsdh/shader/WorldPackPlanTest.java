@@ -17,7 +17,7 @@ class WorldPackPlanTest {
             assertEquals(5,prepared.terrain().size());
             assertTrue(prepared.terrain().values().stream().flatMap(p->p.translated().uniforms().stream())
                     .noneMatch(u->u.name().equals("of_TexShrink")),"Sodium-only inputs do not belong in the native format");
-            assertEquals(java.util.List.of(0,1,2,3,4,5,6),prepared.chain().targets().writes("gbuffers_terrain"));
+            assertEquals(java.util.List.of(0,1,2,3,4,5,6,7),prepared.chain().targets().writes("gbuffers_terrain"));
             assertEquals(java.util.List.of(0),prepared.chain().targets().writes("gbuffers_basic"));
             assertTrue(prepared.chain().externalSamplers().contains("depthtex0"));
             for(String layer:prepared.terrain().keySet()) {

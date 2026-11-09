@@ -3,6 +3,7 @@ package de.stranger.vsdh.shader;
 import dev.vitrail.pack.id.BlockIds;
 import dev.vitrail.pack.model.AlphaTest;
 import dev.vitrail.pack.source.OpenedPack;
+import dev.vitrail.pack.target.PackDirectives;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -11,8 +12,12 @@ import java.util.Map;
 
 /** CPU-only preparation; no native GPU resources, registry access or escaping ZIP paths. */
 public record WorldPackPlan(ShaderChainPlan chain, Map<String, PackProgramSource.Prepared> terrain,
-                            List<BlockIds.Entry> materials) {
-    public WorldPackPlan { terrain=Map.copyOf(terrain); materials=List.copyOf(materials); }
+                            List<BlockIds.Entry> materials, PackExpressions.Plan expressions,
+                            Map<String,Integer> items, PackDirectives directives, boolean oldHandLight) {
+    public WorldPackPlan { terrain=Map.copyOf(terrain); materials=List.copyOf(materials); items=Map.copyOf(items); }
+    public WorldPackPlan(ShaderChainPlan chain, Map<String,PackProgramSource.Prepared> terrain,List<BlockIds.Entry> materials) {
+        this(chain,terrain,materials,PackExpressions.empty(),Map.of(),PackDirectives.defaults(),false);
+    }
     public static WorldPackPlan prepare(OpenedPack pack, String dimension) throws IOException {
         var chain=ShaderChainPlan.prepare(pack,dimension);
         var prefix=chain.targets().place().isEmpty()?"":chain.targets().place()+"/";
@@ -31,6 +36,7 @@ public record WorldPackPlan(ShaderChainPlan chain, Map<String, PackProgramSource
         }
         var parsed=BlockIds.read(pack.source(),defines);
         if (!parsed.problems().isEmpty()) throw new IOException("Invalid material table: "+parsed.problems());
-        return new WorldPackPlan(chain,terrain,parsed.entries());
+        return new WorldPackPlan(chain,terrain,parsed.entries(),PackExpressions.read(pack),ShaderItemMaterials.read(pack),
+                PackDirectives.read(pack.source(),pack.settings(),dimension),pack.properties().oldHandLight(defines));
     }
 }

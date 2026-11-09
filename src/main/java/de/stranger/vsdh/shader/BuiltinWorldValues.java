@@ -12,6 +12,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.material.FogType;
 import net.vulkanmod.gl.GlTexture;
+import dev.vitrail.uniform.Val;
 
 import java.nio.ByteBuffer;
 import java.util.Set;
@@ -59,6 +60,25 @@ public final class BuiltinWorldValues {
                 if(level.getBiome(player.blockPosition()).is(BiomeTags.HAS_CLOSER_WATER_FOG))waterDensity+=.005f;
             }
         }
+    }
+
+    public boolean read(String name,Val out) {
+        switch(name) {
+            case "cameraPositionInt"->out.set(cameraInt[0],cameraInt[1],cameraInt[2]);
+            case "previousCameraPositionInt"->out.set(previousInt[0],previousInt[1],previousInt[2]);
+            case "cameraPositionFract"->out.set(cameraFract[0],cameraFract[1],cameraFract[2]);
+            case "previousCameraPositionFract"->out.set(previousFract[0],previousFract[1],previousFract[2]);
+            case "eyePosition"->out.set(eye[0],eye[1],eye[2]);
+            case "relativeEyePosition"->out.set(relativeEye[0],relativeEye[1],relativeEye[2]);
+            case "playerLookVector"->out.set(look[0],look[1],look[2]);
+            case "eyeBrightness"->out.set(eyeLight[0],eyeLight[1]);
+            case "isEyeInWater"->out.set(eyeMedium);case "moonPhase"->out.set(moonPhase);
+            case "blindness"->out.set(blindness);case "darknessFactor"->out.set(darkness);
+            case "nightVision"->out.set(nightVision);case "cloudHeight"->out.set(cloudHeight);
+            case "sunAngle"->out.set(sunAngle);case "screenBrightness"->out.set(gamma);
+            default->{return false;}
+        }
+        return true;
     }
 
     public boolean write(Std140Layout.Member member,Std140Layout layout,ByteBuffer destination) {

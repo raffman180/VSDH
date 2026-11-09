@@ -133,7 +133,8 @@
     "voxel.VoxelShapeMixin",
     "compatibility.fml.ImmediateWindowHandlerMixin",
     "shader.WorldShaderLevelMixin",
-    "shader.WorldShaderGameMixin"
+    "shader.WorldShaderGameMixin",
+    "shader.WorldShaderLightMixin"
   ],
   "injectors": {
     "defaultRequire": 1

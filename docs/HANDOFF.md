@@ -8,6 +8,14 @@ die originale Reforged-JAR darf nicht parallel installiert sein.
 
 ## Aktuell 0.6 — aktive Uniforms und echte Weltwerte
 
+Weiterarbeit 0.7: echte Packformeln samt sitzungseigener Glättung, Hand-IDs aus
+item.properties, komponentenabhängiges Blocklicht, Biome, Wetness und tatsächlicher
+LightTexture-Darknesswert sind hinzugekommen. 45 Tests und verify-0.7-client.log
+bestehen mit vier neuen EXPRESSION WORLD GPU PASS-Marken neben den bisherigen
+Prüfungen in zwei Welten. Aktiver Complementary-Uniform-Audit: 2/0/2 fehlend,
+jeweils Schattenmatrizen. Vollständiger Renderer bleibt offen. Nächster Schritt:
+native Schattenkamera und Schattenzeichnung aller geladenen Chunk-Puffer.
+
 UniformUsage liest aktive OfGlobals-Member aus optimiertem SPIR-V. Zuordnung über
 Byteoffsets, unverändertes std140-Layout, unbekannte Pointerpfade konservativ.
 NativeGraphicsProgram cached die aktive Liste. WorldUniforms validiert und schreibt

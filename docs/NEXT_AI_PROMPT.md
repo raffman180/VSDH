@@ -1,5 +1,26 @@
 # Fortsetzungs-Prompt für die nächste KI
 
+Neuester Zwischenstand 0.7: PackExpressions wertet echte Packformeln mit dem
+portablen Vitrail-/StarEval-Auswerter aus. Keine MC-26-Laufzeit importiert;
+ExpressionFrame/UniformCatalog sind kleine VSDH-Adapter. Glättungszustand gehört
+zum einzelnen Ausdruck und zur Sitzung. PackWorldValues liest Handmaterialien aus
+item.properties, echtes Blocklicht inklusive Block-State-Komponenten, Biome,
+Niederschlag, geglättetes Augenlicht und Wetness. Ein LightTexture-Mixin erfasst
+den tatsächlichen darknessLightFactor. Unauflösbare/zyklische Formeln bleiben
+diagnostiziert, nicht endliche Ergebnisse brechen die Aktivierung/Auswertung ab.
+
+45 CPU-Tests und verify-0.7-client.log bestehen vollständig: zwei Welten, alle
+alten GPU-Gruppen sowie EXPRESSION WORLD GPU PASS für Luft, Wasser, Effekte und
+Regen. Getrennte Hand-IDs, alte Nebenhandlicht-Regel, Formelergebnisse, Bool-/Vec3-
+Werte und das untere Byte von 33554559 wurden tatsächlich zurückgelesen.
+Complementary-Audit: aktiv fehlen nur shadowModelView/shadowProjection in Oberwelt
+und Ende, im Nether keine Weltwerte; Ressourcen und Renderprogramme bleiben offen.
+Nicht aktive End-Flash-Formeln brauchen ein neueres Minecraft-Feature und bleiben
+diagnostiziert. Nächste konkrete Arbeit ist der native Schattenpass mit Sonnenkamera
+und allen geladenen Chunks, danach Texturversorgung und verbleibende Geometrie/DH.
+Die folgenden Abschnitte halten den Ausgangsstand 0.6 fest; git status/neuste Logs
+prüfen, weil weitere Schattenänderungen noch laufen können.
+
 Arbeite direkt am Projekt `C:/Users/Stranger/Documents/Meine Mods/VSDH` weiter.
 Antworte auf Deutsch, erkläre wichtige Entscheidungen verständlich und frage nicht
 für kleine technische Schritte nach Erlaubnis. Der Nutzer hat den eigenen

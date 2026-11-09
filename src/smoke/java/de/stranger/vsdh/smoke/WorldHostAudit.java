@@ -17,8 +17,8 @@ public final class WorldHostAudit {
                 var plan=WorldPackPlan.prepare(pack,dimension);
                 var missing=new TreeSet<String>();
                 var declared=new TreeSet<String>();
-                plan.terrain().values().forEach(p->{missing.addAll(WorldUniforms.missing(p));declared.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms())));});
-                plan.chain().stages().values().forEach(passes->passes.forEach(p->{missing.addAll(WorldUniforms.missing(p.program()));declared.addAll(WorldUniforms.missing(new Std140Layout(p.program().translated().uniforms())));}));
+                plan.terrain().values().forEach(p->{missing.addAll(WorldUniforms.missing(p,plan.expressions().resolvedNames()));declared.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms())));});
+                plan.chain().stages().values().forEach(passes->passes.forEach(p->{missing.addAll(WorldUniforms.missing(p.program(),plan.expressions().resolvedNames()));declared.addAll(WorldUniforms.missing(new Std140Layout(p.program().translated().uniforms())));}));
                 var resources=new TreeSet<>(plan.chain().externalSamplers());
                 plan.terrain().values().forEach(p->{
                     var active=new HashSet<Integer>();p.compiled().stages().values().forEach(bytes->active.addAll(SpirvInterface.bindings(bytes)));
@@ -27,6 +27,9 @@ public final class WorldHostAudit {
                 var entry=new LinkedHashMap<String,Object>();entry.put("dimension",dimension);entry.put("terrainVariantsCompiled",plan.terrain().size());
                 entry.put("missingWorldUniforms",missing);entry.put("requiredResources",resources);
                 entry.put("unimplementedDeclaredWorldUniforms",declared);
+                entry.put("customExpressionProblems",plan.expressions().problems());
+                entry.put("resolvedCustomUniforms",new TreeSet<>(plan.expressions().resolvedNames()));
+                entry.put("itemMaterialEntries",plan.items().size());
                 entry.put("completeWorldRendererSupported",false);dimensions.add(entry);
             }
         }

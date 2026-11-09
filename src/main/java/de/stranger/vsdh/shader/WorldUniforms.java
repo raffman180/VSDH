@@ -3,13 +3,15 @@ package de.stranger.vsdh.shader;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import dev.vitrail.uniform.ExpressionFrame;
+import dev.vitrail.uniform.Val;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 
 import java.util.Set;
 
 /** One actual world/camera snapshot per frame. Unknown values are rejected before activation. */
-public final class WorldUniforms {
+public final class WorldUniforms implements ExpressionFrame {
     private static final Set<String> KNOWN=Set.of("of_ModelViewMatrix","of_ProjectionMatrix","of_ModelViewProjectionMatrix",
             "of_NormalMatrix","of_TextureMatrix","of_DepthConv","gbufferModelView","gbufferModelViewInverse",
             "gbufferProjection","gbufferProjectionInverse","gbufferPreviousModelView","gbufferPreviousProjection",
@@ -28,27 +30,44 @@ public final class WorldUniforms {
     private final float[] scalar=new float[1]; private final int[] integer=new int[1];
     private final Matrix4f scratch=new Matrix4f(); private final Matrix3f normalScratch=new Matrix3f();
     private final BuiltinWorldValues builtins=new BuiltinWorldValues();
+    private final WorldPackPlan plan;
+    private final PackWorldValues packValues;
+    private PackExpressions.Runtime expressions;
+    private Object previousLevel;
     private int width,height,worldTime,worldDay,frame;
     private float rain,far,frameTime,elapsed;
     private long lastNanos;
 
+    public WorldUniforms(WorldPackPlan plan) {
+        this.plan=plan;packValues=new PackWorldValues(plan);expressions=plan.expressions().runtime();
+    }
+
     public static Set<String> missing(Std140Layout layout) {
         var missing=new java.util.TreeSet<String>();
-        for (var member:layout.members()) if (!KNOWN.contains(member.name()) && !BuiltinWorldValues.NAMES.contains(member.name())) missing.add(member.name());
+        for (var member:layout.members()) if (!known(member.name())) missing.add(member.name());
         return Set.copyOf(missing);
     }
     public static Set<String> missing(PackProgramSource.Prepared program) {
+        return missing(program,Set.of());
+    }
+    private static boolean known(String name) {
+        return KNOWN.contains(name)||BuiltinWorldValues.NAMES.contains(name)||PackWorldValues.NAMES.contains(name);
+    }
+    public static Set<String> missing(PackProgramSource.Prepared program,Set<String> customNames) {
         var active=UniformUsage.names(program.compiled(),new Std140Layout(program.translated().uniforms()));
-        var missing=new java.util.TreeSet<>(active);missing.removeAll(KNOWN);missing.removeAll(BuiltinWorldValues.NAMES);return Set.copyOf(missing);
+        var missing=new java.util.TreeSet<>(active);missing.removeIf(WorldUniforms::known);missing.removeAll(customNames);return Set.copyOf(missing);
     }
     public static void validate(WorldPackPlan plan) {
         var missing=new java.util.TreeSet<String>();
-        plan.terrain().values().forEach(p->missing.addAll(missing(p)));
-        plan.chain().stages().values().forEach(passes->passes.forEach(p->missing.addAll(missing(p.program()))));
+        plan.terrain().values().forEach(p->missing.addAll(missing(p,plan.expressions().resolvedNames())));
+        plan.chain().stages().values().forEach(passes->passes.forEach(p->missing.addAll(missing(p.program(),plan.expressions().resolvedNames()))));
         if (!missing.isEmpty()) throw new IllegalArgumentException("World uniforms not implemented: "+missing);
     }
     public void capture(Camera camera, Matrix4f view, Matrix4f legacyProjection, float partialTick, int width, int height) {
         Minecraft mc=Minecraft.getInstance(); var pos=camera.getPosition();
+        if(previousLevel!=mc.level) {
+            previousLevel=mc.level;packValues.reset();expressions=plan.expressions().runtime();lastNanos=0;
+        }
         matrices.begin(mc.level,view,legacyProjection,pos.x,pos.y,pos.z,width,height);
         builtins.capture(camera,matrices,partialTick);
         this.width=width; this.height=height; this.far=mc.gameRenderer.getRenderDistance();
@@ -65,10 +84,13 @@ public final class WorldUniforms {
         rain=mc.level.getRainLevel(partialTick);
         long now=System.nanoTime(); frameTime=lastNanos==0?0:Math.min(1,(now-lastNanos)*1e-9f); lastNanos=now;
         elapsed=(elapsed+frameTime)%3600;
+        packValues.capture(camera,builtins,rain,frameTime);
+        expressions.update(this,frameTime);
     }
     public void write(NativeGraphicsProgram pass, boolean fullscreen, int renderStage, float alphaRef) {
         var layout=pass.layout(); var buffer=pass.uniforms();
         for (var member:pass.activeUniforms()) {
+            if(expressions.write(member,layout,buffer)||packValues.write(member,layout,buffer))continue;
             if(builtins.write(member,layout,buffer))continue;
             String name=member.name(); float[] matrix=switch(name) {
                 case "of_ModelViewMatrix"->fullscreen?IDENTITY:view;
@@ -100,4 +122,19 @@ public final class WorldUniforms {
     }
     public void commit() { matrices.commit();frame=(frame+1)%720720; }
     public void reset() { matrices.reset();lastNanos=0; }
+    @Override public long frameCounter() { return frame; }
+    @Override public void read(String name,Val out) {
+        if(builtins.read(name,out)||packValues.read(name,out))return;
+        switch(name) {
+            case "frameCounter"->out.set(frame);case "worldTime"->out.set(worldTime);case "worldDay"->out.set(worldDay);
+            case "frameTime"->out.set(frameTime);case "frameTimeCounter"->out.set(elapsed);
+            case "rainStrength"->out.set(rain);case "eyeAltitude"->out.set(camera[1]);
+            case "viewWidth"->out.set((float)width);case "viewHeight"->out.set((float)height);
+            case "aspectRatio"->out.set((float)width/height);case "near"->out.set(.05f);case "far"->out.set(far);
+            case "cameraPosition"->out.set(camera[0],camera[1],camera[2]);
+            case "previousCameraPosition"->out.set(previousCamera[0],previousCamera[1],previousCamera[2]);
+            case "fogColor"->out.set(fog[0],fog[1],fog[2]);case "skyColor"->out.set(sky[0],sky[1],sky[2]);
+            default->throw new IllegalArgumentException("Unknown expression snapshot value: "+name);
+        }
+    }
 }
