@@ -37,3 +37,13 @@ uniforms, shadows and other geometry/DH integration. Read docs/TERRAIN_FORMAT.md
 Keep /build/ anchored in .gitignore: render/chunk/build contains required source.
 DrawBuffers stride and bias belong to each area's immutable format snapshot;
 never restore the old static stride. Recreate synchronous builders with workers.
+
+0.5 adds WorldShaderSession, the explicit live-world MainPass host. Own diagnostic
+pack runs on actual chunks and the existing DH composite. 28 tests pass, including
+infinite far projection/history and shader alpha variants. Two native-world GPU
+checks cover 100% and 50% scale plus actual FINAL output. Full Complementary still
+lacks 59 world values/resources and other geometry/shadows/DH-pack programs. See
+docs/WORLD_SHADER_HOST.md and docs/verification/0.5-complementary-requirements.json.
+Keep docs/NEXT_AI_PROMPT.md current; user explicitly requests a usable handoff
+prompt before ending the current work. Do not infer renderer completion from the
+own diagnostic pack. Invalid startup matrices retain the normal frame target.

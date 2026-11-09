@@ -6,6 +6,41 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
+## Aktuell 0.5 — echte Welt-Renderkette
+
+WorldPackPlan/WorldShaderSession/WorldMatrices/WorldUniforms und zwei Client-Mixins
+sind implementiert. Der Host umschließt MainPass und wird nur ausdrücklich vor
+einem Weltstart installiert; Shader-Host bleibt standardmäßig deaktiviert. Der Smoke-Test nutzt einen
+eigenen nativen Welt-Diagnosepack, NICHT vollständiges Complementary. Terrain nutzt
+dieselben echten AreaBuffers samt direkten/indirekten Draws. Vanilla und bisheriger
+DH-Composite gehen ins Szenenbild, FINAL ins echte Hauptziel vor dem GUI.
+
+verify-0.5-client.log besteht: zwei Welten, Resize, Nacht/Regen, 44->20-Byte-
+Rückwechsel, Shader-Host bei 1280x720/100% und 480x270/50%. 31.347 bzw. 4.409 echte
+Einheitsnormalenpixel sowie FINAL-Kontrollpixel im echten Ausgabebild belegt.
+Sechs bisherige GPU-Gruppen je viermal bestanden; keine ERROR/FATAL-Einträge.
+Eine anfangs nicht endliche Minecraft-Projektion führt zu einem protokollierten
+normalen Frame statt zu NaN-Shaderhistorie oder Absturz. 28 CPU-Tests bestehen.
+
+Korrekturen: of_TexShrink nur für Sodium; DH-Compat respektiert MainPass statt
+DefaultMainPass/Swapchain zu erzwingen; RenderScale nutzt logische Viewports.
+RenderPass/Framebuffer/Image-Freigaben bleiben in der vorhandenen verzögerten
+GPU-Verwaltung. Keine Warteschleifen/Readbacks im Produktions-Shaderpfad; der
+Frame-Observer und die Rückleseassertionen werden nur im Smoke-Test verwendet.
+
+Nächstes Ziel: 59 fehlende Complementary-Weltwerte je Dimension implementieren,
+inklusive echter Provider und benutzerdefinierter Uniform-Ausdrücke. Konkrete Liste
+in docs/verification/0.5-complementary-requirements.json. Shader-Ressourcen,
+Schattenkamera/-geometrie, weitere Pack-Geometriefamilien und DH-Pack-Terrain/-Wasser
+folgen. Der bisherige DH-Composite ist noch keine DH-Shaderprogramm-Anbindung.
+Hand-Reihenfolge bleibt Vanilla; depthtex1/2 derzeit beide vor Transparenz.
+Weitere Grenzen und Ablauf: docs/WORLD_SHADER_HOST.md.
+
+Der Nutzer verlangt Weiterarbeit und einen Fortsetzungs-Prompt vor dem Ende der
+Arbeit. docs/NEXT_AI_PROMPT.md ist dafür bereits geschrieben und zu aktualisieren.
+
+Die folgenden Abschnitte halten die älteren Stände 0.4/0.3 fest.
+
 ## Aktuell 0.4 — Terrain
 
 ShaderTerrainVertex/CustomVertexFormat.SHADER_TERRAIN: 44 Byte, echte Normalen und

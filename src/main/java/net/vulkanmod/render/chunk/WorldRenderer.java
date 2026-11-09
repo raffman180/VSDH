@@ -334,18 +334,33 @@ public class WorldRenderer {
         this.minecraft.getProfiler().push("filterempty");
         this.minecraft.getProfiler().popPush(() -> "render_" + renderType);
 
-        final boolean isTranslucent = terrainRenderType == TerrainRenderType.TRANSLUCENT;
-        final boolean indirectDraw = Initializer.CONFIG.indirectDraw && DeviceManager.supportsFastIndirectDraw();
-
         VRenderSystem.applyMVP(modelView, projection);
         VRenderSystem.setPrimitiveTopologyGL(GL11.GL_TRIANGLES);
 
+        var shaders = de.stranger.vsdh.shader.WorldShaderSession.current();
+        if (shaders != null && shaders.active()) {
+            shaders.renderTerrain(terrainRenderType,
+                    pipeline -> drawSectionBatches(pipeline, terrainRenderType, camX, camY, camZ, false));
+        } else {
+            Renderer renderer = Renderer.getInstance();
+            GraphicsPipeline pipeline = PipelineManager.getTerrainShader(terrainRenderType);
+            renderer.bindGraphicsPipeline(pipeline);
+            VTextureSelector.bindShaderTextures(pipeline);
+            drawSectionBatches(pipeline, terrainRenderType, camX, camY, camZ, true);
+        }
+
+        this.minecraft.getProfiler().pop();
+        renderType.clearRenderState();
+
+        VRenderSystem.applyMVP(RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix());
+    }
+
+    /** Shared draw walk: native shader programs reuse the same uploaded area buffers and visibility. */
+    private void drawSectionBatches(GraphicsPipeline pipeline, TerrainRenderType terrainRenderType,
+                                    double camX, double camY, double camZ, boolean bindUniforms) {
         Renderer renderer = Renderer.getInstance();
-        GraphicsPipeline pipeline = PipelineManager.getTerrainShader(terrainRenderType);
-        renderer.bindGraphicsPipeline(pipeline);
-
-        VTextureSelector.bindShaderTextures(pipeline);
-
+        boolean isTranslucent = terrainRenderType == TerrainRenderType.TRANSLUCENT;
+        boolean indirectDraw = Initializer.CONFIG.indirectDraw && DeviceManager.supportsFastIndirectDraw();
         IndexBuffer indexBuffer = Renderer.getDrawer().getQuadsIndexBuffer().getIndexBuffer();
         Renderer.getDrawer().bindIndexBuffer(Renderer.getCommandBuffer(), indexBuffer);
 
@@ -353,7 +368,7 @@ public class WorldRenderer {
         Set<TerrainRenderType> allowedRenderTypes = Initializer.CONFIG.uniqueOpaqueLayer ? TerrainRenderType.COMPACT_RENDER_TYPES : TerrainRenderType.SEMI_COMPACT_RENDER_TYPES;
         if (allowedRenderTypes.contains(terrainRenderType)) {
             terrainRenderType.setCutoutUniform();
-            boolean ubosBound = false;
+            boolean ubosBound = !bindUniforms;
 
             final StaticQueue<ChunkArea> chunkAreaQueue = this.sectionGraph.getChunkAreaQueue().queue();
             final int areaCount = chunkAreaQueue.size();
@@ -384,15 +399,11 @@ public class WorldRenderer {
 
         }
 
-        if (!indirectDraw) {
+        if (bindUniforms && !indirectDraw) {
             VRenderSystem.setChunkOffset(0, 0, 0);
             renderer.pushConstants(pipeline);
         }
 
-        this.minecraft.getProfiler().pop();
-        renderType.clearRenderState();
-
-        VRenderSystem.applyMVP(RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix());
     }
 
     private void sortTranslucentSections(double camX, double camY, double camZ) {

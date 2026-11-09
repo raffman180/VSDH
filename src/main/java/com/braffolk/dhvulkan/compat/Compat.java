@@ -53,7 +53,6 @@ public final class Compat {
 
     // Reusable float[3] for getCloudColorRGB — avoids per-frame allocation
     private static final float[] cloudColorResult = new float[3];
-    private static java.lang.reflect.Field defaultMainPassAuxField;
 
     static {
         try {
@@ -71,10 +70,6 @@ public final class Compat {
         try {
             rendererCmdBufferField = Renderer.class.getDeclaredField("currentCmdBuffer");
             rendererCmdBufferField.setAccessible(true);
-        } catch (Exception ignored) {}
-        try {
-            defaultMainPassAuxField = net.vulkanmod.vulkan.pass.DefaultMainPass.class.getDeclaredField("auxRenderPass");
-            defaultMainPassAuxField.setAccessible(true);
         } catch (Exception ignored) {}
     }
 
@@ -261,13 +256,17 @@ public final class Compat {
 
     public static int getSwapChainWidth() {
 
-        return net.vulkanmod.vulkan.Vulkan.getSwapChain().getWidth();
+        var main = Renderer.getInstance().getMainPass();
+        VulkanImage color = main != null ? main.getColorAttachment() : null;
+        return color != null ? color.width : net.vulkanmod.vulkan.Vulkan.getSwapChain().getWidth();
 
     }
 
     public static int getSwapChainHeight() {
 
-        return net.vulkanmod.vulkan.Vulkan.getSwapChain().getHeight();
+        var main = Renderer.getInstance().getMainPass();
+        VulkanImage color = main != null ? main.getColorAttachment() : null;
+        return color != null ? color.height : net.vulkanmod.vulkan.Vulkan.getSwapChain().getHeight();
 
     }
 
@@ -296,28 +295,11 @@ public final class Compat {
 
     }
 
-    /**
-     * Rebind MC's main render target (swapchain) so the composite can draw into it.
-     * On VM 0.6.1, DefaultMainPass.rebindMainTarget() handles state internally.
-     * On VM 0.4.2, it calls swapChain.beginRenderPass() directly without updating
-     * Renderer state — we must fix up boundFramebuffer/boundRenderPass afterward.
-     */
+    /** Rebind the selected world target. Reforged owns renderer state and may use a shader/scaled target. */
     public static void rebindMainTarget() {
-        net.vulkanmod.vulkan.pass.DefaultMainPass mainPass =
-                (net.vulkanmod.vulkan.pass.DefaultMainPass) Renderer.getInstance().getMainPass();
-        mainPass.rebindMainTarget();
-
-
-        // VM 0.4.2: rebindMainTarget starts auxRenderPass on swapChain but doesn't
-        // update Renderer state. Fix up so bindGraphicsPipeline/endRenderPass work.
-        try {
-            net.vulkanmod.vulkan.framebuffer.RenderPass auxPass =
-                    (net.vulkanmod.vulkan.framebuffer.RenderPass) defaultMainPassAuxField.get(mainPass);
-            Renderer.getInstance().setBoundFramebuffer(net.vulkanmod.vulkan.Vulkan.getSwapChain());
-            Renderer.getInstance().setBoundRenderPass(auxPass);
-        } catch (Exception e) {
-            throw new RuntimeException("[DH-Vulkan] Failed to rebind main target on VM 0.4.2", e);
-        }
+        // The pinned Reforged implementation updates both renderer bindings itself.
+        // Respect the MainPass interface: a shader session or scaled world target may own it.
+        Renderer.getInstance().getMainPass().rebindMainTarget();
 
     }
 
@@ -430,12 +412,13 @@ public final class Compat {
     // ========================= //
 
     /**
-     * Get MC's swapchain depth attachment for depth-compared compositing.
-     * Returns the VulkanImage backing MC's depth buffer.
+     * Get the current MC scene depth for depth-compared compositing.
+     * The legacy method name is retained; the image may belong to a scaled world target.
      */
     public static VulkanImage getSwapChainDepthAttachment() {
 
-        return net.vulkanmod.vulkan.Vulkan.getSwapChain().getDepthAttachment();
+        var main = Renderer.getInstance().getMainPass();
+        return main != null ? main.getDepthAttachment() : net.vulkanmod.vulkan.Vulkan.getSwapChain().getDepthAttachment();
 
     }
 

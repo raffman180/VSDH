@@ -1,0 +1,36 @@
+package de.stranger.vsdh.shader;
+
+import dev.vitrail.pack.id.BlockIds;
+import dev.vitrail.pack.model.AlphaTest;
+import dev.vitrail.pack.source.OpenedPack;
+
+import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/** CPU-only preparation; no native GPU resources, registry access or escaping ZIP paths. */
+public record WorldPackPlan(ShaderChainPlan chain, Map<String, PackProgramSource.Prepared> terrain,
+                            List<BlockIds.Entry> materials) {
+    public WorldPackPlan { terrain=Map.copyOf(terrain); materials=List.copyOf(materials); }
+    public static WorldPackPlan prepare(OpenedPack pack, String dimension) throws IOException {
+        var chain=ShaderChainPlan.prepare(pack,dimension);
+        var prefix=chain.targets().place().isEmpty()?"":chain.targets().place()+"/";
+        var defines=pack.settings().globalDefines(pack.options());
+        var alphas=pack.properties().alphaTests(defines);
+        Map<String,PackProgramSource.Prepared> terrain=new LinkedHashMap<>();
+        for (String layer:List.of("solid","cutout_mipped","cutout","translucent","tripwire")) {
+            String program=layer.equals("translucent") || layer.equals("tripwire") ? "gbuffers_water":"gbuffers_terrain";
+            if (pack.source().file(prefix+program+".vsh").isEmpty()) program="gbuffers_terrain";
+            AlphaTest alpha=alphas.getOrDefault(program, switch(layer) {
+                case "cutout_mipped"->AlphaTest.CUTOUT;
+                case "cutout","tripwire"->new AlphaTest(AlphaTest.Function.GREATER,.1f);
+                default->AlphaTest.OFF;
+            });
+            terrain.put(layer,PackProgramSource.prepareTerrain(pack,prefix+program,alpha));
+        }
+        var parsed=BlockIds.read(pack.source(),defines);
+        if (!parsed.problems().isEmpty()) throw new IOException("Invalid material table: "+parsed.problems());
+        return new WorldPackPlan(chain,terrain,parsed.entries());
+    }
+}

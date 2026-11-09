@@ -4389,7 +4389,7 @@ public final class GlslTranslator {
 			this.injectedNames.add("viewHeight");
 		}
 
-		if (terrain) {
+        if (terrain && !this.inputs.vulkanTerrain()) {
 			takeTexShrink();
 		}
 

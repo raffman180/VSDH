@@ -1,4 +1,21 @@
-# VSDH — Prüfstand 0.4.0-dev, 09.11.2026
+# VSDH — Prüfstand 0.5.0-dev, 09.11.2026
+
+## Aktuell 0.5
+
+Die Weltzeichnung ist mit NativeShaderChain verbunden. Eigener Diagnosepack auf
+realen Chunks, echte Kamera-/Projektionswerte, Schatten noch nicht implementiert.
+Welt/DH/Vanilla teilen das Szenenziel; FINAL erreicht das eigentliche Ausgabebild
+vor dem GUI. 28 Tests und verify-0.5-client.log bestehen: zwei Welten, Resize,
+Nacht/Regen, 100%/50% RenderScale, 44->20-Byte-Formatwechsel, ohne ERROR/FATAL.
+31.347 bzw. 4.409 dekodierte echte Normalenpixel und FINAL-Sentinel auf dem echten
+Hauptziel wurden per GPU-Rücklesen geprüft. Nicht endliche Start-Projektion wird
+protokolliert mit normalem Frame überbrückt, ohne Shader-Historie zu verändern.
+
+Vollständiges Complementary ist weiterhin nicht freigegeben. Der CPU-Audit
+meldet 59 fehlende Weltwerte je Dimension, dazu weitere Texturen/Schatten und
+Geometriefamilien. Details: WORLD_SHADER_HOST.md und verification/0.5.0-dev.json.
+Fortsetzungs-Prompt: NEXT_AI_PROMPT.md. Die folgenden Abschnitte beschreiben die
+historischen Schritte 0.4/0.3 und deren weiterhin geltende Grenzen.
 
 ## Stand und Ziel
 

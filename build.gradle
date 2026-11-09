@@ -71,7 +71,7 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly "org.lwjgl:lwjgl:${lwjglVersion}:${devNatives}"
-    testRuntimeOnly 'org.joml:joml:1.10.5'
+    testImplementation 'org.joml:joml:1.10.5'
 }
 
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
@@ -92,6 +92,15 @@ tasks.register('auditRenderGraph', JavaExec) {
     mainClass = 'de.stranger.vsdh.smoke.RenderGraphAudit'
     args providers.gradleProperty('shaderPack').getOrElse('run/shaderpacks/ComplementaryReimagined_r5.9.3.zip'),
             providers.gradleProperty('shaderProfile').getOrElse('MEDIUM')
+}
+
+tasks.register('auditWorldHost', JavaExec) {
+    group = 'verification'
+    description = 'Reports missing world-uniform and resource support for an external pack; does not assert runtime compatibility.'
+    classpath = sourceSets.smoke.runtimeClasspath
+    mainClass = 'de.stranger.vsdh.smoke.WorldHostAudit'
+    args providers.gradleProperty('shaderPack').getOrElse('run/shaderpacks/ComplementaryReimagined_r5.9.3.zip'),
+            layout.buildDirectory.file('world-host-audit.json').get().asFile.absolutePath
 }
 processResources {
     inputs.property 'version', project.version

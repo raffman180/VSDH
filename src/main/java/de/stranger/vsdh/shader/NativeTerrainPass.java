@@ -22,6 +22,12 @@ public final class NativeTerrainPass extends NativeGraphicsProgram {
     }
     public void prepare(RenderPass pass) { super.prepare(opaqueState(pass)); }
 
+    /** Draw the renderer's actual area buffers; the callback only binds buffers/push constants and issues draws. */
+    public void renderBatches(Framebuffer target, RenderPass pass, PipelineState state,
+                              java.util.function.Consumer<net.vulkanmod.vulkan.shader.GraphicsPipeline> batches) {
+        renderDraw(target,pass,state,command -> batches.accept(pipeline));
+    }
+
     public void render(Framebuffer target, RenderPass pass, VertexBuffer vertices, IndexBuffer indices,
                        int indexCount, int firstIndex, int vertexOffset, int section,
                        float chunkX, float chunkY, float chunkZ) {

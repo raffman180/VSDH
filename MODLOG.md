@@ -89,3 +89,21 @@ aufgenommen. Ältere git-archive-Quellpakete waren unvollständig.
 Complementary-Terrain/Wasser/Shadow-Pipelines. Zwei reale Testwelten belegen
 44-/20-Byte-Uploads, Resize, Nacht/Regen und DH-Neuanlage ohne ERROR/FATAL.
 Details und verbleibende Gesamtaufgabe: docs/TERRAIN_FORMAT.md und HANDOFF.md.
+
+
+## 2026-11-09 — Native Weltkette 0.5
+
+WorldShaderSession verbindet tatsächliche Chunk-Draws und die MainPass-Ziele mit
+NativeShaderChain. Echte Projektions-/Kamerahistorie, Alpha-Test-Varianten, native
+Tiefensnapshots und FINAL vor GUI. Eigenes Diagnosepack, kein vollständiger
+Complementary-Renderer. Siehe docs/WORLD_SHADER_HOST.md.
+
+Behoben: Sodium-only of_TexShrink im nativen Format, erzwungene Swapchain-Bindung
+in DH-Compat, doppelte Viewport-Skalierung und nicht endliche Startprojektion.
+Normalen-Prüfung zählt echte Einheitsnormalen statt der Alpha-Löschfarbe;
+FINAL-Kontrollpixel bestätigt das tatsächliche Ausgabebild.
+
+28 Tests; zwei Welten, 100%/50%-RenderScale, Resize, Nacht/Regen, Rückwechsel zum
+Standardmodus ohne ERROR/FATAL. Der Complementary-CPU-Audit erfasst 59 fehlende
+Weltwerte je Dimension. docs/NEXT_AI_PROMPT.md erfüllt den Nutzerwunsch nach
+einem gesicherten Fortsetzungs-Prompt.

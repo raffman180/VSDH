@@ -38,6 +38,7 @@ public abstract class NativeGraphicsProgram implements AutoCloseable {
     private final ByteBuffer uniforms;
     private final Map<String, VulkanImage> images = new HashMap<>();
     private final Map<String, Boolean> samplers = new HashMap<>();
+    private final java.util.Set<String> samplerNames;
     private boolean closed;
 
     protected NativeGraphicsProgram(String name, TranslatedProgram translated, VulkanProgramCompiler.Compiled compiled, VertexFormat format) {
@@ -64,6 +65,7 @@ public abstract class NativeGraphicsProgram implements AutoCloseable {
         }
         if (samplers.size() > DeviceManager.deviceProperties.limits().maxPerStageDescriptorSamplers())
             throw new IllegalArgumentException("Shader sampler count exceeds device limit: " + name);
+        samplerNames=java.util.Set.copyOf(samplers.keySet());
         uniforms = MemoryUtil.memCalloc(Math.max(16, layout.size()));
         try {
             var builder = new Pipeline.Builder(format, name);
@@ -107,7 +109,7 @@ public abstract class NativeGraphicsProgram implements AutoCloseable {
 
     public Std140Layout layout() { return layout; }
     public ByteBuffer uniforms() { requireOpen(); return uniforms; }
-    public java.util.Set<String> requiredSamplers() { return java.util.Set.copyOf(samplers.keySet()); }
+    public java.util.Set<String> requiredSamplers() { return samplerNames; }
     /** Build a render-pass-compatible Vulkan pipeline before the pack's first visible frame. */
     protected void prepare(PipelineState state) {
         RenderSystem.assertOnRenderThread();

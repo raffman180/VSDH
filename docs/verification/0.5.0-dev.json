@@ -1,0 +1,167 @@
+{
+  "version": "0.5.0-dev",
+  "date": "2026-11-09",
+  "minecraft": "1.21.1",
+  "neoforge": "21.1.264",
+  "java": 21,
+  "dh": "3.3.3",
+  "gpu": "NVIDIA RTX 4070",
+  "os": "Windows",
+  "goalComplete": false,
+  "fullShaderPackWorldRendering": false,
+  "liveDiagnosticWorldShader": true,
+  "testSuites": [
+    {
+      "name": "com.braffolk.dhvulkan.api.DhRegistrationTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "com.braffolk.dhvulkan.core.data.VkVertexDataTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.compat.ExecutorShutdownTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.compat.SqliteRegenCancellationTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.BlockIdsTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.ShaderChainPlanTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.ShaderTerrainVertexTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.Std140LayoutTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.VulkanTerrainTranslationTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.WorldMatricesTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.WorldPackPlanTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "buildLog": "verify-0.5-build.log",
+  "cpuAuditLog": "verify-0.5-cpu.log",
+  "game": {
+    "log": "verify-0.5-client.log",
+    "errorFatalLines": 0,
+    "isolatedWorlds": 2,
+    "resize": true,
+    "nightRain": true,
+    "gpuChecks": {
+      "MRT GPU PASS:": 4,
+      "PACK GPU PASS:": 4,
+      "CHAIN GPU PASS:": 4,
+      "COMPLEMENTARY FINAL GPU PASS:": 4,
+      "COMPLEMENTARY CHAIN PREPARE PASS:": 4,
+      "TERRAIN GPU PASS:": 4
+    },
+    "worldHostChecks": [
+      {
+        "frames": 2327,
+        "terrainLayerCalls": 11635,
+        "realNormalPixels": 31347,
+        "width": 1280,
+        "height": 720,
+        "renderScale": 100,
+        "finalSentinelOnPresentationTarget": true
+      },
+      {
+        "frames": 2517,
+        "terrainLayerCalls": 12585,
+        "realNormalPixels": 4409,
+        "width": 480,
+        "height": 270,
+        "renderScale": 50,
+        "finalSentinelOnPresentationTarget": true
+      }
+    ],
+    "realTerrainUploads": [
+      {
+        "world": 1,
+        "stride": 44,
+        "uploadedBytes": 1061632
+      },
+      {
+        "world": 2,
+        "stride": 20,
+        "uploadedBytes": 490240
+      }
+    ],
+    "invalidStartupProjectionFallbackWarnings": 1
+  },
+  "complementary": {
+    "version": "r5.9.3",
+    "profile": "MEDIUM",
+    "missingWorldValuesPerDimension": 59,
+    "requirementsReport": "0.5-complementary-requirements.json",
+    "fullWorldRenderer": false
+  },
+  "limits": [
+    "Own diagnostic shaderpack is the tested live world pipeline; not complete Complementary",
+    "Sky/entities/hand and existing DH composite only share scene target, not complete dedicated pack programs",
+    "Shadows, required resources, custom world expressions, pack blend/cull rules and full DH shader programs remain incomplete",
+    "Pre-hand reordering not implemented; depthtex1/2 currently captured together before translucency",
+    "No public shader selection/hot reload; explicit installation only in smoke tests",
+    "No controlled FPS comparison, other GPUs/DH versions/dedicated servers not validated",
+    "Packaged JAR not separately launched in a normal launcher"
+  ],
+  "sourceBuild": {
+    "log": "verify-0.5-source-build.log",
+    "gradleBuildCacheUsed": false,
+    "allTasksExecuted": true,
+    "allJarEntriesIdenticalToMainBuild": true,
+    "mainSourceFiles": 637,
+    "allMainSourcesInSourcesJar": true
+  },
+  "jarSha256": "870f378d5b381c04ae8d3be6ca8200b032e7b393bdc53d7e436affda21436c3b"
+}

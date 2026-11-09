@@ -5,12 +5,10 @@
   "compatibilityLevel": "JAVA_21",
   "refmap": "vulkanmod.refmap.json",
   "plugin": "net.vulkanmod.mixin.MixinPlugin",
-  "mixins": [
-  ],
+  "mixins": [],
   "client": [
     "window.WindowMixin",
     "window.WindowAccessor",
-
     "chunk.ClientPacketListenerM",
     "chunk.ClientLevelChunkLifecycleMixin",
     "chunk.DirectionMixin",
@@ -21,7 +19,6 @@
     "chunk.VanillaRebuildTaskMixin",
     "chunk.ViewAreaM",
     "chunk.VisibilitySetMixin",
-
     "compatibility.EffectInstanceM",
     "compatibility.ProgramM",
     "compatibility.UniformM",
@@ -54,12 +51,9 @@
     "compatibility.gl.ARBVertexBufferObjectM",
     "compatibility.gl.EXTFramebufferObjectM",
     "compatibility.gl.KHRDebugM",
-
     "debug.DebugScreenOverlayM",
     "debug.GlDebugInfoM",
-
     "matrix.Matrix4fM",
-
     "render.BufferUploaderM",
     "render.BufferSourceM",
     "render.CullStateShardMixin",
@@ -93,11 +87,9 @@
     "render.vertex.VertexBufferM",
     "render.vertex.VertexConsumerM",
     "render.vertex.VertexFormatMixin",
-
     "screen.ScreenM",
     "screen.InventoryScreenM",
     "screen.OptionsScreenM",
-
     "texture.mip.MipmapGeneratorM",
     "texture.image.MNativeImage",
     "texture.image.NativeImageAccessor",
@@ -111,20 +103,15 @@
     "texture.MSpriteContents",
     "texture.MTextureManager",
     "texture.MTextureUtil",
-
     "util.ScreenshotRecorderM",
-
     "vertex.EntityOutlineGeneratorM",
     "vertex.SpriteCoordinateExpanderM",
     "vertex.VertexMultiConsumersM$DoubleM",
     "vertex.VertexMultiConsumersM$MultipleM",
     "vertex.VertexMultiConsumersM$SheetDecalM",
-
     "wayland.InputConstantsM",
     "wayland.MinecraftMixin",
-
     "texture.mip.MipmapGeneratorM",
-
     "compatibility.PostChainM",
     "compatibility.PostPassM",
     "compatibility.create.CreateMainMenuScreenMixin",
@@ -140,13 +127,13 @@
     "compatibility.essential.EssentialUI3DPlayerMixin",
     "compatibility.tensura.TensuraOverlayHandlerMixin",
     "compatibility.tensura.TensuraSimpleButtonMixin",
-
     "render.block.BakedQuadM",
-
     "optimization.StateHolderMixin",
     "optimization.HolderReferenceMixin",
     "voxel.VoxelShapeMixin",
-    "compatibility.fml.ImmediateWindowHandlerMixin"
+    "compatibility.fml.ImmediateWindowHandlerMixin",
+    "shader.WorldShaderLevelMixin",
+    "shader.WorldShaderGameMixin"
   ],
   "injectors": {
     "defaultRequire": 1

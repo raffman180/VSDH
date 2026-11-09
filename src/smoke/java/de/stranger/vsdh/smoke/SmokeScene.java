@@ -36,6 +36,7 @@ public final class SmokeScene {
     public static void render(RenderLevelStageEvent event) {
         if (!Boolean.getBoolean("vsdh.smoke") || event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) return;
         int check = (worldNumber - 1) * 2 + (ticks >= 950 ? 2 : 1);
+        WorldHostCheck.verifyIfReady(ticks);
         if (ticks >= 100 && check > gpuChecks && NativePassGpuCheck.ready() && ChainGpuCheck.ready() && TerrainGpuCheck.ready()) {
             MrtGpuCheck.run();
             NativePassGpuCheck.run();
@@ -52,10 +53,11 @@ public final class SmokeScene {
         NativePassGpuCheck.prepare();
         ChainGpuCheck.prepare();
         TerrainGpuCheck.prepare();
+        WorldHostCheck.prepare();
         Minecraft mc = Minecraft.getInstance();
         if (!started && (mc.screen instanceof TitleScreen || mc.screen instanceof AccessibilityOnboardingScreen)) {
-            if (!TerrainGpuCheck.ready()) return;
-            net.vulkanmod.render.PipelineManager.configureShaderTerrain(TerrainGpuCheck.materials());
+            if (!TerrainGpuCheck.ready() || !WorldHostCheck.ready()) return;
+            WorldHostCheck.install();
             startWorld(mc);
         }
         if (mc.level == null || mc.player == null) return;
@@ -92,6 +94,7 @@ public final class SmokeScene {
                     component -> LOGGER.info("Screenshot: {}", component.getString()));
         }
         if (ticks == 850) mc.getWindow().setWindowed(960, 540);
+        if (ticks == 865 && worldNumber == 1) WorldHostCheck.scaleDown();
         if (ticks == 900) {
             mc.getConnection().sendCommand("time set midnight");
             mc.getConnection().sendCommand("weather rain");
@@ -107,7 +110,7 @@ public final class SmokeScene {
             // server to stop before Minecraft waits for its shutdown.
             mc.level.disconnect();
             mc.disconnect(new TitleScreen());
-            net.vulkanmod.render.PipelineManager.restoreDefaultTerrain();
+            WorldHostCheck.uninstall();
             ticks = 0;
             startWorld(mc);
             return;
