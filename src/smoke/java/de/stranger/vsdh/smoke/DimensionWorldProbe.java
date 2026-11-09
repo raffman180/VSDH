@@ -51,7 +51,7 @@ final class DimensionWorldProbe {
 
     private static boolean hasTerrain() {
         var areas=net.vulkanmod.render.chunk.WorldRenderer.getInstance().getChunkAreaManager();
-        for(int i=0;i<areas.size();i++) {
+        for(int i=0;i<areas.size;i++) {
             var buffers=areas.getChunkArea(i).getDrawBuffers();
             if(buffers.getVertexBuffers().values().stream().anyMatch(buffer->buffer.getUsed()>0))return true;
         }
