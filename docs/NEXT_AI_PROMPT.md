@@ -1,6 +1,32 @@
-# Fortsetzungs-Prompt — VSDH 0.11
+# Fortsetzungs-Prompt — VSDH 0.12
 
-## Aktuelle Weiterarbeit am Vulkan-Renderer
+## Aktuelle Arbeit
+
+0.11.0-dev ist ein vollständig geprüfter Zwischenstand. Commit
+98c6537. Unter dist/0.11.0-dev liegen JAR, Quellarchiv, Prüfsummen und
+verification.json. verify-0.11-complementary-client.log belegt Himmelskreis,
+Sonne, Mond, Sterne, MC-Tiefe und beide DH-Tiefen bei 1280×720 und 480×270.
+Der Diagnose-Test las den korrekten Himmelsfarbwert auf der GPU. 59 Tests
+und der Offline-Neubau aus dem Quellarchiv bestanden.
+
+0.12 ergänzt ParticlePackPlan und die gemeinsame
+NativeGeometryPass für vorhandene Minecraft-Meshes. WorldShaderParticleMixin
+kapselt die NeoForge-1.21.1-Aufrufe für Partikel vor und nach Deferred sowie
+Regen und Schnee. auditWorldHost meldet je drei übersetzte Partikel- und
+Wettervarianten und keine fehlenden aktiven Uniforms für Complementary.
+Der Diagnoseclient in verify-0.12-diagnostic-3.log las 26.513 tatsächliche
+Regenpixel aus RGBA16F und zählte 845 frühe und 279 späte Partikel-Draws.
+Der Lauf mit dem Originalpack wird in verify-0.12-complementary-client.log
+festgehalten. Prüfe Abschluss und PASS-Marker vor weiteren Änderungen.
+
+Iris 1.8.12 und Sodium 0.6.13 wurden für die Wasserdiagnose in einem
+isolierten Vergleichsclient unter build/reference/iris-client mit DH 3.3.3
+eingerichtet. Die HIGH-Referenzaufnahme zeigt ebenfalls die Grenze zwischen
+den beiden Wasserarten. MEDIUM wurde über 14 Profiloptionen vorbereitet und
+muss noch im Referenzlog bestätigt werden. Quellordner build/reference,
+fremde JARs und Shader-ZIP bleiben aus den VSDH-Artefakten heraus.
+
+## Stand 0.11 am Vulkan-Renderer
 
 0.11 ergänzt gbuffers_skybasic und gbuffers_skytextured über die
 Minecraft-1.21.1-Aufrufe renderSky und renderEndSky. SkyPackPlan trennt

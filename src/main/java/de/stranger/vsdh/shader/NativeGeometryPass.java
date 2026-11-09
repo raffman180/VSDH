@@ -7,18 +7,18 @@ import net.vulkanmod.vulkan.shader.PipelineState;
 
 import java.util.function.Consumer;
 
-/** Draws the game's existing sky mesh using the pack program and attachments. */
-final class NativeSkyPass extends NativeGraphicsProgram {
+/** Draws an existing Minecraft mesh with a pack program and its targets. */
+final class NativeGeometryPass extends NativeGraphicsProgram {
     private final NativeShaderChain.View target;
     private final NativeBlend blend;
 
-    NativeSkyPass(PackProgramSource.Prepared source, VertexFormat format, NativeShaderChain.View target, NativeBlend blend) {
+    NativeGeometryPass(PackProgramSource.Prepared source, VertexFormat format, NativeShaderChain.View target, NativeBlend blend) {
         super(source.path(), source.translated(), source.compiled(), format);
         this.target = target;
         this.blend = blend;
     }
 
-    static VertexFormat format(SkyPackPlan.Layout layout) {
+    static VertexFormat skyFormat(SkyPackPlan.Layout layout) {
         return switch (layout) {
             case DISC -> DefaultVertexFormat.POSITION;
             case SUNSET -> DefaultVertexFormat.POSITION_COLOR;

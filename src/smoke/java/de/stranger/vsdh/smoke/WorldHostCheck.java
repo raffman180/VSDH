@@ -36,7 +36,7 @@ final class WorldHostCheck {
     static boolean ready(){return pending!=null&&pending.isDone();}
     static void install(){savedScale=net.vulkanmod.Initializer.CONFIG.renderScale;session=WorldShaderSession.install(pending.join());session.frameObserver(ignored->verify());}
     static void scaleDown(){net.vulkanmod.Initializer.CONFIG.renderScale=50;}
-    static void uninstall(){if(Boolean.getBoolean("vsdh.smoke.livePack"))RealPackWorldProbe.requireComplete();else{SkyWorldProbe.requireComplete();BuiltinWorldProbe.requireComplete();ExpressionWorldProbe.requireComplete();if(!verified || !scaledVerified)throw new AssertionError("World shader did not complete its live-world check");}net.vulkanmod.Initializer.CONFIG.renderScale=savedScale;session.uninstall();}
+    static void uninstall(){if(Boolean.getBoolean("vsdh.smoke.livePack"))RealPackWorldProbe.requireComplete();else{WeatherWorldProbe.requireDraws(session);WeatherWorldProbe.requireComplete();SkyWorldProbe.requireComplete();BuiltinWorldProbe.requireComplete();ExpressionWorldProbe.requireComplete();if(!verified || !scaledVerified)throw new AssertionError("World shader did not complete its live-world check");}net.vulkanmod.Initializer.CONFIG.renderScale=savedScale;session.uninstall();}
     static void verifyIfReady(int ticks) {
         WorldHostCheck.ticks=ticks;
         armed=ticks>=800;
@@ -45,6 +45,7 @@ final class WorldHostCheck {
         if(Boolean.getBoolean("vsdh.smoke.livePack")){RealPackWorldProbe.verify(session,ticks);return;}
         if (session!=null && session.chain()!=null) {
             SkyWorldProbe.verify(session,ticks);
+            WeatherWorldProbe.verify(session,ticks);
             BuiltinWorldProbe.verify(session,ticks);
             ExpressionWorldProbe.verify(session,ticks);
         }

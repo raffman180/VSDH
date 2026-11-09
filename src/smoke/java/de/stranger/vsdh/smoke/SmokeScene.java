@@ -127,6 +127,10 @@ public final class SmokeScene {
             mc.getConnection().sendCommand("time set midnight");
             mc.getConnection().sendCommand("weather rain");
         }
+        if (worldNumber == 1 && (ticks == 935 || ticks == 965)) {
+            mc.getConnection().sendCommand("particle minecraft:flame -3 99 4 0.6 0.4 0.6 0 64 force");
+            mc.getConnection().sendCommand("particle minecraft:cloud -3 99 4 0.6 0.4 0.6 0 64 force");
+        }
         if (ticks == 1000) {
             Screenshot.grab(mc.gameDirectory, "vsdh-smoke-resize-rain-" + worldNumber + ".png", mc.getMainRenderTarget(),
                     component -> LOGGER.info("Resize/rain screenshot: {}", component.getString()));

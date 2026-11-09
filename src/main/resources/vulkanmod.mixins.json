@@ -134,6 +134,7 @@
     "compatibility.fml.ImmediateWindowHandlerMixin",
     "shader.WorldShaderLevelMixin",
     "shader.WorldShaderSkyMixin",
+    "shader.WorldShaderParticleMixin",
     "shader.WorldShaderGameMixin",
     "shader.WorldShaderLightMixin"
   ],

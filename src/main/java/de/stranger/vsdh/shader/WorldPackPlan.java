@@ -14,11 +14,11 @@ import java.util.Map;
 public record WorldPackPlan(ShaderChainPlan chain, Map<String, PackProgramSource.Prepared> terrain,
                             List<BlockIds.Entry> materials, PackExpressions.Plan expressions,
                             Map<String,Integer> items, PackDirectives directives, boolean oldHandLight,ShadowPackPlan shadow,
-                            PackTexturePlan textures,dev.vitrail.pack.source.ShaderProperties.SkyElements sky, DistantPackPlan distant, SkyPackPlan skyPrograms) {
+                            PackTexturePlan textures,dev.vitrail.pack.source.ShaderProperties.SkyElements sky, DistantPackPlan distant, SkyPackPlan skyPrograms, ParticlePackPlan particles) {
     public WorldPackPlan { terrain=Map.copyOf(terrain); materials=List.copyOf(materials); items=Map.copyOf(items); }
     public WorldPackPlan(ShaderChainPlan chain, Map<String,PackProgramSource.Prepared> terrain,List<BlockIds.Entry> materials) {
         this(chain,terrain,materials,PackExpressions.empty(),Map.of(),PackDirectives.defaults(),true,null,PackTexturePlan.empty(),
-                new dev.vitrail.pack.source.ShaderProperties.SkyElements(true,true,true,true,dev.vitrail.pack.source.ShaderProperties.CloudSetting.DEFAULT),null,SkyPackPlan.empty());
+                new dev.vitrail.pack.source.ShaderProperties.SkyElements(true,true,true,true,dev.vitrail.pack.source.ShaderProperties.CloudSetting.DEFAULT),null,SkyPackPlan.empty(),ParticlePackPlan.empty());
     }
     public static WorldPackPlan prepare(OpenedPack pack, String dimension) throws IOException {
         return prepare(pack,dimension,false);
@@ -45,8 +45,9 @@ public record WorldPackPlan(ShaderChainPlan chain, Map<String, PackProgramSource
         var shadow=ShadowPackPlan.prepare(pack,prefix,chain.targets().shadowCeiling());
         var dh=distant?DistantPackPlan.prepare(pack,prefix):null;
         var skyPrograms=SkyPackPlan.prepare(pack,prefix,chain);
+        var particles=ParticlePackPlan.prepare(pack,prefix,chain);
         return new WorldPackPlan(chain,terrain,parsed.entries(),PackExpressions.read(pack),ShaderItemMaterials.read(pack),
                 PackDirectives.read(pack.source(),pack.settings(),dimension),pack.properties().oldHandLight(defines),
-                shadow,PackTexturePlan.read(pack,chain,terrain,shadow,dh,skyPrograms),pack.properties().skyElements(defines),dh,skyPrograms);
+                shadow,PackTexturePlan.read(pack,chain,terrain,shadow,dh,skyPrograms,particles),pack.properties().skyElements(defines),dh,skyPrograms,particles);
     }
 }

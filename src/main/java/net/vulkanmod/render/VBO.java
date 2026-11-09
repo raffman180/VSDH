@@ -342,7 +342,7 @@ public class VBO {
         if (!hasGeometry() || shader == null) return;
         RenderSystem.assertOnRenderThread();
         var shaderWorld = de.stranger.vsdh.shader.WorldShaderSession.current();
-        if (shaderWorld != null && shaderWorld.renderSkyGeometry(this.format, this.mode, MV, P, pipeline -> {
+        if (shaderWorld != null && shaderWorld.renderWorldGeometry(this.format, this.mode, shader, MV, P, pipeline -> {
             validateGeometry(pipeline);
             drawGeometry(pipeline);
         })) return;

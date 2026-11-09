@@ -17,7 +17,7 @@ final class SkyWorldProbe {
         if(complete || ticks<365 || ticks>=400)return;
         var mc=Minecraft.getInstance();
         var camera=mc.gameRenderer.getMainCamera();
-        if(camera.getXRot()>-80 || session.skyDraws(RenderStage.SKY)==0)return;
+        if(camera.getXRot()>-80 || session.geometryDraws(RenderStage.SKY)==0)return;
         float partial=mc.getTimer().getGameTimeDeltaPartialTick(false);
         float expectedRed=(float)mc.level.getSkyColor(camera.getPosition(),partial).x;
         var image=session.chain().targets().image(0,Side.MAIN);

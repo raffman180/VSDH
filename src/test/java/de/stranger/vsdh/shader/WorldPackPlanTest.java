@@ -20,6 +20,10 @@ class WorldPackPlanTest {
             assertEquals(java.util.List.of(0,1,2,3,4,5,6,7),prepared.chain().targets().writes("gbuffers_terrain"));
             assertEquals(java.util.List.of(0),prepared.chain().targets().writes("gbuffers_basic"));
             assertTrue(prepared.chain().externalSamplers().contains("depthtex0"));
+            assertEquals(ParticlePackPlan.Order.MIXED,prepared.particles().order());
+            assertEquals(3,prepared.particles().programs().size());
+            assertEquals(java.util.List.of(9),prepared.chain().targets().writes("gbuffers_weather"));
+            assertEquals(dev.vitrail.pack.model.TargetFormat.RGBA16_FLOAT,prepared.chain().targets().directives().format(9).used());
             for(String layer:prepared.terrain().keySet()) {
                 var program=prepared.terrain().get(layer);
                 var layout=new Std140Layout(program.translated().uniforms());

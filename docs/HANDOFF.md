@@ -6,7 +6,15 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.11 — Pack-Himmel und Welttiefe
+## Aktuell 0.12 — Wetter und Partikel
+
+Partikel und Niederschlag nutzen ihre Packprogramme auf dem bestehenden
+Minecraft-Vertexformat. Der Diagnoseclient hat 26.513 echte Regenpixel
+gelesen und beide Seiten des Partikelzeitpunkts ausgeführt. WORLD_WEATHER.md
+beschreibt Reihenfolge und Grenzen. Für den Original-Pack-Lauf den neuesten
+Prüfbericht und verify-0.12-complementary-client.log lesen.
+
+## Stand 0.11 — Pack-Himmel und Welttiefe
 
 Vier Varianten decken die Vanilla-Himmelsmeshes ab. WorldShaderGameMixin
 schließt Composite/Final vor dem Vanilla-Hand-Depth-Clear ab. Details in

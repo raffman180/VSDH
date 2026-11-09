@@ -2,7 +2,12 @@ package de.stranger.vsdh.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import net.minecraft.client.particle.ParticleRenderType;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.ShaderInstance;
 import dev.vitrail.pack.model.RenderStage;
+import dev.vitrail.glsl.VertexInputs;
 import net.vulkanmod.vulkan.VRenderSystem;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -24,6 +29,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /** Development world host. Installation is explicit, prepared off-thread, and requires an unloaded world. */
 public final class WorldShaderSession implements MainPass {
@@ -35,9 +41,11 @@ public final class WorldShaderSession implements MainPass {
     private final Map<TerrainRenderType,NativeTerrainPass> terrain=new EnumMap<>(TerrainRenderType.class);
     private final Map<TerrainRenderType,NativeBlend> terrainBlend=new EnumMap<>(TerrainRenderType.class);
     private final Map<TerrainRenderType,PackProgramSource.Prepared> sources=new EnumMap<>(TerrainRenderType.class);
-    private final Map<SkyPackPlan.Layout,NativeSkyPass> sky=new EnumMap<>(SkyPackPlan.Layout.class);
-    private final long[] skyDraws=new long[RenderStage.values().length];
-    private RenderStage skyStage;
+    private final Map<SkyPackPlan.Layout,NativeGeometryPass> sky=new EnumMap<>(SkyPackPlan.Layout.class);
+    private final Map<ParticlePackPlan.Pass,NativeGeometryPass> particles=new EnumMap<>(ParticlePackPlan.Pass.class);
+    private final long[] particleDraws=new long[ParticlePackPlan.Pass.values().length];
+    private final long[] geometryDraws=new long[RenderStage.values().length];
+    private RenderStage geometryStage;
     private final Map<Long,Integer> aliases=new HashMap<>();
     private NativeShaderChain chain;
     private NativeWorldDepth depth;
@@ -81,7 +89,11 @@ public final class WorldShaderSession implements MainPass {
             case FAST->net.minecraft.client.CloudStatus.FAST;case FANCY->net.minecraft.client.CloudStatus.FANCY;
         };
     }
-    public long skyDraws(RenderStage stage) { return skyDraws[stage.ordinal()]; }
+    public long particleDraws(boolean afterDeferred) {
+        return particleDraws[(afterDeferred?ParticlePackPlan.Pass.AFTER:ParticlePackPlan.Pass.BEFORE).ordinal()];
+    }
+
+    public long geometryDraws(RenderStage stage) { return geometryDraws[stage.ordinal()]; }
 
     public static boolean drawSkyStage(RenderStage stage, Runnable draw) {
         var session=current;
@@ -99,21 +111,60 @@ public final class WorldShaderSession implements MainPass {
             default->throw new IllegalArgumentException("Not a sky stage: "+stage);
         };
         if(!enabled)return false;
-        var previous=session.skyStage;
-        session.skyStage=stage;
-        try { draw.run(); } finally { session.skyStage=previous; }
+        session.withGeometryStage(stage,draw);
         return true;
     }
 
-    public boolean renderSkyGeometry(VertexFormat format,VertexFormat.Mode mode,Matrix4f view,Matrix4f projection,
-                                     Consumer<GraphicsPipeline> geometry) {
-        if(!active || skyStage==null)return false;
-        var layout=SkyPackPlan.Layout.forStage(skyStage);
-        var program=sky.get(layout);
-        if(program==null || !NativeSkyPass.format(layout).equals(format))return false;
-        var source=plan.skyPrograms().programs().get(layout);
-        uniforms.writeSky(program,view,projection,skyStage);
-        bindGeometry(program,source,false,false,!layout.elements.contains("UV0"));
+    private void withGeometryStage(RenderStage stage,Runnable draw) {
+        var previous=geometryStage;
+        geometryStage=stage;
+        try { draw.run(); } finally { geometryStage=previous; }
+    }
+
+    public void drawWeather(Runnable draw) {
+        if(!active) draw.run();
+        else if(plan.particles().weather().drawn()) withGeometryStage(RenderStage.RAIN_SNOW,draw);
+    }
+
+    public boolean weatherWritesDepth(boolean original) {
+        return original || active && plan.particles().rainDepth();
+    }
+
+    public boolean rainSplashes() { return plan.particles().weather().particles(); }
+
+    public void drawParticles(boolean before, Predicate<ParticleRenderType> original,
+                              Consumer<Predicate<ParticleRenderType>> draw) {
+        if(!active) { draw.accept(original);return; }
+        var order=plan.particles().order();
+        if(order==ParticlePackPlan.Order.BEFORE && !before || order==ParticlePackPlan.Order.AFTER && before)return;
+        Predicate<ParticleRenderType> filter=order==ParticlePackPlan.Order.MIXED?original:type->true;
+        withGeometryStage(RenderStage.PARTICLES,()->draw.accept(filter));
+    }
+
+    public boolean renderWorldGeometry(VertexFormat format,VertexFormat.Mode mode,ShaderInstance shader,
+                                       Matrix4f view,Matrix4f projection,Consumer<GraphicsPipeline> geometry) {
+        if(!active || geometryStage==null)return false;
+        var stage=geometryStage;
+        ParticlePackPlan.Pass particlePass=null;
+        NativeGeometryPass program;
+        PackProgramSource.Prepared source;
+        boolean untextured=false;
+        if(stage==RenderStage.PARTICLES || stage==RenderStage.RAIN_SNOW) {
+            if(!DefaultVertexFormat.PARTICLE.equals(format) || shader!=GameRenderer.getParticleShader())return false;
+            particlePass=stage==RenderStage.RAIN_SNOW?ParticlePackPlan.Pass.WEATHER
+                    :deferred?ParticlePackPlan.Pass.AFTER:ParticlePackPlan.Pass.BEFORE;
+            program=particles.get(particlePass);
+            source=plan.particles().programs().get(particlePass);
+        } else {
+            var layout=SkyPackPlan.Layout.forStage(stage);
+            if(!NativeGeometryPass.skyFormat(layout).equals(format))return false;
+            program=sky.get(layout);
+            source=plan.skyPrograms().programs().get(layout);
+            untextured=!layout.elements.contains("UV0");
+        }
+        if(program==null)return false;
+        uniforms.writeDraw(program,view,projection,stage);
+        bindGeometry(program,source,deferred,untextured);
         int topology=VRenderSystem.topology;
         try(var scope=Renderer.getInstance().temporaryRenderTarget()) {
             VRenderSystem.setPrimitiveTopology(mode);
@@ -121,7 +172,8 @@ public final class WorldShaderSession implements MainPass {
         } finally {
             VRenderSystem.topology=topology;
         }
-        skyDraws[skyStage.ordinal()]++;
+        geometryDraws[stage.ordinal()]++;
+        if(particlePass!=null)particleDraws[particlePass.ordinal()]++;
         return true;
     }
 
@@ -144,6 +196,7 @@ public final class WorldShaderSession implements MainPass {
         var geometry=new java.util.ArrayList<>(plan.terrain().values());
         if(plan.distant()!=null)geometry.addAll(plan.distant().programs());
         geometry.addAll(plan.skyPrograms().programs().values());
+        geometry.addAll(plan.particles().programs().values());
         for (var source:geometry) {
             var activeBindings=new java.util.HashSet<Integer>();
             source.compiled().stages().values().forEach(bytes->activeBindings.addAll(SpirvInterface.bindings(bytes)));
@@ -204,7 +257,14 @@ public final class WorldShaderSession implements MainPass {
                     String name=bare(source.path());
                     var target=chain.geometry(name,false,worldDepth);
                     var blend=NativeBlend.forProgram(plan.chain().targets(),name,target.framebuffer().getColorAttachmentCount());
-                    sky.put(entry.getKey(),new NativeSkyPass(source,NativeSkyPass.format(entry.getKey()),target,blend));
+                    sky.put(entry.getKey(),new NativeGeometryPass(source,NativeGeometryPass.skyFormat(entry.getKey()),target,blend));
+                }
+                for(var entry:plan.particles().programs().entrySet()) {
+                    var source=entry.getValue();
+                    String name=bare(source.path());
+                    var target=chain.geometry(name,entry.getKey()!=ParticlePackPlan.Pass.BEFORE,worldDepth);
+                    var blend=NativeBlend.forProgram(plan.chain().targets(),name,target.framebuffer().getColorAttachmentCount());
+                    particles.put(entry.getKey(),new NativeGeometryPass(source,DefaultVertexFormat.PARTICLE,target,blend));
                 }
                 chain.prepareOutput(output);
             } catch (Throwable failure) {releaseGraph();throw failure;}
@@ -233,7 +293,7 @@ public final class WorldShaderSession implements MainPass {
         var pipeline=terrain.get(type);
         int stage=switch(type) {case SOLID->8;case CUTOUT_MIPPED->9;case CUTOUT->10;case TRANSLUCENT->17;case TRIPWIRE->18;};
         uniforms.write(pipeline,false,stage,type.alphaCutout);
-        bindGeometry(pipeline,source,deferred,false,false);
+        bindGeometry(pipeline,source,deferred,false);
         try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
             var state=terrainBlend.get(type).apply(PipelineState.getCurrentPipelineState(target.pass()));
             pipeline.renderBatches(target.framebuffer(),target.pass(),state,batches);
@@ -243,11 +303,14 @@ public final class WorldShaderSession implements MainPass {
 
     void writeDistant(NativeGraphicsProgram pipeline,PackProgramSource.Prepared source,boolean water) {
         uniforms.writeDistant(pipeline,water);
-        bindGeometry(pipeline,source,water,true,false);
+        bindGeometry(pipeline,source,water,false);
     }
 
     private void bindGeometry(NativeGraphicsProgram pipeline,PackProgramSource.Prepared source,
-                              boolean afterDeferred,boolean dh,boolean untextured) {
+                              boolean afterDeferred,boolean untextured) {
+        var inputs=source.translated().inputs();
+        boolean dh=inputs==VertexInputs.DISTANT;
+        boolean fullLight=inputs==VertexInputs.SKY;
         for (String sampler:pipeline.requiredSamplers()) {
             var supplied=textures.image(source.path(),sampler);
             if(supplied!=null){pipeline.bindImage(sampler,supplied);continue;}
@@ -273,7 +336,7 @@ public final class WorldShaderSession implements MainPass {
                 pipeline.bindImage(sampler,lightmap);
                 continue;
             }
-            if(untextured || pipeline instanceof NativeSkyPass && sampler.equals("lightmap")) {
+            if(untextured || fullLight && sampler.equals("lightmap")) {
                 pipeline.bindImage(sampler,net.vulkanmod.vulkan.texture.VTextureSelector.getWhiteTexture());
                 continue;
             }
@@ -338,7 +401,8 @@ public final class WorldShaderSession implements MainPass {
         aliases.clear();
         terrain.values().forEach(NativeTerrainPass::close);terrain.clear();
         terrainBlend.clear();
-        sky.values().forEach(NativeSkyPass::close);sky.clear();
+        sky.values().forEach(NativeGeometryPass::close);sky.clear();
+        particles.values().forEach(NativeGeometryPass::close);particles.clear();
         if (chain!=null) chain.close();chain=null;
         if(distant!=null)distant.close();distant=null;
         if (depth!=null) depth.close();depth=null;borrowedDepth=null;

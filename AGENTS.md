@@ -78,3 +78,7 @@ in this profile. Other geometry families and the visible water transition remain
 locations when unused inputs are optimized away. Draw transforms and the
 shader colour are local to each sky draw. Finalize before the vanilla hand
 depth clear so depthtex0 still carries the rendered world. See WORLD_SKY.md.
+
+0.12 adds particles and weather with the existing Minecraft PARTICLE format.
+Follow the pack's before/mixed/after ordering on both NeoForge render calls.
+Keep weather after deferred. Verify real rain texture and both particle batches.

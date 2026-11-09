@@ -22,17 +22,20 @@ public final class WorldHostAudit {
                 if(plan.shadow()!=null)plan.shadow().programs().values().forEach(p->{missing.addAll(WorldUniforms.missing(p,plan));declared.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms())));});
                 if(plan.distant()!=null)plan.distant().programs().forEach(p->missing.addAll(WorldUniforms.missing(p,plan)));
                 plan.skyPrograms().programs().values().forEach(p->missing.addAll(WorldUniforms.missing(p,plan)));
+                plan.particles().programs().values().forEach(p->missing.addAll(WorldUniforms.missing(p,plan)));
                 declared.removeAll(plan.expressions().resolvedNames());
                 var resources=new TreeSet<>(plan.chain().externalSamplers());
                 var geometry=new ArrayList<>(plan.terrain().values());
                 if(plan.distant()!=null)geometry.addAll(plan.distant().programs());
                 geometry.addAll(plan.skyPrograms().programs().values());
+                geometry.addAll(plan.particles().programs().values());
                 geometry.forEach(p->{
                     var active=new HashSet<Integer>();p.compiled().stages().values().forEach(bytes->active.addAll(SpirvInterface.bindings(bytes)));
                     p.translated().samplers().forEach(s->{if(active.contains(p.compiled().bindings().get(s.name())))resources.add(s.name());});
                 });
                 var entry=new LinkedHashMap<String,Object>();entry.put("dimension",dimension);entry.put("terrainVariantsCompiled",plan.terrain().size());
                 entry.put("skyVariantsCompiled",plan.skyPrograms().programs().size());
+                entry.put("particleWeatherVariantsCompiled",plan.particles().programs().size());
                 entry.put("missingWorldUniforms",missing);entry.put("requiredResources",resources);
                 entry.put("unimplementedDeclaredWorldUniforms",declared);
                 entry.put("customExpressionProblems",plan.expressions().problems());

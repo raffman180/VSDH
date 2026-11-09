@@ -1,6 +1,14 @@
-# VSDH — Prüfstand 0.11.0-dev, 09.11.2026
+# VSDH — Prüfstand 0.12.0-dev, 09.11.2026
 
-## Aktuell 0.11
+## Aktuell 0.12
+
+Wetter und Partikel sind in die Pack-Durchläufe eingebunden. Drei
+Partikel-/Wettervarianten pro Dimension kompilieren im Complementary-Audit.
+Die Oberweltprobe prüft tatsächliche Regenpixel sowie beide Partikelphasen.
+Entitäten, Hand, Dimensionswechsel und die normale Shader-Auswahl bleiben
+offen. Details stehen in WORLD_WEATHER.md.
+
+## Stand 0.11
 
 Vier native Himmelsvarianten für den Shaderpack-Pfad. Die Oberweltprobe
 zeichnet Himmelskreis, Sonne, Mond und Sterne. Der Diagnose-Shader bestätigt

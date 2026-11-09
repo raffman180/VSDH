@@ -17,15 +17,16 @@ final class RealPackWorldProbe {
     static void requireComplete(){
         if(!completed.equals(Set.of(100,50)))throw new AssertionError("Incomplete real-pack world checks: "+completed);
         var session=WorldShaderSession.current();
-        if(session.skyDraws(RenderStage.STARS)==0)throw new AssertionError("Real sky program never drew stars");
-        LoggerFactory.getLogger("VSDH-Smoke").info("SKY WORLD NIGHT PASS: starDraws={}",session.skyDraws(RenderStage.STARS));
+        if(session.geometryDraws(RenderStage.STARS)==0)throw new AssertionError("Real sky program never drew stars");
+        LoggerFactory.getLogger("VSDH-Smoke").info("SKY WORLD NIGHT PASS: starDraws={}",session.geometryDraws(RenderStage.STARS));
+        WeatherWorldProbe.requireDraws(session);
     }
     static void verify(WorldShaderSession session,int ticks) {
         int scale=net.vulkanmod.Initializer.CONFIG.renderScale;
         if(session==null||session.chain()==null||ticks<800||completed.contains(scale))return;
         if(session.framesCompleted()<100||session.terrainCalls()==0||session.shadows()==null||session.shadows().drawCommands()==0)
             throw new AssertionError("Real shaderpack did not draw world and shadows");
-        long discs=session.skyDraws(RenderStage.SKY),sun=session.skyDraws(RenderStage.SUN),moon=session.skyDraws(RenderStage.MOON);
+        long discs=session.geometryDraws(RenderStage.SKY),sun=session.geometryDraws(RenderStage.SUN),moon=session.geometryDraws(RenderStage.MOON);
         if(discs==0||sun==0||moon==0)throw new AssertionError("Incomplete real sky draws: "+discs+"/"+sun+"/"+moon);
         LoggerFactory.getLogger("VSDH-Smoke").info("SKY WORLD DRAW PASS: disc={}, sun={}, moon={}, scale={}",discs,sun,moon,scale);
         NearWorldDepthProbe.verify(session);

@@ -63,8 +63,10 @@ public final class ParticleVertex {
 	public static List<String> prologue(Set<String> used, Map<String, String> synthesized) {
 		List<String> lines = new ArrayList<>();
 
-		for (String attribute : ATTRIBUTES) {
-			lines.add("in " + VertexPrologue.elementType(attribute) + " " + attribute + ";");
+		for (int location = 0; location < ATTRIBUTES.size(); location++) {
+			String attribute = ATTRIBUTES.get(location);
+			lines.add("layout(location = " + location + ") in "
+					+ VertexPrologue.elementType(attribute) + " " + attribute + ";");
 		}
 
 		lines.add("#define of_Vertex vec4(Position, 1.0)");
