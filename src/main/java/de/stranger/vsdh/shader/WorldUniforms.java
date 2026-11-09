@@ -18,6 +18,13 @@ public final class WorldUniforms implements ExpressionFrame {
             "cameraPosition","previousCameraPosition","fogColor","skyColor","viewWidth","viewHeight","aspectRatio",
             "near","far","frameCounter","frameTime","frameTimeCounter","worldTime","worldDay","rainStrength","eyeAltitude",
             "alphaTestRef","renderStage");
+    private static final Set<String> DISTANT=Set.of("dhProjection","dhProjectionInverse","dhPreviousProjection","dhNearPlane","dhFarPlane","dhRenderDistance");
+    private final Matrix4f distantProjection=new Matrix4f(), distantView=new Matrix4f();
+    private final float[] dhProjection=new float[16],dhInverse=new float[16],dhPrevious=new float[16],
+            dhView=new float[16],dhMvp=new float[16],dhNormal=new float[9];
+    private boolean dhHistory;
+    private float dhNear,dhFar;
+    private int dhDistance;
     private static final float[] IDENTITY={1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
     private static final float[] QUAD={2,0,0,0,0,2,0,0,0,0,0,0,-1,-1,0,1};
     private static final float[] NORMAL_ID={1,0,0,0,1,0,0,0,1};
@@ -64,11 +71,19 @@ public final class WorldUniforms implements ExpressionFrame {
         if(program.translated().inputs().vulkanTerrain())missing.remove("entityId");
         return Set.copyOf(missing);
     }
+    public static Set<String> missing(PackProgramSource.Prepared program,WorldPackPlan plan) {
+        var missing=new java.util.TreeSet<>(missing(program,plan.expressions().resolvedNames()));
+        if(plan.distant()!=null)missing.removeAll(DISTANT);
+        return Set.copyOf(missing);
+    }
     public static void validate(WorldPackPlan plan) {
         var missing=new java.util.TreeSet<String>();
-        plan.terrain().values().forEach(p->missing.addAll(missing(p,plan.expressions().resolvedNames())));
-        plan.chain().stages().values().forEach(passes->passes.forEach(p->missing.addAll(missing(p.program(),plan.expressions().resolvedNames()))));
-        if(plan.shadow()!=null)plan.shadow().programs().values().forEach(p->missing.addAll(missing(p,plan.expressions().resolvedNames())));
+        plan.terrain().values().forEach(p->missing.addAll(missing(p,plan)));
+        plan.chain().stages().values().forEach(passes->passes.forEach(p->missing.addAll(missing(p.program(),plan))));
+        if(plan.shadow()!=null)plan.shadow().programs().values().forEach(p->missing.addAll(missing(p,plan)));
+        if(plan.distant()!=null) {
+            plan.distant().programs().forEach(p->missing.addAll(missing(p,plan)));
+        }
         if (!missing.isEmpty()) throw new IllegalArgumentException("World uniforms not implemented: "+missing);
     }
     public void capture(Camera camera, Matrix4f view, Matrix4f renderedProjection, float partialTick, int width, int height) {
@@ -101,20 +116,60 @@ public final class WorldUniforms implements ExpressionFrame {
         elapsed=(elapsed+frameTime)%3600;
         packValues.capture(camera,builtins,rain,frameTime);
         expressions.update(this,frameTime);
+        if(plan.distant()!=null) {
+            // Provide the same clip contract even if DH has no buffers to submit on this frame.
+            var near=com.seibel.distanthorizons.core.util.RenderUtil.getNearClipPlaneInBlocks();
+            if(com.seibel.distanthorizons.core.util.RenderUtil.getHeightBasedNearClipOverrideBlockDistance()==-1)near=Math.min(near,7.5f);
+            var far=com.seibel.distanthorizons.core.util.RenderUtil.getFarClipPlaneDistanceInBlocks();
+            distantView.set(matrices.view);
+            distantProjection.set(legacyCameraProjection)
+                    .m22((far+near)/(near-far)).m32(2*far*near/(near-far));
+            captureDistantMatrices(near,far);
+        }
     }
     public void write(NativeGraphicsProgram pass, boolean fullscreen, int renderStage, float alphaRef) {
-        write(pass,fullscreen,false,renderStage,alphaRef);
+        write(pass,fullscreen,false,false,renderStage,alphaRef);
     }
-    public void writeShadow(NativeGraphicsProgram pass) {write(pass,false,true,0,.1f);}
-    private void write(NativeGraphicsProgram pass,boolean fullscreen,boolean shadow,int renderStage,float alphaRef) {
+    public void writeShadow(NativeGraphicsProgram pass) {write(pass,false,true,false,0,.1f);}
+    public void writeDistant(NativeGraphicsProgram pass, boolean water) {
+        write(pass,false,false,true,water?17:8,0);
+    }
+    public void captureDistant(com.braffolk.dhvulkan.core.data.RenderUniforms frame) {
+        copyDistantMatrix(frame.dhProjectionMatrix,distantProjection);
+        copyDistantMatrix(frame.dhModelViewMatrix,distantView);
+        captureDistantMatrices(distantProjection.perspectiveNear(),frame.farClipPlane);
+    }
+    private static void copyDistantMatrix(com.seibel.distanthorizons.core.util.math.DhMat4f source,Matrix4f destination) {
+        destination.set(source.m00,source.m10,source.m20,source.m30,
+                source.m01,source.m11,source.m21,source.m31,
+                source.m02,source.m12,source.m22,source.m32,
+                source.m03,source.m13,source.m23,source.m33);
+    }
+    private void captureDistantMatrices(float near,float far) {
+        if(!(near>0)||!(far>near)||!distantProjection.isFinite()||!distantView.isFinite())
+            throw new IllegalArgumentException("Invalid DH clip range or matrices: "+near+".."+far);
+        distantProjection.m01(-distantProjection.m01()).m11(-distantProjection.m11())
+                .m21(-distantProjection.m21()).m31(-distantProjection.m31());
+        distantProjection.get(dhProjection);
+        distantProjection.invert(scratch).get(dhInverse);
+        distantView.get(dhView);
+        scratch.set(distantProjection).mul(distantView).get(dhMvp);
+        distantView.normal(normalScratch).get(dhNormal);
+        if(!dhHistory)System.arraycopy(dhProjection,0,dhPrevious,0,16);
+        dhNear=near;dhFar=far;
+        dhDistance=com.braffolk.dhvulkan.core.DhConfigHelper.lodChunkRenderDistanceRadius()*16;
+    }
+
+    private void write(NativeGraphicsProgram pass,boolean fullscreen,boolean shadow,boolean distant,int renderStage,float alphaRef) {
         var layout=pass.layout(); var buffer=pass.uniforms();
         for (var member:pass.activeUniforms()) {
             if(expressions.write(member,layout,buffer)||packValues.write(member,layout,buffer))continue;
             if(builtins.write(member,layout,buffer))continue;
             String name=member.name(); float[] matrix=switch(name) {
-                case "of_ModelViewMatrix"->fullscreen?IDENTITY:shadow?shadowView:view;
-                case "of_ProjectionMatrix","of_ModelViewProjectionMatrix"->fullscreen?QUAD:name.equals("of_ProjectionMatrix")?(shadow?shadowProjection:projection):(shadow?shadowMvp:mvp);
-                case "of_NormalMatrix"->fullscreen?NORMAL_ID:shadow?shadowNormal:normal;
+                case "of_ModelViewMatrix"->fullscreen?IDENTITY:shadow?shadowView:distant?dhView:view;
+                case "of_ProjectionMatrix","of_ModelViewProjectionMatrix"->fullscreen?QUAD:name.equals("of_ProjectionMatrix")?(shadow?shadowProjection:distant?dhProjection:projection):(shadow?shadowMvp:distant?dhMvp:mvp);
+                case "of_NormalMatrix"->fullscreen?NORMAL_ID:shadow?shadowNormal:distant?dhNormal:normal;
+                case "dhProjection"->dhProjection;case "dhProjectionInverse"->dhInverse;case "dhPreviousProjection"->dhPrevious;
                 case "shadowModelView"->shadowView;case "shadowProjection"->shadowProjection;
                 case "shadowModelViewInverse"->shadowInverseView;case "shadowProjectionInverse"->shadowInverseProjection;
                 case "gbufferModelView"->view; case "gbufferModelViewInverse"->inverseView;
@@ -129,7 +184,7 @@ public final class WorldUniforms implements ExpressionFrame {
                 continue;
             }
             if (member.type().equals("int")) {
-                integer[0]=switch(name) {case "worldTime"->worldTime;case "worldDay"->worldDay;case "frameCounter"->frame;case "renderStage"->renderStage;
+                integer[0]=switch(name) {case "worldTime"->worldTime;case "worldDay"->worldDay;case "frameCounter"->frame;case "renderStage"->renderStage;case "dhRenderDistance"->dhDistance;
                     case "entityId"->{if(fullscreen)throw new IllegalArgumentException("Entity context is unavailable in fullscreen passes");yield 0;}
                     default->throw new IllegalArgumentException("Unknown integer world uniform "+name);};
                 layout.putInts(buffer,name,0,integer); continue;
@@ -137,14 +192,18 @@ public final class WorldUniforms implements ExpressionFrame {
             scalar[0]=switch(name) {
                 case "viewWidth"->width;case "viewHeight"->height;case "aspectRatio"->(float)width/height;
                 case "near"->.05f;case "far"->far;case "frameTime"->frameTime;case "frameTimeCounter"->elapsed;
-                case "rainStrength"->rain;case "eyeAltitude"->camera[1];case "alphaTestRef"->alphaRef;
+                case "rainStrength"->rain;case "eyeAltitude"->camera[1];case "alphaTestRef"->alphaRef;case "dhNearPlane"->dhNear;case "dhFarPlane"->dhFar;
                 default->throw new IllegalArgumentException("Unknown world uniform "+name);
             };
             layout.putFloats(buffer,name,0,scalar);
         }
     }
-    public void commit() { matrices.commit();frame=(frame+1)%720720; }
-    public void reset() { matrices.reset();lastNanos=0; }
+    public void commit() {
+        matrices.commit();
+        if(plan.distant()!=null){System.arraycopy(dhProjection,0,dhPrevious,0,16);dhHistory=true;}
+        frame=(frame+1)%720720;
+    }
+    public void reset() { matrices.reset();lastNanos=0;dhHistory=false; }
     @Override public long frameCounter() { return frame; }
     @Override public void read(String name,Val out) {
         if(builtins.read(name,out)||packValues.read(name,out))return;

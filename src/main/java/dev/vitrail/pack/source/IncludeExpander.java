@@ -183,7 +183,7 @@ public final class IncludeExpander {
 		expandFile(entry, 0, state);
 
 		ExpandedUnit unit = new ExpandedUnit(relative, List.copyOf(state.output), state.version,
-				state.toStats(), state.live, state.defines);
+				state.toStats(), state.live, state.defines, this.settings.unitDefines());
 		if (this.partOfALoad) {
 			LoadClock.expansion(System.nanoTime() - began);
 			this.source.rememberUnit(this.settings, relative, unit);
@@ -712,7 +712,7 @@ public final class IncludeExpander {
 	 *             used, which is the one shape a preprocessor would answer differently
 	 */
 	public record ExpandedUnit(String entry, List<String> lines, String version,
-			ExpansionStats stats, BitSet live, Map<String, String> defines) {
+			ExpansionStats stats, BitSet live, Map<String, String> defines, Map<String, String> engineDefines) {
 
 		/**
 		 * Copied in and copied out, a {@link BitSet} being mutable. In on its own was enough while
@@ -727,6 +727,7 @@ public final class IncludeExpander {
 		public ExpandedUnit {
 			live = (BitSet) live.clone();
 			defines = Map.copyOf(defines);
+			engineDefines = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(engineDefines));
 		}
 
 		@Override

@@ -6,7 +6,16 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.9 — Formeln, Schatten, Texturen und echte Pack-Ausführung
+## Aktuell 0.10 — Native DH-Programme und Mischregeln
+
+Die beiden originalen DH-Programme von Complementary können auf den echten
+DH-3.3.3-Meshes zeichnen. Diagnosemodus und technische Regeln stehen in
+DISTANT_PACK.md. DistantWorldProbe liest beide DH-Tiefen bei 100 und 50 Prozent
+Rendermaßstab zurück. Der Wasserübergang bleibt in der Sichtprüfung erkennbar.
+Die Darstellung anderer Geometriefamilien und die öffentliche Pack-Auswahl
+bleiben offen. Den neuesten Spiel- und Buildbericht zuerst prüfen.
+
+## Stand 0.9 — Formeln, Schatten, Texturen und echte Pack-Ausführung
 
 Lies zuerst NEXT_AI_PROMPT.md für den aktuellen vollständigen Fortsetzungsauftrag.
 56 CPU-Tests bestehen. NativeWorldShadows zeichnet reale geladene Chunk-Puffer,

@@ -103,6 +103,13 @@ public final class SettingSet {
 		return resolve(Map.of(), Map.of(), "default");
 	}
 
+	/** Per-reading capability. Concurrent pack preparations do not share this flag. */
+	public SettingSet withDistantHorizons() {
+		var defines = new LinkedHashMap<>(this.engine);
+		defines.put("DISTANT_HORIZONS", "");
+		return new SettingSet(this.chosen, defines, this.variantName, this.scale);
+	}
+
 	public Map<String, OptionValue> chosen() {
 		return this.chosen;
 	}

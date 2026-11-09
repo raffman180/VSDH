@@ -10,19 +10,22 @@ import java.util.*;
 /** Reports concrete remaining world-host requirements, without pretending compilation implies runtime support. */
 public final class WorldHostAudit {
     public static void main(String[] args) throws Exception {
-        if(args.length!=2)throw new IllegalArgumentException("Expected external pack ZIP and output JSON");
+        if(args.length!=3)throw new IllegalArgumentException("Expected external pack ZIP, output JSON and DH flag");
         List<Map<String,Object>> dimensions=new ArrayList<>();
         try(var pack=OpenedPack.open(Path.of(args[0]),Map.of(),"MEDIUM")) {
             for(String dimension:List.of("world0","world-1","world1")) {
-                var plan=WorldPackPlan.prepare(pack,dimension);
+                var plan=WorldPackPlan.prepare(pack,dimension,Boolean.parseBoolean(args[2]));
                 var missing=new TreeSet<String>();
                 var declared=new TreeSet<String>();
-                plan.terrain().values().forEach(p->{missing.addAll(WorldUniforms.missing(p,plan.expressions().resolvedNames()));declared.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms())));});
-                plan.chain().stages().values().forEach(passes->passes.forEach(p->{missing.addAll(WorldUniforms.missing(p.program(),plan.expressions().resolvedNames()));declared.addAll(WorldUniforms.missing(new Std140Layout(p.program().translated().uniforms())));}));
-                if(plan.shadow()!=null)plan.shadow().programs().values().forEach(p->{missing.addAll(WorldUniforms.missing(p,plan.expressions().resolvedNames()));declared.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms())));});
+                plan.terrain().values().forEach(p->{missing.addAll(WorldUniforms.missing(p,plan));declared.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms())));});
+                plan.chain().stages().values().forEach(passes->passes.forEach(p->{missing.addAll(WorldUniforms.missing(p.program(),plan));declared.addAll(WorldUniforms.missing(new Std140Layout(p.program().translated().uniforms())));}));
+                if(plan.shadow()!=null)plan.shadow().programs().values().forEach(p->{missing.addAll(WorldUniforms.missing(p,plan));declared.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms())));});
+                if(plan.distant()!=null)plan.distant().programs().forEach(p->missing.addAll(WorldUniforms.missing(p,plan)));
                 declared.removeAll(plan.expressions().resolvedNames());
                 var resources=new TreeSet<>(plan.chain().externalSamplers());
-                plan.terrain().values().forEach(p->{
+                var geometry=new ArrayList<>(plan.terrain().values());
+                if(plan.distant()!=null)geometry.addAll(plan.distant().programs());
+                geometry.forEach(p->{
                     var active=new HashSet<Integer>();p.compiled().stages().values().forEach(bytes->active.addAll(SpirvInterface.bindings(bytes)));
                     p.translated().samplers().forEach(s->{if(active.contains(p.compiled().bindings().get(s.name())))resources.add(s.name());});
                 });
@@ -34,6 +37,7 @@ public final class WorldHostAudit {
                 entry.put("itemMaterialEntries",plan.items().size());
                 entry.put("preparedTextureBindings",new TreeSet<>(plan.textures().bindings().keySet()));
                 entry.put("vanillaCloudDirective",plan.sky().clouds().name());
+                entry.put("distantPrograms",plan.distant()==null?List.of():plan.distant().programs().stream().map(PackProgramSource.Prepared::path).toList());
                 entry.put("completeWorldRendererSupported",false);dimensions.add(entry);
             }
         }

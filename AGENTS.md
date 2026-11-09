@@ -66,4 +66,10 @@ Pack formulas/held light, actual native world shadows and predecoded PNG/noise
 resources are implemented. Real Complementary world execution is checked, but
 other geometry families, per-attachment blend, hand timing and native pack DH
 programs remain incomplete. Do not set DISTANT_HORIZONS until the latter work.
-56 tests pass. Read docs/WORLD_SHADOWS.md and the latest verification report.
+56 tests passed in 0.9. Read docs/WORLD_SHADOWS.md and the latest verification report.
+
+0.10 adds an experimental real DH path for the original Complementary programs.
+Enable the define per pack only where both terrain and water use this path.
+The full and opaque DH depth images must stay distinct from each other and from
+Minecraft depth. See docs/DISTANT_PACK.md. Complementary disables DH shadows
+in this profile. Other geometry families and the visible water transition remain open.

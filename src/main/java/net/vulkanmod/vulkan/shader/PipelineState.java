@@ -6,6 +6,7 @@ import net.vulkanmod.vulkan.framebuffer.RenderPass;
 import net.vulkanmod.vulkan.VRenderSystem;
 
 import java.util.Objects;
+import java.util.List;
 
 import static org.lwjgl.vulkan.VK10.*;
 import static org.lwjgl.vulkan.VK10.VK_COMPARE_OP_EQUAL;
@@ -82,13 +83,20 @@ public class PipelineState {
 
     int assemblyRasterState;
     int blendState_i;
+    private final List<Integer> attachmentBlends;
     int depthState_i;
     int stencilState_i;
     int colorMask_i;
     int logicOp_i;
 
     public PipelineState(int assemblyRasterState, int blendState, int depthState, int stencilState, int logicOp, int colorMask, RenderPass renderPass) {
+        this(assemblyRasterState,blendState,depthState,stencilState,logicOp,colorMask,renderPass,List.of());
+    }
+
+    private PipelineState(int assemblyRasterState, int blendState, int depthState, int stencilState,
+                          int logicOp, int colorMask, RenderPass renderPass, List<Integer> attachmentBlends) {
         this.renderPass = renderPass;
+        this.attachmentBlends = List.copyOf(attachmentBlends);
 
         this.assemblyRasterState = assemblyRasterState;
         this.blendState_i = blendState;
@@ -98,8 +106,23 @@ public class PipelineState {
         this.logicOp_i = logicOp;
     }
 
+    public PipelineState withAttachmentBlends(List<Integer> states) {
+        if(states.size()!=renderPass.getColorAttachmentCount())
+            throw new IllegalArgumentException("Blend state count differs from color attachment count");
+        if(states.stream().allMatch(state->state==blendState_i))return this;
+        if(states.stream().allMatch(state->state.equals(states.getFirst())))
+            return new PipelineState(assemblyRasterState,states.getFirst(),depthState_i,stencilState_i,logicOp_i,colorMask_i,renderPass);
+        if(!net.vulkanmod.vulkan.device.DeviceManager.supportsIndependentBlend())
+            throw new IllegalArgumentException("Shader pack uses independent attachment blending, which this Vulkan device does not support");
+        return new PipelineState(assemblyRasterState,blendState_i,depthState_i,stencilState_i,logicOp_i,colorMask_i,renderPass,states);
+    }
+
+    public int blendState(int attachment) {
+        return attachmentBlends.isEmpty()?blendState_i:attachmentBlends.get(attachment);
+    }
+
     private boolean checkEquals(int assemblyRasterState, int blendState, int depthState, int stencilState, int logicOp, int colorMask, RenderPass renderPass) {
-        return (blendState == this.blendState_i) && (depthState == this.depthState_i)
+        return attachmentBlends.isEmpty() && (blendState == this.blendState_i) && (depthState == this.depthState_i)
                 && (stencilState == this.stencilState_i)
                 && renderPass == this.renderPass && logicOp == this.logicOp_i
                 && (assemblyRasterState == this.assemblyRasterState)
@@ -114,7 +137,8 @@ public class PipelineState {
             return false;
 
         PipelineState that = (PipelineState) o;
-        return (blendState_i == that.blendState_i) && (depthState_i == that.depthState_i)
+        return attachmentBlends.equals(that.attachmentBlends)
+                && (blendState_i == that.blendState_i) && (depthState_i == that.depthState_i)
                 && (stencilState_i == that.stencilState_i)
                 && this.renderPass == that.renderPass && logicOp_i == that.logicOp_i
                 && this.assemblyRasterState == that.assemblyRasterState
@@ -123,7 +147,7 @@ public class PipelineState {
 
     @Override
     public int hashCode() {
-        return Objects.hash(blendState_i, depthState_i, stencilState_i, logicOp_i, assemblyRasterState, colorMask_i, renderPass);
+        return Objects.hash(blendState_i, depthState_i, stencilState_i, logicOp_i, assemblyRasterState, colorMask_i, renderPass,attachmentBlends);
     }
 
     public boolean stencilTestEnabled() {

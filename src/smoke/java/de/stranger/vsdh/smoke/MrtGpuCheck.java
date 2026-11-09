@@ -40,8 +40,47 @@ final class MrtGpuCheck {
             checkColors(13, 9);
             checkColors(7, 5);
             checkDepthOnly();
+            if (net.vulkanmod.vulkan.device.DeviceManager.supportsIndependentBlend()) checkIndependentBlend();
         }
         LoggerFactory.getLogger("VSDH-Smoke").info("MRT GPU PASS: all pixels in four independent color outputs, two sizes, depth-only output");
+    }
+
+    private static void checkIndependentBlend() {
+        var framebuffer = Framebuffer.builder(5, 3, 2, false).build();
+        var pass = RenderPass.builder(framebuffer).setLoadOp(VK_ATTACHMENT_LOAD_OP_LOAD).build();
+        var pipeline = pipeline("""
+                #version 450
+                layout(location=0) out vec4 first;
+                layout(location=1) out vec4 second;
+                void main() { first=second=vec4(1,0,0,0.25); }
+                """);
+        var bytes = MemoryUtil.memAlloc(4);
+        try {
+            var mode = dev.vitrail.pack.model.BlendMode.parse("SRC_ALPHA ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA").orElseThrow();
+            int blend = de.stranger.vsdh.shader.NativeBlend.encode(mode);
+            for (int blended = 0; blended < 2; blended++) {
+                for (int i = 0; i < 2; i++)
+                    de.stranger.vsdh.shader.NativeImageOps.clear(framebuffer.getColorAttachment(i),
+                            dev.vitrail.pack.model.TargetFormat.RGBA8_UNORM,
+                            new dev.vitrail.pack.target.TargetDirectives.Colour(0, 0, 1, 1));
+                draw(framebuffer, pass, pipeline, false, blended == 0 ? List.of(blend, 0) : List.of(0, blend));
+                for (int i = 0; i < 2; i++) {
+                    ImageUtil.downloadTextureRegion(framebuffer.getColorAttachment(i), MemoryUtil.memAddress(bytes),
+                            2, 1, 1, 1, VK_IMAGE_ASPECT_COLOR_BIT, 4);
+                    int[] expected = i == blended ? new int[]{64, 0, 191, 255} : new int[]{255, 0, 0, 64};
+                    for (int c = 0; c < 4; c++)
+                        if (Math.abs(Byte.toUnsignedInt(bytes.get(c)) - expected[c]) > 1)
+                            throw new AssertionError("Independent blend attachment=" + i + " channel=" + c
+                                    + " expected=" + expected[c] + " actual=" + Byte.toUnsignedInt(bytes.get(c)));
+                }
+            }
+            LoggerFactory.getLogger("VSDH-Smoke").info("MRT INDEPENDENT BLEND PASS: alpha blended and direct attachments in both orders");
+        } finally {
+            MemoryUtil.memFree(bytes);
+            pipeline.scheduleCleanUp();
+            pass.cleanUp();
+            framebuffer.cleanUp();
+        }
     }
 
     private static void checkColors(int width, int height) {
@@ -112,6 +151,11 @@ final class MrtGpuCheck {
     }
 
     private static void draw(Framebuffer framebuffer, RenderPass pass, GraphicsPipeline pipeline, boolean depth) {
+        draw(framebuffer, pass, pipeline, depth, List.of());
+    }
+
+    private static void draw(Framebuffer framebuffer, RenderPass pass, GraphicsPipeline pipeline, boolean depth,
+                             List<Integer> attachmentBlends) {
         Renderer renderer = Renderer.getInstance();
         renderer.endRenderPass();
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -121,6 +165,7 @@ final class MrtGpuCheck {
             int depthState = depth ? PipelineState.DepthState.DEPTH_TEST_BIT | PipelineState.DepthState.DEPTH_MASK_BIT
                     | PipelineState.DepthState.encodeDepthFun(519) : 0; // GL_ALWAYS
             var state = new PipelineState(assembly, 0, depthState, 0, 0, 15, pass);
+            if (!attachmentBlends.isEmpty()) state = state.withAttachmentBlends(attachmentBlends);
             vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.getHandle(state));
             vkCmdSetViewport(command, 0, VkViewport.calloc(1, stack).x(0).y(0)
                     .width(framebuffer.getWidth()).height(framebuffer.getHeight()).minDepth(0).maxDepth(1));

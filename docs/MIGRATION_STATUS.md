@@ -1,6 +1,17 @@
-# VSDH — Prüfstand 0.9.0-dev, 09.11.2026
+# VSDH — Prüfstand 0.10.0-dev, 09.11.2026
 
-## Aktuell 0.9
+## Aktuell 0.10
+
+Der Entwicklungsclient zeichnet die originalen Programme dh_terrain und
+dh_water aus Complementary Reimagined r5.9.3 MEDIUM. Vulkan verwendet
+getrennte D32-Bilder für vollständige und opake DH-Tiefe. GPU-Rücklesen
+bestätigt beide Zeichnungen in zwei Rendergrößen. Die Mischregeln des Packs
+für Wasser werden pro Ausgabe übernommen und mit vertauschten Ausgaben
+auf der GPU geprüft. Der sichtbare Wasserübergang bleibt offen. Himmel,
+Entitäten und Hand folgen weiterhin dem normalen Zeichenpfad. Details stehen
+in DISTANT_PACK.md und im Prüfbericht.
+
+## Stand 0.9
 
 Echte Packformeln, Handmaterial/-licht, Biome und Glättung, native Welt-Schatten
 sowie vorab dekodierte Packtexturen sind implementiert. 56 CPU-Tests bestehen.

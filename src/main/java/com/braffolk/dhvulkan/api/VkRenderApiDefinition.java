@@ -97,6 +97,8 @@ public class VkRenderApiDefinition extends AbstractDhRenderApiDefinition {
               params.mcProjectionMatrix);
         target.worldYOffset = params.worldYOffset;
         target.partialTicks = params.partialTicks;
+        target.nearClipPlane = params.nearClipPlane;
+        target.farClipPlane = params.farClipPlane;
         return target;
     }
 

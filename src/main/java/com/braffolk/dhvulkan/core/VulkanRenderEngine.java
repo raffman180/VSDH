@@ -91,6 +91,10 @@ public class VulkanRenderEngine implements VulkanBackend {
      * Tracks a cached Vulkan VertexBuffer alongside the identity of the
      * ByteBuffer it was created from, for invalidation when terrain is re-uploaded.
      */
+    private de.stranger.vsdh.shader.WorldShaderSession packFrame;
+    private boolean packWater;
+    private float packX,packY,packZ;
+
     private static class CachedBuffer {
         final Object vkBuffer;
         final int handleIdentity;
@@ -223,6 +227,14 @@ public class VulkanRenderEngine implements VulkanBackend {
     public void beginFrame() {
         this.drawCount = 0;
         this.frameReady = false;
+        var session=de.stranger.vsdh.shader.WorldShaderSession.current();
+        this.packFrame=session!=null&&session.drawsDistantTerrain()?session:null;
+        if(this.packFrame!=null) {
+            retireQueuedBuffers();
+            this.packWater=false;
+            this.frameReady=true;
+            return;
+        }
 
         if (this.initFailed)
             return;
@@ -273,6 +285,12 @@ public class VulkanRenderEngine implements VulkanBackend {
         Renderer.getInstance().endRenderPass();
         this.dhFramebuffer.beginRenderPass();
 
+        retireQueuedBuffers();
+        this.renderContext.bindTerrainPipeline();
+        this.frameReady = true;
+    }
+
+    private void retireQueuedBuffers() {
         // N+1 frame delay for GPU buffer frees
         for (PendingFree pf : this.pendingFreeBatch) {
             CachedBuffer current = this.vulkanBufferCache.get(pf.dataId);
@@ -287,12 +305,6 @@ public class VulkanRenderEngine implements VulkanBackend {
         while ((pf = this.pendingFreeQueue.poll()) != null) {
             this.pendingFreeBatch.add(pf);
         }
-
-
-        // Bind terrain pipeline
-        this.renderContext.bindTerrainPipeline();
-
-        this.frameReady = true;
     }
 
 
@@ -302,6 +314,10 @@ public class VulkanRenderEngine implements VulkanBackend {
         if (!this.frameReady)
             return;
 
+        if(packFrame!=null) {
+            packFrame.captureDistant(uniforms);
+            return;
+        }
         this.profiler.beginFrame();
         this.profiler.begin(DhFrameProfiler.PHASE_UNIFORMS);
 
@@ -343,7 +359,9 @@ public class VulkanRenderEngine implements VulkanBackend {
     public void setModelOffset(DhVec3f modelOffset) {
         if (this.initFailed)
             return;
-        this.renderContext.setModelOffset(modelOffset);
+        if(packFrame!=null) {
+            packX=modelOffset.x;packY=modelOffset.y;packZ=modelOffset.z;
+        } else this.renderContext.setModelOffset(modelOffset);
     }
 
     @Override
@@ -369,12 +387,11 @@ public class VulkanRenderEngine implements VulkanBackend {
                     if (quadCount > this.quadIndexBufferCapacity) {
                         this.ensureQuadIndexBuffer(quadCount + 1024);
                     }
-                    this.renderContext.applyPerDrawState();
-                    this.renderContext.drawIndexed(stale.vkBuffer, this.quadIndexBuffer, indexCount);
-                    this.profiler.countDraw();
+                    submitCached(stale,indexCount);
                     this.totalTerrainDrawCalls++;
                     this.drawCount++;
                 } catch (Exception e) {
+                    if(packFrame!=null)throw e;
                     // Buffer may have been freed already
                 }
             }
@@ -418,14 +435,23 @@ public class VulkanRenderEngine implements VulkanBackend {
             }
 
             // THE draw call
-            this.renderContext.applyPerDrawState();
-            this.renderContext.drawIndexed(cached.vkBuffer, this.quadIndexBuffer, indexCount);
-            this.profiler.countDraw();
+            submitCached(cached,indexCount);
                     this.totalTerrainDrawCalls++;
 
         } catch (Exception e) {
+            if(packFrame!=null)throw e;
             LOGGER.error("[DH-Vulkan] drawVertexData error", e);
         }
+    }
+
+    private void submitCached(CachedBuffer buffer,int count) {
+        if(packFrame!=null) {
+            packFrame.distant().enqueue(packWater,buffer.vkBuffer,quadIndexBuffer,count,packX,packY,packZ);
+            return;
+        }
+        this.renderContext.applyPerDrawState();
+        this.renderContext.drawIndexed(buffer.vkBuffer,this.quadIndexBuffer,count);
+        this.profiler.countDraw();
     }
 
     @Override
@@ -438,6 +464,10 @@ public class VulkanRenderEngine implements VulkanBackend {
     public void setBlendState(boolean enabled) {
         if (this.initFailed)
             return;
+        if(packFrame!=null) {
+            packWater=enabled;
+            return;
+        }
         PipelineState.blendInfo.enabled = enabled;
         if (enabled) {
             PipelineState.blendInfo.srcRgbFactor = 6;
@@ -454,6 +484,13 @@ public class VulkanRenderEngine implements VulkanBackend {
         if (!this.frameReady)
             return;
 
+        if(packFrame!=null) {
+            var session=packFrame;
+            packFrame=null;
+            frameReady=false;
+            session.flushDistantDraws();
+            return;
+        }
         this.profiler.end(DhFrameProfiler.PHASE_DRAWS);
 
         try {
@@ -557,6 +594,8 @@ public class VulkanRenderEngine implements VulkanBackend {
      */
     @Override
     public void lateComposite(RenderUniforms uniforms) {
+        var session=de.stranger.vsdh.shader.WorldShaderSession.current();
+        if(session!=null&&session.drawsDistantTerrain())return;
         if (!this.frameReady) return;
 
         com.seibel.distanthorizons.api.enums.config.EDhApiMcRenderingFadeMode fadeMode = DhConfigHelper.vanillaFadeMode();
@@ -715,6 +754,7 @@ public class VulkanRenderEngine implements VulkanBackend {
 
     @Override
     public void cleanup() {
+        this.packFrame=null;
         if (!this.initialized && !this.initFailed) return;
         this.frameReady = false;
         this.quadIndexBufferCapacity = 0;

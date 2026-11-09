@@ -3,7 +3,6 @@ package dev.vitrail.glsl;
 import dev.vitrail.glsl.GlslLexer.Kind;
 import dev.vitrail.glsl.GlslLexer.Token;
 import dev.vitrail.glsl.TokenStream.Closing;
-import dev.vitrail.pack.option.EngineDefines;
 import dev.vitrail.pack.model.AlphaTest;
 import dev.vitrail.pack.model.ProgramNames;
 import dev.vitrail.pack.model.ProgramStage;
@@ -794,7 +793,7 @@ public final class GlslTranslator {
 			List<String> bound, AlphaTest alphaTest, boolean coverage, String program,
 			Map<String, VolumeAtlas> volumes) {
 		GlslTranslator translator = new GlslTranslator(unit, stage,
-				EngineDefines.table(EngineDefines.machine()), inputs, bound, alphaTest, coverage,
+				unit.engineDefines(), inputs, bound, alphaTest, coverage,
 				program, volumes);
 		translator.rewrite();
 

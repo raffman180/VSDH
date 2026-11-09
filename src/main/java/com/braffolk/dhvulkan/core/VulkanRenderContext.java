@@ -122,6 +122,11 @@ public class VulkanRenderContext {
      * Total stride: 16 bytes
      */
     private static final VertexFormat DH_TERRAIN_FORMAT;
+    private static final VertexFormat PACK_DH_TERRAIN_FORMAT;
+
+    public static VertexFormat packTerrainFormat() {
+        return PACK_DH_TERRAIN_FORMAT;
+    }
     static {
         VertexFormatElement position = Compat.vertexFormatElement(0, 0,
                 VertexFormatElement.Type.SHORT, VertexFormatElement.Usage.POSITION, 4);
@@ -133,6 +138,11 @@ public class VulkanRenderContext {
         DH_TERRAIN_FORMAT = Compat.buildVertexFormat(
                 new String[] { "Position", "Color", "Material" },
                 new VertexFormatElement[] { position, color, material });
+        var unsignedPosition = Compat.vertexFormatElement(0, 0,
+                VertexFormatElement.Type.USHORT, VertexFormatElement.Usage.POSITION, 4);
+        PACK_DH_TERRAIN_FORMAT = Compat.buildVertexFormat(
+                new String[] { "Position", "Color", "Material" },
+                new VertexFormatElement[] { unsignedPosition, color, material });
     }
 
     // ======================//

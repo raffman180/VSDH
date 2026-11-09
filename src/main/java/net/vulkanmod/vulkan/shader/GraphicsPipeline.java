@@ -157,14 +157,15 @@ public class GraphicsPipeline extends Pipeline {
                 colorBlendAttachment.position(attachmentIndex);
                 colorBlendAttachment.colorWriteMask(state.colorMask_i);
 
-                if (PipelineState.BlendState.enable(state.blendState_i)) {
+                int attachmentBlend = state.blendState(attachmentIndex);
+                if (PipelineState.BlendState.enable(attachmentBlend)) {
                     colorBlendAttachment.blendEnable(true);
-                    colorBlendAttachment.srcColorBlendFactor(PipelineState.BlendState.getSrcRgbFactor(state.blendState_i));
-                    colorBlendAttachment.dstColorBlendFactor(PipelineState.BlendState.getDstRgbFactor(state.blendState_i));
-                    colorBlendAttachment.colorBlendOp(PipelineState.BlendState.getColorBlendOp(state.blendState_i));
-                    colorBlendAttachment.srcAlphaBlendFactor(PipelineState.BlendState.getSrcAlphaFactor(state.blendState_i));
-                    colorBlendAttachment.dstAlphaBlendFactor(PipelineState.BlendState.getDstAlphaFactor(state.blendState_i));
-                    colorBlendAttachment.alphaBlendOp(PipelineState.BlendState.getAlphaBlendOp(state.blendState_i));
+                    colorBlendAttachment.srcColorBlendFactor(PipelineState.BlendState.getSrcRgbFactor(attachmentBlend));
+                    colorBlendAttachment.dstColorBlendFactor(PipelineState.BlendState.getDstRgbFactor(attachmentBlend));
+                    colorBlendAttachment.colorBlendOp(PipelineState.BlendState.getColorBlendOp(attachmentBlend));
+                    colorBlendAttachment.srcAlphaBlendFactor(PipelineState.BlendState.getSrcAlphaFactor(attachmentBlend));
+                    colorBlendAttachment.dstAlphaBlendFactor(PipelineState.BlendState.getDstAlphaFactor(attachmentBlend));
+                    colorBlendAttachment.alphaBlendOp(PipelineState.BlendState.getAlphaBlendOp(attachmentBlend));
                 }
                 else {
                     colorBlendAttachment.blendEnable(false);

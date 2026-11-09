@@ -44,7 +44,7 @@ public abstract class NativeGraphicsProgram implements AutoCloseable {
 
     protected NativeGraphicsProgram(String name, TranslatedProgram translated, VulkanProgramCompiler.Compiled compiled, VertexFormat format) {
         RenderSystem.assertOnRenderThread();
-        if ((translated.inputs() != VertexInputs.FULLSCREEN && !translated.inputs().vulkanTerrain()) || compiled.stages().size() != 2
+        if ((translated.inputs() != VertexInputs.FULLSCREEN && !translated.inputs().vulkanTerrain() && translated.inputs() != VertexInputs.DISTANT) || compiled.stages().size() != 2
                 || !compiled.stages().containsKey(ProgramStage.VERTEX) || !compiled.stages().containsKey(ProgramStage.FRAGMENT))
             throw new IllegalArgumentException("Native graphics program requires a supported input format and exactly vertex and fragment stages");
         var active = new HashSet<Integer>();
@@ -75,6 +75,11 @@ public abstract class NativeGraphicsProgram implements AutoCloseable {
             if (translated.inputs().vulkanTerrain()) {
                 var push = new net.vulkanmod.vulkan.shader.layout.AlignedStruct.Builder();
                 push.addUniformInfo("vec3", "vs_ChunkOffset");
+                builder.setPushConstants(push.buildPushConstant());
+            }
+            if (translated.inputs() == VertexInputs.DISTANT) {
+                var push = new net.vulkanmod.vulkan.shader.layout.AlignedStruct.Builder();
+                push.addUniformInfo("vec3", dev.vitrail.glsl.DistantVertex.SECTION_OFFSET);
                 builder.setPushConstants(push.buildPushConstant());
             }
             var ubos = new ArrayList<UBO>();

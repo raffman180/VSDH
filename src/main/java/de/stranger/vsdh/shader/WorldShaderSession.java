@@ -30,12 +30,14 @@ public final class WorldShaderSession implements MainPass {
     private final WorldPackPlan plan;
     private final WorldUniforms uniforms;
     private final Map<TerrainRenderType,NativeTerrainPass> terrain=new EnumMap<>(TerrainRenderType.class);
+    private final Map<TerrainRenderType,NativeBlend> terrainBlend=new EnumMap<>(TerrainRenderType.class);
     private final Map<TerrainRenderType,PackProgramSource.Prepared> sources=new EnumMap<>(TerrainRenderType.class);
     private final Map<Long,Integer> aliases=new HashMap<>();
     private NativeShaderChain chain;
     private NativeWorldDepth depth;
     private NativeWorldShadows shadows;
     private NativeWorldTextures textures;
+    private NativeDistantTerrain distant;
     private VulkanImage borrowedDepth;
     private NativeShaderChain.View scene;
     private boolean active,deferred,closed;
@@ -53,6 +55,19 @@ public final class WorldShaderSession implements MainPass {
     public long terrainCalls() { return terrainCalls; }
     public NativeShaderChain chain() { return chain; }
     public NativeWorldShadows shadows() {return shadows;}
+    public NativeDistantTerrain distant() {return distant;}
+    public boolean drawsDistantTerrain() {return active && distant!=null;}
+    public void captureDistant(com.braffolk.dhvulkan.core.data.RenderUniforms frame) {
+        uniforms.captureDistant(frame);
+    }
+    public void flushDistantDraws() {
+        if (!drawsDistantTerrain()) throw new IllegalStateException("DH callback left its world frame");
+        if (deferred && distant.hasOpaqueDraws())
+            throw new IllegalStateException("DH opaque terrain arrived after deferred lighting");
+        try (var scope = Renderer.getInstance().temporaryRenderTarget()) {
+            distant.render(this, deferred);
+        }
+    }
     public net.minecraft.client.CloudStatus clouds(net.minecraft.client.CloudStatus userSetting) {
         if(!active)return userSetting;
         return switch(plan.sky().clouds()) {
@@ -72,16 +87,19 @@ public final class WorldShaderSession implements MainPass {
         for(var stage:plan.chain().stages().values())for(var pass:stage)for(var binding:pass.inputs()) {
             String sampler=binding.sampler();
             if(binding.kind()!=dev.vitrail.pack.target.SamplerPlan.Kind.COLORTEX&&!depthName(sampler)
-                    &&!(shadowName(sampler)&&plan.shadow()!=null)&&plan.textures().resolve(pass.name(),sampler)==null
+                    &&!(shadowName(sampler)&&plan.shadow()!=null)&&!(distantDepth(sampler)&&plan.distant()!=null)&&plan.textures().resolve(pass.name(),sampler)==null
                     &&!(binding.defaulted()&&plan.textures().resolve(pass.name(),"colortex0")!=null))
                 throw new IllegalArgumentException("World resource not implemented: "+pass.name()+"/"+sampler);
         }
-        for (var source:plan.terrain().values()) {
+        var geometry=new java.util.ArrayList<>(plan.terrain().values());
+        if(plan.distant()!=null)geometry.addAll(plan.distant().programs());
+        for (var source:geometry) {
             var activeBindings=new java.util.HashSet<Integer>();
             source.compiled().stages().values().forEach(bytes->activeBindings.addAll(SpirvInterface.bindings(bytes)));
             for (var sampler:source.translated().samplers()) if (activeBindings.contains(source.compiled().bindings().get(sampler.name()))
                     && !java.util.Set.of("gtexture","texture","tex","lightmap").contains(sampler.name())
                     && !(shadowName(sampler.name())&&plan.shadow()!=null)&&!depthName(sampler.name())
+                    && !(distantDepth(sampler.name())&&plan.distant()!=null)
                     && plan.textures().resolve(source.path(),sampler.name())==null
                     && dev.vitrail.pack.model.TargetName.index(sampler.name()).stream().noneMatch(plan.chain().targets().allocated()::contains))
                 throw new IllegalArgumentException("Terrain resource not implemented: "+sampler.name());
@@ -120,12 +138,14 @@ public final class WorldShaderSession implements MainPass {
                 depth=new NativeWorldDepth(worldDepth,true,true);
                 chain=new NativeShaderChain(plan.chain(),worldDepth.width,worldDepth.height,512L*1024*1024);
                 textures=new NativeWorldTextures(plan.textures());
+                if(plan.distant()!=null)distant=new NativeDistantTerrain(plan,worldDepth.width,worldDepth.height);
                 if(plan.shadow()!=null)shadows=new NativeWorldShadows(plan);
                 for (TerrainRenderType type:TerrainRenderType.values()) {
                     var source=sources.get(type);
                     var pipeline=new NativeTerrainPass(source.path(),source.translated(),source.compiled());
                     terrain.put(type,pipeline);
                     var target=chain.geometry(bare(source.path()),false,worldDepth);
+                    terrainBlend.put(type,NativeBlend.forProgram(plan.chain().targets(),bare(source.path()),target.framebuffer().getColorAttachmentCount()));
                     pipeline.prepare(target.pass());
                 }
                 chain.prepareOutput(output);
@@ -136,6 +156,7 @@ public final class WorldShaderSession implements MainPass {
         try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
             chain.beginFrame(new dev.vitrail.pack.target.TargetDirectives.Colour(fog[0],fog[1],fog[2],1));
             depth.beginFrame();
+            if(distant!=null)distant.beginFrame();
             chain.render(ShaderChainPlan.Stage.BEGIN,null,this::writeFullscreen,this::external);
             if(shadows!=null)shadows.render(camera,uniforms,textures);
             chain.render(ShaderChainPlan.Stage.PREPARE,null,this::writeFullscreen,this::external);
@@ -154,35 +175,60 @@ public final class WorldShaderSession implements MainPass {
         var pipeline=terrain.get(type);
         int stage=switch(type) {case SOLID->8;case CUTOUT_MIPPED->9;case CUTOUT->10;case TRANSLUCENT->17;case TRIPWIRE->18;};
         uniforms.write(pipeline,false,stage,type.alphaCutout);
+        bindGeometry(pipeline,source,deferred,false);
+        try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
+            var state=terrainBlend.get(type).apply(PipelineState.getCurrentPipelineState(target.pass()));
+            pipeline.renderBatches(target.framebuffer(),target.pass(),state,batches);
+        }
+        terrainCalls++;
+    }
+
+    void writeDistant(NativeGraphicsProgram pipeline,PackProgramSource.Prepared source,boolean water) {
+        uniforms.writeDistant(pipeline,water);
+        bindGeometry(pipeline,source,water,true);
+    }
+
+    private void bindGeometry(NativeGraphicsProgram pipeline,PackProgramSource.Prepared source,
+                              boolean afterDeferred,boolean dh) {
         for (String sampler:pipeline.requiredSamplers()) {
             var supplied=textures.image(source.path(),sampler);
             if(supplied!=null){pipeline.bindImage(sampler,supplied);continue;}
             if(depthName(sampler)){pipeline.bindImage(sampler,depth.image(sampler));continue;}
+            if(distantDepth(sampler)) {
+                // A DH program cannot sample its live depth attachment. During opaque draws the
+                // snapshot is clear, and during water it holds the opaque terrain's final depth.
+                pipeline.bindImage(sampler,distant.image(dh?"dhDepthTex1":sampler));
+                continue;
+            }
             if(shadowName(sampler)) {
                 String name=dev.vitrail.pack.target.SamplerPlan.withoutTranslucents(sampler,pipeline.requiredSamplers().contains("watershadow"))?"shadowtex1":sampler;
                 pipeline.bindImage(sampler,shadows.image(name));continue;
             }
             var color=dev.vitrail.pack.model.TargetName.index(sampler);
             if(color.isPresent()) {
-                var step=(deferred?plan.chain().targets().schedule().stepAfterDeferred(bare(source.path())):plan.chain().targets().schedule().step(bare(source.path()))).orElseThrow();
+                var step=(afterDeferred?plan.chain().targets().schedule().stepAfterDeferred(bare(source.path())):plan.chain().targets().schedule().step(bare(source.path()))).orElseThrow();
                 pipeline.bindImage(sampler,chain.targets().image(color.getAsInt(),step.read(color.getAsInt())));continue;
+            }
+            if(dh&&sampler.equals("lightmap")) {
+                var lightmap=com.braffolk.dhvulkan.compat.Compat.getLightmapVulkanImage();
+                if(lightmap==null)throw new IllegalStateException("DH lightmap unavailable");
+                pipeline.bindImage(sampler,lightmap);
+                continue;
             }
             int id=RenderSystem.getShaderTexture(sampler.equals("lightmap")?2:0);
             var texture=GlTexture.getTexture(id);
             if (texture==null || texture.getVulkanImage()==null) throw new IllegalStateException("Missing world texture: "+sampler+" id="+id);
             pipeline.bindImage(sampler,texture.getVulkanImage());
         }
-        try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
-            pipeline.renderBatches(target.framebuffer(),target.pass(),PipelineState.getCurrentPipelineState(target.pass()),batches);
-        }
-        terrainCalls++;
     }
 
     private void runDeferred() {
         try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
             // Hand reordering is not implemented yet; the two pre-translucent snapshots coincide.
             depth.capturePreHand();depth.capturePreTranslucent();
+            if(distant!=null)distant.snapshotOpaque();
             chain.render(ShaderChainPlan.Stage.DEFERRED,null,this::writeFullscreen,this::external);
+            if(distant!=null)distant.render(this,true);
         }
         deferred=true;scene=chain.scene("gbuffers_basic",true,borrowedDepth);rebindMainTarget();
     }
@@ -207,6 +253,7 @@ public final class WorldShaderSession implements MainPass {
         if(binding.kind()==dev.vitrail.pack.target.SamplerPlan.Kind.PACK_TEXTURE&&binding.defaulted())supplied=textures.image(program,"colortex0");
         if(supplied!=null)return supplied;
         if (depthName(binding.sampler())) return depth.image(binding.sampler());
+        if(distantDepth(binding.sampler())&&distant!=null)return distant.image(binding.sampler());
         if(shadowName(binding.sampler())&&shadows!=null) {
             if(binding.kind()==dev.vitrail.pack.target.SamplerPlan.Kind.SHADOW_COLOUR)return shadows.image("shadowcolor"+binding.index());
             boolean water=plan.chain().stages().values().stream().flatMap(java.util.Collection::stream)
@@ -214,6 +261,9 @@ public final class WorldShaderSession implements MainPass {
             return shadows.image(dev.vitrail.pack.target.SamplerPlan.withoutTranslucents(binding.sampler(),water)?"shadowtex1":binding.sampler());
         }
         throw new IllegalArgumentException("Unimplemented world input "+program+"/"+binding.sampler());
+    }
+    private static boolean distantDepth(String s) {
+        return s.equals("dhDepthTex")||s.equals("dhDepthTex0")||s.equals("dhDepthTex1");
     }
     private static boolean depthName(String s) {return DEPTH_NAMES.contains(s);}
     private static boolean shadowName(String s) {return s.equals("shadow")||s.equals("watershadow")||s.matches("shadowtex[01](?:HW)?|shadowcolor[0-7]?");}
@@ -225,7 +275,9 @@ public final class WorldShaderSession implements MainPass {
         for (int id:aliases.values()) {GlTexture.setVulkanImage(id,null);GlTexture.glDeleteTextures(id);}
         aliases.clear();
         terrain.values().forEach(NativeTerrainPass::close);terrain.clear();
+        terrainBlend.clear();
         if (chain!=null) chain.close();chain=null;
+        if(distant!=null)distant.close();distant=null;
         if (depth!=null) depth.close();depth=null;borrowedDepth=null;
         if(shadows!=null)shadows.close();shadows=null;
         if(textures!=null)textures.close();textures=null;

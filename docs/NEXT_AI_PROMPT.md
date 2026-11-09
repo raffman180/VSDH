@@ -1,4 +1,32 @@
-# Fortsetzungs-Prompt — VSDH 0.9
+# Fortsetzungs-Prompt — VSDH 0.10
+
+## Aktuelle Weiterarbeit an DH
+
+0.10.0-dev zeichnet mit -PsmokeLivePack=true -PsmokeDistantPack=true die
+originalen Programme dh_terrain und dh_water aus Complementary Reimagined
+r5.9.3 MEDIUM. verify-0.10-dh-client.log belegt GPU-Rücklesen beider
+DH-Tiefenbilder bei 1280×720 und 480×270 sowie die Mischregeln pro Vulkan-Ziel.
+Der sichtbare Übergang von Nah- zu Fernwasser bleibt offen. Details zu
+Mischregeln und Tiefenvertrag stehen in docs/DISTANT_PACK.md.
+
+Nächster Schritt ist echte Himmelsgeometrie. LevelRenderer.renderSky und
+renderEndSky aus NeoForge 1.21.1 liefern die genauen Aufrufstellen. Die vier
+Vertexformate müssen feste Vulkan-Attributorte behalten. RenderStage und
+tatsächliche Farbe und Matrizen des jeweiligen Draws an die Packprogramme
+geben. Die globale Kamerahistorie bleibt getrennt. Danach Entitäten, Wetter,
+Partikel, Hand, Dimensionswechsel und Shader-Auswahl bearbeiten. Die
+nachfolgenden Grenzen aus 0.9 sind Historie.
+
+NativeDistantTerrain sammelt die bestehenden DH-3.3.3-Vulkan-Puffer ohne
+neuen Upload. Opak zeichnet vor dem Minecraft-Terrain. Frühe Wasserbefehle
+werden erst nach Deferred ausgeführt. dhDepthTex1 enthält die opake Kopie.
+DH-Wasser muss diese Kopie auch lesen, wenn es sie dhDepthTex nennt, um
+Feedback auf der Vulkan-Tiefenanlage zu vermeiden. Außerhalb der DH-Pässe
+bleibt dhDepthTex die vollständige DH-Tiefe. verify-dh-world-1.log belegt
+den verhinderten Feedback-Fehler. Die Kamera-Tiefe von 0.9 und DHs eigene
+GL-Projektion sind verschiedene Verträge. DHs Projektion nicht doppelt
+nach GL konvertieren. DISTANT_HORIZONS ist pro Pack-Lesung gesetzt und
+muss bei Expansion, finalem GLSL und Cache-Schlüssel identisch sein.
 
 Arbeite direkt unter C:/Users/Stranger/Documents/Meine Mods/VSDH weiter, auf Deutsch.
 Der Nutzer verlangt die Vervollständigung von Vulkan + Shadern + Distant Horizons.

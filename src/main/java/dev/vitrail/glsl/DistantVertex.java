@@ -168,11 +168,16 @@ public final class DistantVertex {
 			Map<String, String> synthesized) {
 		List<String> lines = new ArrayList<>();
 
-		for (String attribute : carried) {
-			lines.add("in " + type(attribute) + " " + attribute + ";");
-		}
+		// Use the pinned DH 3.3.3 Vulkan buffer without repacking it.
+		lines.add("layout(location=0) in uvec4 ofDhPositionAndMeta;");
+		lines.add("layout(location=1) in vec4 " + COLOUR + ";");
+		lines.add("layout(location=2) in int ofDhMaterialAndNormal;");
+		lines.add("#define " + POSITION + " ofDhPositionAndMeta.xyz");
+		lines.add("#define " + META + " ofDhPositionAndMeta.w");
+		lines.add("#define " + MATERIAL + " (uint(ofDhMaterialAndNormal) & 255u)");
+		lines.add("#define " + NORMAL + " ((uint(ofDhMaterialAndNormal) >> 8u) & 255u)");
 
-		lines.add("layout(std140) uniform " + SECTION_BLOCK + " {");
+		lines.add("layout(push_constant) uniform " + SECTION_BLOCK + " {");
 		lines.add("\tvec3 " + SECTION_OFFSET + ";");
 		lines.add("};");
 

@@ -14,13 +14,17 @@ import java.util.Map;
 public record WorldPackPlan(ShaderChainPlan chain, Map<String, PackProgramSource.Prepared> terrain,
                             List<BlockIds.Entry> materials, PackExpressions.Plan expressions,
                             Map<String,Integer> items, PackDirectives directives, boolean oldHandLight,ShadowPackPlan shadow,
-                            PackTexturePlan textures,dev.vitrail.pack.source.ShaderProperties.SkyElements sky) {
+                            PackTexturePlan textures,dev.vitrail.pack.source.ShaderProperties.SkyElements sky, DistantPackPlan distant) {
     public WorldPackPlan { terrain=Map.copyOf(terrain); materials=List.copyOf(materials); items=Map.copyOf(items); }
     public WorldPackPlan(ShaderChainPlan chain, Map<String,PackProgramSource.Prepared> terrain,List<BlockIds.Entry> materials) {
         this(chain,terrain,materials,PackExpressions.empty(),Map.of(),PackDirectives.defaults(),true,null,PackTexturePlan.empty(),
-                new dev.vitrail.pack.source.ShaderProperties.SkyElements(true,true,true,true,dev.vitrail.pack.source.ShaderProperties.CloudSetting.DEFAULT));
+                new dev.vitrail.pack.source.ShaderProperties.SkyElements(true,true,true,true,dev.vitrail.pack.source.ShaderProperties.CloudSetting.DEFAULT),null);
     }
     public static WorldPackPlan prepare(OpenedPack pack, String dimension) throws IOException {
+        return prepare(pack,dimension,false);
+    }
+    public static WorldPackPlan prepare(OpenedPack pack, String dimension, boolean distant) throws IOException {
+        if (distant) pack=new OpenedPack(pack.packPath(),pack.source(),pack.options(),pack.properties(),pack.settings().withDistantHorizons());
         var chain=ShaderChainPlan.prepare(pack,dimension);
         var prefix=chain.targets().place().isEmpty()?"":chain.targets().place()+"/";
         var defines=pack.settings().globalDefines(pack.options());
@@ -39,8 +43,9 @@ public record WorldPackPlan(ShaderChainPlan chain, Map<String, PackProgramSource
         var parsed=BlockIds.read(pack.source(),defines);
         if (!parsed.problems().isEmpty()) throw new IOException("Invalid material table: "+parsed.problems());
         var shadow=ShadowPackPlan.prepare(pack,prefix,chain.targets().shadowCeiling());
+        var dh=distant?DistantPackPlan.prepare(pack,prefix):null;
         return new WorldPackPlan(chain,terrain,parsed.entries(),PackExpressions.read(pack),ShaderItemMaterials.read(pack),
                 PackDirectives.read(pack.source(),pack.settings(),dimension),pack.properties().oldHandLight(defines),
-                shadow,PackTexturePlan.read(pack,chain,terrain,shadow),pack.properties().skyElements(defines));
+                shadow,PackTexturePlan.read(pack,chain,terrain,shadow,dh),pack.properties().skyElements(defines),dh);
     }
 }

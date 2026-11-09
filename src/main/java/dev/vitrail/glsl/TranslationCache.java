@@ -1,6 +1,5 @@
 package dev.vitrail.glsl;
 
-import dev.vitrail.pack.option.EngineDefines;
 import dev.vitrail.pack.model.AlphaTest;
 import dev.vitrail.pack.model.ProgramStage;
 import dev.vitrail.pack.source.IncludeExpander.ExpandedUnit;
@@ -384,16 +383,6 @@ public final class TranslationCache {
 		// differently from a card that has not.
 		feed(digest, VendorExtensions.key());
 
-		// The whole table, in its own order, which is fixed by the code that builds it. It carries
-		// the game version, the operating system, the driver's vendor and renderer, the mipmap
-		// level and every other symbol the machine decides, and a define added to it later is in
-		// the key from that day without a line here.
-		for (Map.Entry<String, String> define
-				: EngineDefines.table(EngineDefines.machine()).entrySet()) {
-			feed(digest, define.getKey());
-			feed(digest, define.getValue());
-		}
-
 		feed(digest, inputs.name());
 		feed(digest, program);
 		feed(digest, alphaTest.function().name());
@@ -426,6 +415,11 @@ public final class TranslationCache {
 			}
 
 			feed(digest, stage.name());
+			digest.update(intBytes(unit.engineDefines().size()));
+			for (var define : unit.engineDefines().entrySet()) {
+				feed(digest, define.getKey());
+				feed(digest, define.getValue());
+			}
 			feed(digest, unit.entry());
 			feed(digest, unit.version());
 			feedLines(digest, unit.lines());

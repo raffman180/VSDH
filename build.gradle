@@ -41,6 +41,7 @@ neoForge {
             client()
             systemProperty 'vsdh.smoke', 'true'
             systemProperty 'vsdh.smoke.livePack', providers.gradleProperty('smokeLivePack').getOrElse('false')
+            systemProperty 'vsdh.smoke.distantPack', providers.gradleProperty('smokeDistantPack').getOrElse('false')
             if (providers.gradleProperty('smokeShaderPack').isPresent())
                 systemProperty 'vsdh.smoke.pack', providers.gradleProperty('smokeShaderPack').get()
             programArguments.addAll('--width', '1280', '--height', '720')
@@ -101,7 +102,8 @@ tasks.register('auditWorldHost', JavaExec) {
     classpath = sourceSets.smoke.runtimeClasspath
     mainClass = 'de.stranger.vsdh.smoke.WorldHostAudit'
     args providers.gradleProperty('shaderPack').getOrElse('run/shaderpacks/ComplementaryReimagined_r5.9.3.zip'),
-            layout.buildDirectory.file('world-host-audit.json').get().asFile.absolutePath
+            layout.buildDirectory.file('world-host-audit.json').get().asFile.absolutePath,
+            providers.gradleProperty('smokeDistantPack').getOrElse('false')
 }
 processResources {
     inputs.property 'version', project.version

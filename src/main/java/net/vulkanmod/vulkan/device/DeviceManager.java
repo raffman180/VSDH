@@ -35,6 +35,11 @@ public abstract class DeviceManager {
 
     public static Device device;
     private static boolean tessellationEnabled;
+    private static boolean independentBlendEnabled;
+
+    public static boolean supportsIndependentBlend() {
+        return independentBlendEnabled;
+    }
 
     public static VkPhysicalDeviceProperties deviceProperties;
     public static VkPhysicalDeviceMemoryProperties memoryProperties;
@@ -213,6 +218,8 @@ public abstract class DeviceManager {
             deviceFeatures.sType$Default();
             deviceFeatures.features().samplerAnisotropy(device.availableFeatures.features().samplerAnisotropy());
             deviceFeatures.features().logicOp(device.availableFeatures.features().logicOp());
+            independentBlendEnabled = device.availableFeatures.features().independentBlend();
+            deviceFeatures.features().independentBlend(independentBlendEnabled);
             deviceFeatures.features().tessellationShader(device.availableFeatures.features().tessellationShader());
 
             deviceFeatures.features().multiDrawIndirect(device.isDrawIndirectSupported());

@@ -31,6 +31,7 @@ final class RealPackWorldProbe {
             }
             if(colors.size()<64||nonblack<128)throw new AssertionError("Real-pack output lacks world image content: colors="+colors.size()+", nonblack="+nonblack);
             completed.add(scale);
+            if (Boolean.getBoolean("vsdh.smoke.distantPack")) DistantWorldProbe.verify(session);
             RealPackCloudProbe.run(session);
             var deferred=session.chain().program("deferred1");
             var data=deferred.uniforms();var layout=deferred.layout();

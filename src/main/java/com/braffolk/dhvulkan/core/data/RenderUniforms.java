@@ -22,6 +22,8 @@ public class RenderUniforms {
 
     /** Partial tick time for fog interpolation */
     public float partialTicks;
+    public float nearClipPlane;
+    public float farClipPlane;
 
     /**
      * Set all fields from source matrices.

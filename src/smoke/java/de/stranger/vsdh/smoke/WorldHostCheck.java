@@ -25,7 +25,10 @@ final class WorldHostCheck {
                 boolean real=Boolean.getBoolean("vsdh.smoke.livePack");
                 var path=real?Path.of(System.getProperty("vsdh.smoke.pack")):Path.of(WorldHostCheck.class.getResource("/shaderpacks/vsdh-world").toURI());
                 try(var pack=OpenedPack.open(path,Map.of(),real?"MEDIUM":"")) {
-                    var prepared=WorldPackPlan.prepare(pack,real?"world0":"");WorldUniforms.validate(prepared);if(real)RealPackCloudProbe.prepare(prepared);return prepared;
+                    var prepared=WorldPackPlan.prepare(pack,real?"world0":"",Boolean.getBoolean("vsdh.smoke.distantPack"));
+                    WorldUniforms.validate(prepared);
+                    if(real)RealPackCloudProbe.prepare(prepared);
+                    return prepared;
                 }
             }catch(Exception error){throw new java.util.concurrent.CompletionException(error);}
         });
