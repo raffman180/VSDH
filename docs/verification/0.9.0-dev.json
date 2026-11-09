@@ -1,0 +1,273 @@
+{
+  "version": "0.9.0-dev",
+  "date": "2026-11-09",
+  "minecraft": "1.21.1",
+  "neoforge": "21.1.264",
+  "java": 21,
+  "dh": "3.3.3",
+  "gpu": "NVIDIA RTX 4070",
+  "os": "Windows",
+  "goalComplete": false,
+  "fullShaderPackWorldRendering": false,
+  "fullDhPackRendering": false,
+  "liveDiagnosticWorldShader": true,
+  "liveComplementaryWorldExecution": true,
+  "testSuites": [
+    {
+      "name": "com.braffolk.dhvulkan.api.DhRegistrationTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "com.braffolk.dhvulkan.core.data.VkVertexDataTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.compat.ExecutorShutdownTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.compat.SqliteRegenCancellationTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.BlockIdsTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.CameraCoordinatesTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.ForwardDepthProjectionTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.PackExpressionsTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.PackTexturePlanTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.ShaderChainPlanTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.ShaderItemMaterialsTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.ShaderTerrainVertexTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.ShadowCameraTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.Std140LayoutTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.UniformUsageTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.VulkanTerrainTranslationTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.WorldMatricesTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "de.stranger.vsdh.shader.WorldPackPlanTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "testsPassed": 56,
+  "build": {
+    "log": "verify-0.9-build.log",
+    "result": "passed",
+    "allTasksExecuted": true,
+    "gradleBuildCacheUsed": false,
+    "bundledLwjglVerified": true
+  },
+  "clients": {
+    "verify-0.9-final-client.log": {
+      "result": "passed",
+      "worlds": 2,
+      "errorLines": 0,
+      "fatalLines": 0,
+      "markers": {
+        "MRT GPU PASS": 4,
+        "PACK GPU PASS": 4,
+        "CHAIN GPU PASS": 4,
+        "COMPLEMENTARY FINAL GPU PASS": 4,
+        "COMPLEMENTARY CHAIN PREPARE PASS": 4,
+        "TERRAIN GPU PASS": 4
+      },
+      "realTerrainUploads": [
+        {
+          "world": 1,
+          "stride": 44,
+          "uploadedBytes": 14189296
+        },
+        {
+          "world": 2,
+          "stride": 20,
+          "uploadedBytes": 5706240
+        }
+      ],
+      "builtinWorldProbes": [
+        "phase=air, pixel=370386, camera=(0.5, 101.61999988555908, 0.5), medium=NONE, night=0.0, blindness=0.0, darkness=0.0, fogDensity=0.0",
+        "phase=water-negative, pixel=114778, camera=(-3.25, 59.61999988555908, -7.125), medium=WATER, night=0.0, blindness=0.0, darkness=0.0, fogDensity=0.020000001",
+        "phase=effects, pixel=370386, camera=(0.5, 101.61999988555908, 0.5), medium=NONE, night=1.0, blindness=1.0, darkness=1.0, fogDensity=0.0"
+      ],
+      "expressionWorldProbes": [
+        "phase=air, materials=40008/44003, light=14/14, eye=1.0, rainFactor=0.0, wetness=0.0, capturedDarkness=0.0",
+        "phase=water-negative, materials=44002/40008, light=14/0, eye=0.6015625, rainFactor=0.0, wetness=0.0, capturedDarkness=0.0",
+        "phase=effects, materials=44002/40008, light=14/0, eye=0.99902344, rainFactor=0.0, wetness=0.0, capturedDarkness=5.510911E-17",
+        "phase=rain, materials=44002/40008, light=14/0, eye=0.9995117, rainFactor=0.76904297, wetness=0.020812988, capturedDarkness=0.0"
+      ],
+      "shadowWorldProbes": [
+        "draws=239926, depthPixels=39116, transparentDepthPixels=37512, offCameraSections=8, size=512x512, scale=100",
+        "draws=121, depthPixels=39148, transparentDepthPixels=37480, offCameraSections=8, size=512x512, scale=50"
+      ],
+      "worldHostChecks": [
+        "2314 completed frames, 11570 terrain layer calls, 444850 actual geometry pixels in normals MRT; native FINAL sentinel on presentation target, stages/depth and vanilla/DH scene target, size=1280x720, scale=100",
+        "2503 completed frames, 12515 terrain layer calls, 62562 actual geometry pixels in normals MRT; native FINAL sentinel on presentation target, stages/depth and vanilla/DH scene target, size=480x270, scale=50"
+      ]
+    },
+    "verify-realpack-world-7.log": {
+      "result": "passed",
+      "worlds": 2,
+      "errorLines": 0,
+      "fatalLines": 0,
+      "markers": {
+        "MRT GPU PASS": 4,
+        "PACK GPU PASS": 4,
+        "CHAIN GPU PASS": 4,
+        "COMPLEMENTARY FINAL GPU PASS": 4,
+        "COMPLEMENTARY CHAIN PREPARE PASS": 4,
+        "TERRAIN GPU PASS": 4
+      },
+      "realTerrainUploads": [
+        {
+          "world": 1,
+          "stride": 44,
+          "uploadedBytes": 14186480
+        },
+        {
+          "world": 2,
+          "stride": 20,
+          "uploadedBytes": 5716160
+        }
+      ],
+      "executionChecks": [
+        "frames=2325, terrainCalls=11625, shadowDraws=239504, distinctColors=52146, nonblackPixels=921600, size=1280x720, scale=100; dedicated sky/entity/hand/DH programs remain incomplete",
+        "frames=2514, terrainCalls=12570, shadowDraws=121, distinctColors=26318, nonblackPixels=129600, size=480x270, scale=50; dedicated sky/entity/hand/DH programs remain incomplete"
+      ],
+      "actualShaderCloudProbes": [
+        "bottomRayY=-0.87091225, cloudAltitude=192.0, derivedCloudHeight=192.0, cameraY=101.62",
+        "bottomRayY=-0.87164444, cloudAltitude=192.0, derivedCloudHeight=192.0, cameraY=101.62"
+      ]
+    }
+  },
+  "complementary": {
+    "version": "r5.9.3",
+    "profile": "MEDIUM",
+    "requirementsReport": "0.9-complementary-requirements.json",
+    "missingActiveWorldValues": {
+      "world0": [],
+      "world-1": [],
+      "world1": []
+    },
+    "includesActualShadowProgramAudit": true,
+    "fullWorldRenderer": false
+  },
+  "projectionFix": {
+    "beforeLog": "verify-realpack-world-6.log",
+    "afterLog": "verify-realpack-world-7.log",
+    "beforeActualShaderBottomRayY": 0.8709122,
+    "afterActualShaderBottomRayY": -0.87091225,
+    "cause": "Reforged forward 0..1 projection treated as GL plus infinite-far epsilon reversing sky depth 1",
+    "changes": [
+      "Convert rowZ to 2*rowZ-rowW before publishing legacy matrices",
+      "Use actual Minecraft finite renderDistance*4 far plane only in shader mode",
+      "Keep exactly one native .5z+.5w epilogue"
+    ],
+    "actualGpuProbeAsserted": true
+  },
+  "screenshotsViewed": [
+    "run/screenshots/vsdh-complementary-world-scale-100.png",
+    "run/screenshots/vsdh-complementary-world-scale-50.png"
+  ],
+  "limits": [
+    "Bright water transition remains visible; cause not yet isolated",
+    "Dedicated pack programs for sky/entities/block entities/particles/weather/hand and DH incomplete",
+    "No DH terrain/water pack programs or DH-specific shadow casters; DISTANT_HORIZONS feature remains disabled",
+    "Per-attachment pack blend/cull, hand ordering and separate depthtex1/2 timing incomplete",
+    "All uploaded terrain used for conservative shadows; no measured FPS comparison",
+    "Depth shadow mips, perspective shadow camera, raw/high-bit PNG formats, additional game image resources incomplete",
+    "Dimension changes, float-camera origin rebasing, public shader selector/hot reload not implemented",
+    "Some additional expression inputs and directly consumed variable roots need extensions for other packs",
+    "Production packaged JAR not separately launched through a normal launcher; dedicated server/multiplayer and other GPUs/DH versions untested"
+  ],
+  "jarSha256": "fd6492782476b9517a97a3f85787b8bb4f99a6a6140f2ce619c0a1e7021b3e5c"
+}

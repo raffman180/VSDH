@@ -1,6 +1,8 @@
 package net.vulkanmod.mixin.shader;
 
 import de.stranger.vsdh.shader.WorldShaderSession;
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
+import net.minecraft.client.CloudStatus;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -15,6 +17,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LevelRenderer.class)
 public class WorldShaderLevelMixin {
+    @ModifyExpressionValue(method={"renderLevel","renderClouds"},at=@At(value="INVOKE",target="Lnet/minecraft/client/Options;getCloudsType()Lnet/minecraft/client/CloudStatus;"))
+    private CloudStatus vsdh$packClouds(CloudStatus original) {
+        var session=WorldShaderSession.current();return session==null?original:session.clouds(original);
+    }
     @Inject(method="renderLevel",at=@At(value="INVOKE",target="Lcom/mojang/blaze3d/systems/RenderSystem;clear(IZ)V",shift=At.Shift.BEFORE))
     private void vsdh$beginWorld(DeltaTracker delta, boolean renderBlockOutline, Camera camera, GameRenderer renderer,
                                  LightTexture light, Matrix4f view, Matrix4f projection, CallbackInfo ci) {

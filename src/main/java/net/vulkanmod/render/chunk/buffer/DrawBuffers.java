@@ -365,6 +365,7 @@ public class DrawBuffers {
         int baseInstance;
 
         public DrawParameters() {}
+        public int indexCount() {return indexCount;}
 
         private void copyFrom(DrawParameters source) {
             this.indexCount = source.indexCount;

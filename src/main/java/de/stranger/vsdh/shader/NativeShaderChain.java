@@ -142,6 +142,17 @@ public final class NativeShaderChain implements AutoCloseable {
         return view(attachments, depth);
     }
 
+    /** Vanilla fallback shaders emit only location zero, independently of a pack's multi-output basic program. */
+    public View scene(String program,boolean afterDeferred,VulkanImage depth) {
+        var step=(afterDeferred?plan.targets().schedule().stepAfterDeferred(program):plan.targets().schedule().step(program)).orElseThrow();
+        return view(List.of(new ShaderChainPlan.Attachment(0,step.write(0))),depth);
+    }
+    /** Exposed to the existing frame observer for diagnostics; the chain retains ownership. */
+    public NativeFullscreenPass program(String name) {
+        return stages.values().stream().flatMap(java.util.Collection::stream)
+                .filter(p->p.source().name().equals(name)).map(RuntimePass::pipeline).findFirst().orElseThrow();
+    }
+
     private View view(List<ShaderChainPlan.Attachment> attachments, VulkanImage depth) {
         if (attachments.isEmpty() || attachments.size() > DeviceManager.deviceProperties.limits().maxColorAttachments())
             throw new IllegalArgumentException("Invalid shader color output count: " + attachments.size());

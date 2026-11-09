@@ -6,7 +6,28 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.6 — aktive Uniforms und echte Weltwerte
+## Aktuell 0.9 — Formeln, Schatten, Texturen und echte Pack-Ausführung
+
+Lies zuerst NEXT_AI_PROMPT.md für den aktuellen vollständigen Fortsetzungsauftrag.
+56 CPU-Tests bestehen. NativeWorldShadows zeichnet reale geladene Chunk-Puffer,
+PackTexturePlan/NativeWorldTextures liefern echte PNG-/Noise-/Stage-Texturen.
+Formelauswertung, Handlicht und Biomwerte sind seit 0.7 hinzugekommen.
+Der echte Complementary-Weltlauf verify-realpack-world-7.log besteht, einschließlich
+GPU-assertierter Blickrichtung nach Korrektur des Tiefenraums. Frühere nichtschwarze
+Bildprüfungen allein hatten den Wolkenfehler nicht erkannt.
+
+Ursache: Reforgeds Matrix4fM liefert 0..1-Tiefe; ForwardDepthProjection übersetzt
+sie vor Veröffentlichung korrekt in GL -1..1. Shaderbetrieb verwendet zusätzlich
+Minecraft-Fernweite getRenderDistance()*4 statt der unendlichen Epsilon-Projektion.
+Die native .5z+.5w-Konvertierung bleibt genau einmal. Testen und nicht entfernen.
+
+Verbleibend: heller Übergang im Wasser im echten Packbild, shaderseitiges DH,
+generische Pack-Geometrie für Himmel/Entitäten/Hand usw., Blend/Cull pro Attachment,
+Hand-/Tiefenzeitpunkte, Dimensionwechsel und danach öffentliche Auswahl/Hotreload.
+Kein vollständiger Renderer und keine universelle Kompatibilität. Aktuelle Befunde
+stehen in WORLD_SHADOWS.md und dem 0.9-Prüfbericht; ältere Abschnitte sind Historie.
+
+## Stand 0.6 — aktive Uniforms und echte Weltwerte
 
 Weiterarbeit 0.7: echte Packformeln samt sitzungseigener Glättung, Hand-IDs aus
 item.properties, komponentenabhängiges Blocklicht, Biome, Wetness und tatsächlicher

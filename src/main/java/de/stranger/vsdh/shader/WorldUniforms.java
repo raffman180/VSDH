@@ -29,7 +29,11 @@ public final class WorldUniforms implements ExpressionFrame {
     private final float[] camera=new float[3], previousCamera=new float[3], fog=new float[3], sky=new float[3];
     private final float[] scalar=new float[1]; private final int[] integer=new int[1];
     private final Matrix4f scratch=new Matrix4f(); private final Matrix3f normalScratch=new Matrix3f();
+    private final Matrix4f legacyCameraProjection=new Matrix4f();
     private final BuiltinWorldValues builtins=new BuiltinWorldValues();
+    public final ShadowCamera shadowCamera=new ShadowCamera();
+    private final float[] shadowView=new float[16],shadowProjection=new float[16],shadowInverseView=new float[16],shadowInverseProjection=new float[16],shadowMvp=new float[16],shadowNormal=new float[9];
+    private final Val scratchValue=new Val();
     private final WorldPackPlan plan;
     private final PackWorldValues packValues;
     private PackExpressions.Runtime expressions;
@@ -51,26 +55,37 @@ public final class WorldUniforms implements ExpressionFrame {
         return missing(program,Set.of());
     }
     private static boolean known(String name) {
-        return KNOWN.contains(name)||BuiltinWorldValues.NAMES.contains(name)||PackWorldValues.NAMES.contains(name);
+        return KNOWN.contains(name)||BuiltinWorldValues.NAMES.contains(name)||PackWorldValues.NAMES.contains(name)||ShadowCamera.NAMES.contains(name);
     }
     public static Set<String> missing(PackProgramSource.Prepared program,Set<String> customNames) {
         var active=UniformUsage.names(program.compiled(),new Std140Layout(program.translated().uniforms()));
-        var missing=new java.util.TreeSet<>(active);missing.removeIf(WorldUniforms::known);missing.removeAll(customNames);return Set.copyOf(missing);
+        var missing=new java.util.TreeSet<>(active);missing.removeIf(WorldUniforms::known);missing.removeAll(customNames);
+        // Entity zero is the explicit no-entity draw context for chunk/shadow terrain, not a world default.
+        if(program.translated().inputs().vulkanTerrain())missing.remove("entityId");
+        return Set.copyOf(missing);
     }
     public static void validate(WorldPackPlan plan) {
         var missing=new java.util.TreeSet<String>();
         plan.terrain().values().forEach(p->missing.addAll(missing(p,plan.expressions().resolvedNames())));
         plan.chain().stages().values().forEach(passes->passes.forEach(p->missing.addAll(missing(p.program(),plan.expressions().resolvedNames()))));
+        if(plan.shadow()!=null)plan.shadow().programs().values().forEach(p->missing.addAll(missing(p,plan.expressions().resolvedNames())));
         if (!missing.isEmpty()) throw new IllegalArgumentException("World uniforms not implemented: "+missing);
     }
-    public void capture(Camera camera, Matrix4f view, Matrix4f legacyProjection, float partialTick, int width, int height) {
+    public void capture(Camera camera, Matrix4f view, Matrix4f renderedProjection, float partialTick, int width, int height) {
         Minecraft mc=Minecraft.getInstance(); var pos=camera.getPosition();
         if(previousLevel!=mc.level) {
             previousLevel=mc.level;packValues.reset();expressions=plan.expressions().runtime();lastNanos=0;
         }
-        matrices.begin(mc.level,view,legacyProjection,pos.x,pos.y,pos.z,width,height);
+        ForwardDepthProjection.toLegacy(renderedProjection,legacyCameraProjection);
+        matrices.begin(mc.level,view,legacyCameraProjection,pos.x,pos.y,pos.z,width,height);
         builtins.capture(camera,matrices,partialTick);
         this.width=width; this.height=height; this.far=mc.gameRenderer.getRenderDistance();
+        builtins.read("sunAngle",scratchValue);
+        shadowCamera.capture(plan.directives(),scratchValue.f(0),pos.x,pos.y,pos.z,this.far);
+        shadowCamera.view.get(shadowView);shadowCamera.projection.get(shadowProjection);
+        shadowCamera.inverseView.get(shadowInverseView);shadowCamera.inverseProjection.get(shadowInverseProjection);
+        scratch.set(shadowCamera.projection).mul(shadowCamera.view).get(shadowMvp);
+        shadowCamera.view.normal(normalScratch).get(shadowNormal);
         matrices.view.get(this.view); matrices.projection.get(projection);
         scratch.set(matrices.projection).mul(matrices.view).get(mvp);
         matrices.inverseView.get(inverseView); matrices.inverseProjection.get(inverseProjection);
@@ -88,14 +103,20 @@ public final class WorldUniforms implements ExpressionFrame {
         expressions.update(this,frameTime);
     }
     public void write(NativeGraphicsProgram pass, boolean fullscreen, int renderStage, float alphaRef) {
+        write(pass,fullscreen,false,renderStage,alphaRef);
+    }
+    public void writeShadow(NativeGraphicsProgram pass) {write(pass,false,true,0,.1f);}
+    private void write(NativeGraphicsProgram pass,boolean fullscreen,boolean shadow,int renderStage,float alphaRef) {
         var layout=pass.layout(); var buffer=pass.uniforms();
         for (var member:pass.activeUniforms()) {
             if(expressions.write(member,layout,buffer)||packValues.write(member,layout,buffer))continue;
             if(builtins.write(member,layout,buffer))continue;
             String name=member.name(); float[] matrix=switch(name) {
-                case "of_ModelViewMatrix"->fullscreen?IDENTITY:view;
-                case "of_ProjectionMatrix","of_ModelViewProjectionMatrix"->fullscreen?QUAD:name.equals("of_ProjectionMatrix")?projection:mvp;
-                case "of_NormalMatrix"->fullscreen?NORMAL_ID:normal;
+                case "of_ModelViewMatrix"->fullscreen?IDENTITY:shadow?shadowView:view;
+                case "of_ProjectionMatrix","of_ModelViewProjectionMatrix"->fullscreen?QUAD:name.equals("of_ProjectionMatrix")?(shadow?shadowProjection:projection):(shadow?shadowMvp:mvp);
+                case "of_NormalMatrix"->fullscreen?NORMAL_ID:shadow?shadowNormal:normal;
+                case "shadowModelView"->shadowView;case "shadowProjection"->shadowProjection;
+                case "shadowModelViewInverse"->shadowInverseView;case "shadowProjectionInverse"->shadowInverseProjection;
                 case "gbufferModelView"->view; case "gbufferModelViewInverse"->inverseView;
                 case "gbufferProjection"->projection; case "gbufferProjectionInverse"->inverseProjection;
                 case "gbufferPreviousModelView"->previousView; case "gbufferPreviousProjection"->previousProjection;
@@ -108,7 +129,9 @@ public final class WorldUniforms implements ExpressionFrame {
                 continue;
             }
             if (member.type().equals("int")) {
-                integer[0]=switch(name) {case "worldTime"->worldTime;case "worldDay"->worldDay;case "frameCounter"->frame;case "renderStage"->renderStage;default->throw new IllegalArgumentException("Unknown integer world uniform "+name);};
+                integer[0]=switch(name) {case "worldTime"->worldTime;case "worldDay"->worldDay;case "frameCounter"->frame;case "renderStage"->renderStage;
+                    case "entityId"->{if(fullscreen)throw new IllegalArgumentException("Entity context is unavailable in fullscreen passes");yield 0;}
+                    default->throw new IllegalArgumentException("Unknown integer world uniform "+name);};
                 layout.putInts(buffer,name,0,integer); continue;
             }
             scalar[0]=switch(name) {

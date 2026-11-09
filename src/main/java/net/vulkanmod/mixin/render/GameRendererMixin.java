@@ -355,7 +355,11 @@ public abstract class GameRendererMixin {
     @Inject(method = "getDepthFar", at = @At("HEAD"), cancellable = true)
     private void getDepthFar(CallbackInfoReturnable<Float> cir) {
 
-        cir.setReturnValue(Float.POSITIVE_INFINITY);
+        if(de.stranger.vsdh.shader.WorldShaderSession.current()!=null) {
+            // Minecraft 1.21.1's actual finite far plane. Infinite-JOML epsilon makes
+            // depth=1 reconstruct behind the camera in legacy shaderpacks.
+            cir.setReturnValue(((GameRenderer)(Object)this).getRenderDistance()*4.0f);
+        } else cir.setReturnValue(Float.POSITIVE_INFINITY);
     }
 
 }

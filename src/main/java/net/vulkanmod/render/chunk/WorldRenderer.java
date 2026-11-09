@@ -74,6 +74,7 @@ public class WorldRenderer {
     private float lastCamRotY;
 
     private SectionGrid sectionGrid;
+    private final Map<ChunkArea,StaticQueue<RenderSection>> shadowDrawQueues=new IdentityHashMap<>();
 
     private SectionGraph sectionGraph;
     private boolean graphNeedsUpdate;
@@ -278,6 +279,7 @@ public class WorldRenderer {
     }
 
     public void setLevel(@Nullable ClientLevel level) {
+        clearShadowDraws();
         AdaptiveChunkUploadBudget.reset();
         this.lastCameraX = Float.MIN_VALUE;
         this.lastCameraY = Float.MIN_VALUE;
@@ -515,6 +517,43 @@ public class WorldRenderer {
         for (RenderSection section : this.sectionGrid.sections) {
             section.setDirty(false);
         }
+    }
+
+    /** Separate light visibility: never reuse the camera's occlusion-filtered section queues. */
+    public void prepareShadowDraws() {
+        shadowDrawQueues.values().forEach(StaticQueue::clear);
+        if(sectionGrid==null)return;
+        for(RenderSection section:sectionGrid.sections) {
+            var area=section.getChunkArea();
+            if(area==null||section.isCompletelyEmpty())continue;
+            shadowDrawQueues.computeIfAbsent(area,ignored->new StaticQueue<>(512)).add(section);
+        }
+    }
+    public void clearShadowDraws() {shadowDrawQueues.clear();}
+    /** Smoke diagnostics only: uploaded light casters absent from the camera's current queue. */
+    public int shadowOffCameraSections() {
+        var visible=Collections.newSetFromMap(new IdentityHashMap<RenderSection,Boolean>());
+        var areas=sectionGraph.getChunkAreaQueue().queue();
+        for(int i=0;i<areas.size();i++)for(var section:areas.get(i).sectionQueue)visible.add(section);
+        int count=0;
+        for(var queue:shadowDrawQueues.values())for(var section:queue) {
+            if(visible.contains(section))continue;
+            for(var type:TerrainRenderType.values())if(section.getDrawParameters(type).indexCount()>0){count++;break;}
+        }
+        return count;
+    }
+    public long drawShadowSectionBatches(GraphicsPipeline pipeline,TerrainRenderType type,double x,double y,double z) {
+        Renderer.getDrawer().bindIndexBuffer(Renderer.getCommandBuffer(),Renderer.getDrawer().getQuadsIndexBuffer().getIndexBuffer());
+        long draws=0;
+        for(var entry:shadowDrawQueues.entrySet()) {
+            var buffers=entry.getKey().getDrawBuffers();var queue=entry.getValue();
+            if(buffers.getAreaBuffer(type)==null)continue;
+            int count=0;for(int i=0;i<queue.size();i++)if(queue.get(i).getDrawParameters(type).indexCount()>0)count++;
+            if(count==0)continue;
+            buffers.bindBuffers(Renderer.getCommandBuffer(),pipeline,type,x,y,z);
+            buffers.buildDrawBatchesDirect(queue,type);draws+=count;
+        }
+        return draws;
     }
 
     public SectionGrid getSectionGrid() {

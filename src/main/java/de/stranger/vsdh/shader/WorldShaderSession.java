@@ -34,6 +34,8 @@ public final class WorldShaderSession implements MainPass {
     private final Map<Long,Integer> aliases=new HashMap<>();
     private NativeShaderChain chain;
     private NativeWorldDepth depth;
+    private NativeWorldShadows shadows;
+    private NativeWorldTextures textures;
     private VulkanImage borrowedDepth;
     private NativeShaderChain.View scene;
     private boolean active,deferred,closed;
@@ -50,6 +52,14 @@ public final class WorldShaderSession implements MainPass {
     public long framesCompleted() { return frames; }
     public long terrainCalls() { return terrainCalls; }
     public NativeShaderChain chain() { return chain; }
+    public NativeWorldShadows shadows() {return shadows;}
+    public net.minecraft.client.CloudStatus clouds(net.minecraft.client.CloudStatus userSetting) {
+        if(!active)return userSetting;
+        return switch(plan.sky().clouds()) {
+            case DEFAULT->userSetting;case OFF->net.minecraft.client.CloudStatus.OFF;
+            case FAST->net.minecraft.client.CloudStatus.FAST;case FANCY->net.minecraft.client.CloudStatus.FANCY;
+        };
+    }
     public long skippedFrames() { return skippedFrames; }
     public VulkanImage presentationImage() { return delegate.getColorAttachment(); }
     public void frameObserver(Consumer<WorldShaderSession> observer) { RenderSystem.assertOnRenderThread();frameObserver=observer; }
@@ -59,13 +69,21 @@ public final class WorldShaderSession implements MainPass {
         if (Minecraft.getInstance().level!=null || current!=null) throw new IllegalStateException("Unload world and previous shader session before installation");
         WorldUniforms.validate(plan);
         // Refuse unavailable resources before creating GPU objects or changing the terrain format.
-        for (String sampler:plan.chain().externalSamplers()) if (!depthName(sampler))
-            throw new IllegalArgumentException("World resource not implemented: "+sampler);
+        for(var stage:plan.chain().stages().values())for(var pass:stage)for(var binding:pass.inputs()) {
+            String sampler=binding.sampler();
+            if(binding.kind()!=dev.vitrail.pack.target.SamplerPlan.Kind.COLORTEX&&!depthName(sampler)
+                    &&!(shadowName(sampler)&&plan.shadow()!=null)&&plan.textures().resolve(pass.name(),sampler)==null
+                    &&!(binding.defaulted()&&plan.textures().resolve(pass.name(),"colortex0")!=null))
+                throw new IllegalArgumentException("World resource not implemented: "+pass.name()+"/"+sampler);
+        }
         for (var source:plan.terrain().values()) {
             var activeBindings=new java.util.HashSet<Integer>();
             source.compiled().stages().values().forEach(bytes->activeBindings.addAll(SpirvInterface.bindings(bytes)));
             for (var sampler:source.translated().samplers()) if (activeBindings.contains(source.compiled().bindings().get(sampler.name()))
-                    && !java.util.Set.of("gtexture","texture","tex","lightmap").contains(sampler.name()))
+                    && !java.util.Set.of("gtexture","texture","tex","lightmap").contains(sampler.name())
+                    && !(shadowName(sampler.name())&&plan.shadow()!=null)&&!depthName(sampler.name())
+                    && plan.textures().resolve(source.path(),sampler.name())==null
+                    && dev.vitrail.pack.model.TargetName.index(sampler.name()).stream().noneMatch(plan.chain().targets().allocated()::contains))
                 throw new IllegalArgumentException("Terrain resource not implemented: "+sampler.name());
         }
         var session=new WorldShaderSession(Renderer.getInstance().getMainPass(),plan);
@@ -101,6 +119,8 @@ public final class WorldShaderSession implements MainPass {
                 borrowedDepth=worldDepth;
                 depth=new NativeWorldDepth(worldDepth,true,true);
                 chain=new NativeShaderChain(plan.chain(),worldDepth.width,worldDepth.height,512L*1024*1024);
+                textures=new NativeWorldTextures(plan.textures());
+                if(plan.shadow()!=null)shadows=new NativeWorldShadows(plan);
                 for (TerrainRenderType type:TerrainRenderType.values()) {
                     var source=sources.get(type);
                     var pipeline=new NativeTerrainPass(source.path(),source.translated(),source.compiled());
@@ -117,10 +137,11 @@ public final class WorldShaderSession implements MainPass {
             chain.beginFrame(new dev.vitrail.pack.target.TargetDirectives.Colour(fog[0],fog[1],fog[2],1));
             depth.beginFrame();
             chain.render(ShaderChainPlan.Stage.BEGIN,null,this::writeFullscreen,this::external);
+            if(shadows!=null)shadows.render(camera,uniforms,textures);
             chain.render(ShaderChainPlan.Stage.PREPARE,null,this::writeFullscreen,this::external);
         }
         deferred=false;
-        scene=chain.geometry("gbuffers_basic",false,worldDepth);
+        scene=chain.scene("gbuffers_basic",false,worldDepth);
         if (scene.framebuffer().getColorAttachmentCount()!=1) throw new IllegalArgumentException("Vanilla fallback requires one scene colour target");
         active=true;rebindMainTarget();
     }
@@ -134,6 +155,18 @@ public final class WorldShaderSession implements MainPass {
         int stage=switch(type) {case SOLID->8;case CUTOUT_MIPPED->9;case CUTOUT->10;case TRANSLUCENT->17;case TRIPWIRE->18;};
         uniforms.write(pipeline,false,stage,type.alphaCutout);
         for (String sampler:pipeline.requiredSamplers()) {
+            var supplied=textures.image(source.path(),sampler);
+            if(supplied!=null){pipeline.bindImage(sampler,supplied);continue;}
+            if(depthName(sampler)){pipeline.bindImage(sampler,depth.image(sampler));continue;}
+            if(shadowName(sampler)) {
+                String name=dev.vitrail.pack.target.SamplerPlan.withoutTranslucents(sampler,pipeline.requiredSamplers().contains("watershadow"))?"shadowtex1":sampler;
+                pipeline.bindImage(sampler,shadows.image(name));continue;
+            }
+            var color=dev.vitrail.pack.model.TargetName.index(sampler);
+            if(color.isPresent()) {
+                var step=(deferred?plan.chain().targets().schedule().stepAfterDeferred(bare(source.path())):plan.chain().targets().schedule().step(bare(source.path()))).orElseThrow();
+                pipeline.bindImage(sampler,chain.targets().image(color.getAsInt(),step.read(color.getAsInt())));continue;
+            }
             int id=RenderSystem.getShaderTexture(sampler.equals("lightmap")?2:0);
             var texture=GlTexture.getTexture(id);
             if (texture==null || texture.getVulkanImage()==null) throw new IllegalStateException("Missing world texture: "+sampler+" id="+id);
@@ -151,7 +184,7 @@ public final class WorldShaderSession implements MainPass {
             depth.capturePreHand();depth.capturePreTranslucent();
             chain.render(ShaderChainPlan.Stage.DEFERRED,null,this::writeFullscreen,this::external);
         }
-        deferred=true;scene=chain.geometry("gbuffers_basic",true,borrowedDepth);rebindMainTarget();
+        deferred=true;scene=chain.scene("gbuffers_basic",true,borrowedDepth);rebindMainTarget();
     }
 
     /** After world/DH/hand drawing, before GUI. The normal main target receives the final pass. */
@@ -170,10 +203,20 @@ public final class WorldShaderSession implements MainPass {
     }
     private void writeFullscreen(ShaderChainPlan.Pass source,NativeFullscreenPass pipeline) {uniforms.write(pipeline,true,0,0);}
     private VulkanImage external(String program,dev.vitrail.pack.target.SamplerPlan.Binding binding) {
+        var supplied=textures.image(program,binding.sampler());
+        if(binding.kind()==dev.vitrail.pack.target.SamplerPlan.Kind.PACK_TEXTURE&&binding.defaulted())supplied=textures.image(program,"colortex0");
+        if(supplied!=null)return supplied;
         if (depthName(binding.sampler())) return depth.image(binding.sampler());
+        if(shadowName(binding.sampler())&&shadows!=null) {
+            if(binding.kind()==dev.vitrail.pack.target.SamplerPlan.Kind.SHADOW_COLOUR)return shadows.image("shadowcolor"+binding.index());
+            boolean water=plan.chain().stages().values().stream().flatMap(java.util.Collection::stream)
+                    .filter(p->p.name().equals(program)).flatMap(p->p.program().translated().samplers().stream()).anyMatch(s->s.name().equals("watershadow"));
+            return shadows.image(dev.vitrail.pack.target.SamplerPlan.withoutTranslucents(binding.sampler(),water)?"shadowtex1":binding.sampler());
+        }
         throw new IllegalArgumentException("Unimplemented world input "+program+"/"+binding.sampler());
     }
     private static boolean depthName(String s) {return DEPTH_NAMES.contains(s);}
+    private static boolean shadowName(String s) {return s.equals("shadow")||s.equals("watershadow")||s.matches("shadowtex[01](?:HW)?|shadowcolor[0-7]?");}
     private static String bare(String path) {return path.substring(path.lastIndexOf('/')+1);}
 
     public void detachWorld() { releaseGraph(); }
@@ -184,6 +227,8 @@ public final class WorldShaderSession implements MainPass {
         terrain.values().forEach(NativeTerrainPass::close);terrain.clear();
         if (chain!=null) chain.close();chain=null;
         if (depth!=null) depth.close();depth=null;borrowedDepth=null;
+        if(shadows!=null)shadows.close();shadows=null;
+        if(textures!=null)textures.close();textures=null;
     }
 
     @Override public void rebindMainTarget() {

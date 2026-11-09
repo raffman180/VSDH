@@ -1,6 +1,8 @@
 #version 330 compatibility
 uniform sampler2D gtexture;
 uniform sampler2D lightmap;
+uniform sampler2D qaLut;
+uniform sampler2D noisetex;
 uniform ivec2 eyeBrightness;
 uniform ivec2 atlasSize;
 uniform int isEyeInWater;
@@ -63,7 +65,7 @@ void main() {
         ? vec3(gl_Fog.density, float(cameraPositionInt.y)/512.0, float(cameraPositionInt.x-cameraPositionInt.z)/512.0)
         : vec3(cloudHeight/1024.0, sunAngle, float(moonPhase)/7.0), 1.0);
     int slot = int(gl_FragCoord.x) & 7;
-    vec3 measurement = vec3(0.125, 0.25, 0.5);
+    vec3 measurement = vec3(texture2D(qaLut,vec2(0.25)).r,texture2D(noisetex,vec2(0.25)).g,texture2D(qaLut,vec2(0.25)).b);
     if (slot == 0) measurement = vec3(float(heldItemId)/65536.0, float(heldItemId2)/65536.0, float(heldBlockLightValue)/15.0);
     if (slot == 1) measurement = vec3(float(heldBlockLightValue2)/15.0, qaFrame, qaEffect);
     if (slot == 2) measurement = vec3(qaEye, qaRain, wetness);

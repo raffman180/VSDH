@@ -59,6 +59,7 @@ final class ExpressionWorldProbe {
             for(int c=1;c<3;c++)if(half(bytes,4,c)<0||half(bytes,4,c)>1.001f)throw new AssertionError("Invalid smoothed lightmap channel");
             check(bytes,5,mc.level.getRainLevel(mc.getTimer().getGameTimeDeltaPartialTick(false)),.25f,.75f);
             check(bytes,6,127/255f,mc.level.getRainLevel(0)>.1f?1:0,.25f);
+            check(bytes,7,32/255f,64/255f,128/255f);
             completed.add(phase);
             LoggerFactory.getLogger("VSDH-Smoke").info("EXPRESSION WORLD GPU PASS: phase={}, materials={}/{}, light={}/{}, eye={}, rainFactor={}, wetness={}, capturedDarkness={}",
                     phase,main,off,Math.max(mainLight,offLight),offLight,eye,rain,wet,WorldLightingCapture.darkness());

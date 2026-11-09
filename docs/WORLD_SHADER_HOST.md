@@ -1,4 +1,13 @@
-# Welt-Renderkette — 0.6.0-dev
+# Welt-Renderkette — 0.9.0-dev
+
+Aktuell: Formeln, Schatten, echte Packtexturen und tatsächliche Complementary-
+Weltausführung sind hinzugekommen. Details: WORLD_SHADOWS.md/NEXT_AI_PROMPT.md.
+Reforgeds Kamera-Projektion hat 0..1-Tiefe. WorldUniforms konvertiert diese über
+ForwardDepthProjection in GL -1..1, bevor WorldMatrices die Y-Zeile umkehrt.
+Shaderbetrieb nutzt die endliche Minecraft-Fernweite. Der alte Infinity-Pfad
+kehrte Sky-Richtungen um, obwohl alle Matrizen endlich waren. Der neue Test liest
+die tatsächliche Richtung aus dem Originalshader zurück. Frühere 0.5/0.6-
+Projektionsannahmen im folgenden historischen Text gelten dafür nicht weiter.
 
 0.6 ergänzt aktive Uniform-Member-Erkennung und 18 echte Minecraft-Provider.
 Details: WORLD_UNIFORMS.md. 36 CPU-Tests bestehen; neue GPU-Prüfungen vergleichen

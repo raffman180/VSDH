@@ -23,7 +23,7 @@ public final class Vsdh {
         ApiDhIntegration integration = new ApiDhIntegration();
         integration.initialize(new VulkanRenderEngine());
         NeoForge.EVENT_BUS.addListener(this::onLogout);
-        LOGGER.info("VSDH development bridge initialized; shaderpack support is not implemented.");
+        LOGGER.info("VSDH native renderer initialized; complete shaderpack and DH-pack integration remain in development.");
     }
 
     private void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {

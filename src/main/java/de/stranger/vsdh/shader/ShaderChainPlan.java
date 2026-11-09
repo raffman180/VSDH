@@ -47,6 +47,7 @@ public record ShaderChainPlan(TargetPlan targets, Map<Stage, List<Pass>> stages,
             throw new IOException("Required native pack features need an implementation: " + pack.properties().requiredFeatures());
         var stages = new EnumMap<Stage, List<Pass>>(Stage.class);
         Set<String> external = new HashSet<>();
+        var textures=dev.vitrail.pack.texture.PackTextures.read(pack.properties(),pack.settings().globalDefines(pack.options()),pack.source());
         for (Stage stage : Stage.values()) stages.put(stage, new ArrayList<>());
         for (String name : targets.running()) {
             Stage stage = stageOf(name);
@@ -62,7 +63,9 @@ public record ShaderChainPlan(TargetPlan targets, Map<Stage, List<Pass>> stages,
             var types = new LinkedHashMap<String, String>();
             for (var sampler : program.translated().samplers())
                 if (active.contains(program.compiled().bindings().get(sampler.name()))) types.put(sampler.name(), sampler.type());
-            var samplers = SamplerPlan.of(List.copyOf(types.keySet()), types, targets, name);
+            var textureStage=dev.vitrail.pack.model.TextureStage.of(name).orElseThrow();
+            var samplers = SamplerPlan.of(List.copyOf(types.keySet()), types, targets, name,
+                    textures.suppliedTo(textureStage),textures.picturesTo(textureStage));
             for (var input : samplers.bindings()) {
                 if (input.kind() == SamplerPlan.Kind.UNBINDABLE || input.kind() == SamplerPlan.Kind.UNSERVED
                         || input.kind() == SamplerPlan.Kind.CUSTOM_IMAGE || input.kind() == SamplerPlan.Kind.COLOUR_IMAGE)

@@ -112,6 +112,11 @@ public abstract class NativeGraphicsProgram implements AutoCloseable {
 
     public Std140Layout layout() { return layout; }
     public java.util.List<Std140Layout.Member> activeUniforms() { return activeUniforms; }
+    /** Borrowed binding for frame-observer diagnostics; ownership remains with the producer. */
+    public VulkanImage boundImage(String sampler) {
+        requireOpen();var image=images.get(sampler);
+        if(image==null)throw new IllegalArgumentException("No image bound for "+sampler);return image;
+    }
     public ByteBuffer uniforms() { requireOpen(); return uniforms; }
     public java.util.Set<String> requiredSamplers() { return samplerNames; }
     /** Build a render-pass-compatible Vulkan pipeline before the pack's first visible frame. */

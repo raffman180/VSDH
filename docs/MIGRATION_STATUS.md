@@ -1,6 +1,20 @@
-# VSDH — Prüfstand 0.6.0-dev, 09.11.2026
+# VSDH — Prüfstand 0.9.0-dev, 09.11.2026
 
-## Aktuell 0.6
+## Aktuell 0.9
+
+Echte Packformeln, Handmaterial/-licht, Biome und Glättung, native Welt-Schatten
+sowie vorab dekodierte Packtexturen sind implementiert. 56 CPU-Tests bestehen.
+Complementary läuft nun auf tatsächlichen Welt-Chunks. Ein falscher Tiefenraum
+und die unendliche Epsilon-Fernprojektion verursachten einen nachweisbaren Fehler
+der Shader-Blickrichtung; ForwardDepthProjection und endliche Fernweite im
+Shadermodus beheben ihn. GPU-Messung und Sichtprüfung bestätigen die Korrektur.
+
+Das Gesamtziel bleibt offen: sichtbarer heller Wasserübergang, Packprogramme für
+DH und übrige Geometriefamilien, Blend/Cull, Hand-/Depth-Reihenfolge, Dimensionen
+und Auswahl/Hotreload. Details im neuesten Prüfbericht und NEXT_AI_PROMPT.md.
+Die folgenden Abschnitte sind historische Stände.
+
+## Stand 0.6
 
 Aktive SPIR-V-Member werden über ihre unveränderten std140-Byteoffsets erkannt.
 18 echte Minecraft-Provider ergänzen Kamera-/Augen-/Licht-/Medium-/Effektwerte,

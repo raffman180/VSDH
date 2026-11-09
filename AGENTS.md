@@ -55,3 +55,15 @@ An unused declaration is not a missing active value. Complementary audit now lis
 Read docs/WORLD_UNIFORMS.md. Diagnostic MRT alpha must be one: data in alpha would
 be blended on translucent terrain and corrupt the measurement. Extra values are
 encoded at adjacent even/odd pixels. GPU probes/readbacks remain smoke-only.
+
+Current 0.9 supersedes the historical projection assumption in 0.5: Reforged's
+Matrix4fM forces forward Vulkan 0..1. ForwardDepthProjection converts rowZ to
+2*rowZ-rowW before publishing legacy matrices, then one native .5z+.5w epilogue.
+Shader mode uses Minecraft's finite getRenderDistance()*4 far plane; default
+Reforged mode stays infinite. Infinity epsilon reversed actual sky rays: GPU
+probe read +0.871 before and -0.871 after the fix. Keep this regression test.
+Pack formulas/held light, actual native world shadows and predecoded PNG/noise
+resources are implemented. Real Complementary world execution is checked, but
+other geometry families, per-attachment blend, hand timing and native pack DH
+programs remain incomplete. Do not set DISTANT_HORIZONS until the latter work.
+56 tests pass. Read docs/WORLD_SHADOWS.md and the latest verification report.

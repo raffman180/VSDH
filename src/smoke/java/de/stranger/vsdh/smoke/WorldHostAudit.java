@@ -19,6 +19,8 @@ public final class WorldHostAudit {
                 var declared=new TreeSet<String>();
                 plan.terrain().values().forEach(p->{missing.addAll(WorldUniforms.missing(p,plan.expressions().resolvedNames()));declared.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms())));});
                 plan.chain().stages().values().forEach(passes->passes.forEach(p->{missing.addAll(WorldUniforms.missing(p.program(),plan.expressions().resolvedNames()));declared.addAll(WorldUniforms.missing(new Std140Layout(p.program().translated().uniforms())));}));
+                if(plan.shadow()!=null)plan.shadow().programs().values().forEach(p->{missing.addAll(WorldUniforms.missing(p,plan.expressions().resolvedNames()));declared.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms())));});
+                declared.removeAll(plan.expressions().resolvedNames());
                 var resources=new TreeSet<>(plan.chain().externalSamplers());
                 plan.terrain().values().forEach(p->{
                     var active=new HashSet<Integer>();p.compiled().stages().values().forEach(bytes->active.addAll(SpirvInterface.bindings(bytes)));
@@ -30,6 +32,8 @@ public final class WorldHostAudit {
                 entry.put("customExpressionProblems",plan.expressions().problems());
                 entry.put("resolvedCustomUniforms",new TreeSet<>(plan.expressions().resolvedNames()));
                 entry.put("itemMaterialEntries",plan.items().size());
+                entry.put("preparedTextureBindings",new TreeSet<>(plan.textures().bindings().keySet()));
+                entry.put("vanillaCloudDirective",plan.sky().clouds().name());
                 entry.put("completeWorldRendererSupported",false);dimensions.add(entry);
             }
         }

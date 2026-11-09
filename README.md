@@ -1,4 +1,4 @@
-# VSDH — Entwicklungsstand 0.6.0-dev
+# VSDH — Entwicklungsstand 0.9.0-dev
 
 VSDH enthält einen eigenen **VulkanMod-Reforged-Fork** und eine native Anbindung
 für Distant Horizons. Die Durchlaufkette für Shader-Farbpuffer, HDR/Mipmaps, gespeicherte Werte zwischen
@@ -17,7 +17,7 @@ ist noch nicht fertig.** Iris und Sodium können nicht zusätzlich geladen werde
 ## Testinstallation
 
 1. Ein separates Profil für Minecraft 1.21.1 / NeoForge 21.1.264 anlegen.
-2. Die VSDH-0.6.0-dev-JAR und DH 3.3.3 in dessen `mods`-Ordner legen.
+2. Die VSDH-0.9.0-dev-JAR und DH 3.3.3 in dessen `mods`-Ordner legen.
 3. Die originale Reforged-JAR sowie alte VSDH-0.1-JARs entfernen: Ab 0.2 ersetzt
    diese eine JAR den Renderer und das bisherige Addon.
 4. Iris, Sodium und andere Renderer-Ersatzmods aus diesem Profil herauslassen.
@@ -31,7 +31,21 @@ VSDH wird ausschließlich auf dem Client installiert. Bestehende DH-Speicherung
 und Multiplayer-Protokolle bleiben bei DH. Keine eigenen Änderungen an Inventaren
 oder Weltdaten; dedizierte Server und große Modpacks sind noch ungetestet.
 
-## Aktuell 0.6
+## Aktuell 0.9
+
+Die echte Complementary-Renderkette läuft jetzt auf Welt-Chunks mit nativen
+Schatten, Packtexturen und Weltformeln. 56 automatisierte Tests bestehen. Der
+Diagnose- und der echte Pack-Weltlauf prüfen Größenänderung, 100%/50% Scale und
+Weltwechsel. Ein gemessener Fehler der Projektion wurde behoben: Wolken werden
+wieder im Himmel statt über dem Wasser berechnet.
+
+Die Integration ist weiterhin unvollständig. Sichtbarer heller Wasserübergang,
+DH-Packprogramme und andere Geometriefamilien bleiben offen. Der Standardmodus
+aktiviert Shader weiterhin nicht automatisch. Entwicklungsprüfung des echten
+Packs: runSmokeClient mit -PsmokeLivePack=true und -PsmokeShaderPack=<Pack-ZIP>.
+Details: docs/WORLD_SHADOWS.md und docs/NEXT_AI_PROMPT.md.
+
+## Stand 0.6
 
 Die native Welt-Renderkette wird mit einem eigenen Diagnosepack auf tatsächlichen
 Chunks samt DH geprüft, einschließlich reduziertem Rendermaßstab. Eine vollständige
