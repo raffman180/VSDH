@@ -30,15 +30,18 @@ public final class SmokeScene {
     private static int worldNumber;
     private static long drawsBeforeReload;
     private static int gpuChecks;
+    private static int gpuGroupsCompleted;
 
     @SubscribeEvent
     public static void render(RenderLevelStageEvent event) {
         if (!Boolean.getBoolean("vsdh.smoke") || event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) return;
         int check = (worldNumber - 1) * 2 + (ticks >= 950 ? 2 : 1);
-        if (ticks >= 100 && check > gpuChecks && NativePassGpuCheck.ready()) {
+        if (ticks >= 100 && check > gpuChecks && NativePassGpuCheck.ready() && ChainGpuCheck.ready()) {
             MrtGpuCheck.run();
             NativePassGpuCheck.run();
+            ChainGpuCheck.run();
             gpuChecks = check;
+            gpuGroupsCompleted++;
         }
     }
 
@@ -46,6 +49,7 @@ public final class SmokeScene {
     public static void tick(ClientTickEvent.Post event) {
         if (!Boolean.getBoolean("vsdh.smoke")) return;
         NativePassGpuCheck.prepare();
+        ChainGpuCheck.prepare();
         Minecraft mc = Minecraft.getInstance();
         if (!started && (mc.screen instanceof TitleScreen || mc.screen instanceof AccessibilityOnboardingScreen)) {
             startWorld(mc);
@@ -86,6 +90,7 @@ public final class SmokeScene {
             return;
         }
         if (ticks == 1050 && worldNumber == 2) {
+            if (gpuGroupsCompleted != 4) throw new IllegalStateException("Expected 4 completed GPU check groups; got " + gpuGroupsCompleted);
             mc.level.disconnect();
             mc.disconnect(new TitleScreen());
             LOGGER.info("Smoke scene finished; stopping development client.");

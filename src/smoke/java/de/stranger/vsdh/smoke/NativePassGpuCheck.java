@@ -115,23 +115,24 @@ final class NativePassGpuCheck {
         LoggerFactory.getLogger("VSDH-Smoke").info("PACK GPU PASS: legacy GLSL/includes, std140, RGBA16F MRT, texture sampling and rebinding, all pixels verified");
     }
 
-    private static void initializeQuad(NativeFullscreenPass pass) {
+    static void initializeQuad(NativeFullscreenPass pass) { initializeQuad(pass, 13, 9); }
+    static void initializeQuad(NativeFullscreenPass pass, int width, int height) {
         float[] quad = {2,0,0,0, 0,2,0,0, 0,0,0,0, -1,-1,0,1};
         float[] identity = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
         for (Std140Layout.Member member : pass.layout().members()) {
             if (member.name().equals("of_ModelViewProjectionMatrix")) pass.layout().putFloats(pass.uniforms(), member.name(), 0, quad);
             if (member.name().equals("of_TextureMatrix"))
                 for (int i = 0; i < member.arrayLength(); i++) pass.layout().putFloats(pass.uniforms(), member.name(), i, identity);
-            if (member.name().equals("viewWidth")) pass.layout().putFloats(pass.uniforms(), member.name(), 0, 13);
-            if (member.name().equals("viewHeight")) pass.layout().putFloats(pass.uniforms(), member.name(), 0, 9);
-            if (member.name().equals("aspectRatio")) pass.layout().putFloats(pass.uniforms(), member.name(), 0, 13f / 9);
+            if (member.name().equals("viewWidth")) pass.layout().putFloats(pass.uniforms(), member.name(), 0, width);
+            if (member.name().equals("viewHeight")) pass.layout().putFloats(pass.uniforms(), member.name(), 0, height);
+            if (member.name().equals("aspectRatio")) pass.layout().putFloats(pass.uniforms(), member.name(), 0, (float) width / height);
         }
     }
     private static void assertNear(float expected, float actual, float tolerance, String what) {
         if (!Float.isFinite(actual) || Math.abs(expected - actual) > tolerance)
             throw new AssertionError(what + ": expected=" + expected + " actual=" + actual);
     }
-    private static float halfFloat(short encoded) {
+    static float halfFloat(short encoded) {
         int bits = Short.toUnsignedInt(encoded);
         int exponent = (bits >>> 10) & 31;
         float value = exponent == 0 ? Math.scalb((float) (bits & 1023), -24)

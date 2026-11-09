@@ -114,8 +114,8 @@ public class Framebuffer {
         try (MemoryStack stack = MemoryStack.stackPush()) {
 
             LongBuffer attachments = stack.mallocLong(getColorAttachmentCount() + (hasDepthAttachment ? 1 : 0));
-            for (int i = 0; i < getColorAttachmentCount(); i++) attachments.put(getColorAttachment(i).getImageView());
-            if (hasDepthAttachment) attachments.put(depthAttachment.getImageView());
+            for (int i = 0; i < getColorAttachmentCount(); i++) attachments.put(getColorAttachment(i).getLevelImageView(0));
+            if (hasDepthAttachment) attachments.put(depthAttachment.getLevelImageView(0));
             attachments.flip();
 
             LongBuffer pFramebuffer = stack.mallocLong(1);

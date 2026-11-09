@@ -8,7 +8,10 @@ import static org.lwjgl.vulkan.VK10.*;
 
 /** Explicit mapping: these are VkFormats, not OpenGL internal-format numbers. */
 public final class VulkanTargetFormat {
+    private static final java.util.Set<Integer> INTEGER_FORMATS = java.util.Arrays.stream(TargetFormat.values())
+            .filter(TargetFormat::integer).map(VulkanTargetFormat::of).collect(java.util.stream.Collectors.toUnmodifiableSet());
     private VulkanTargetFormat() {}
+    public static boolean isInteger(int format) { return INTEGER_FORMATS.contains(format); }
 
     public static int of(TargetFormat format) {
         return switch (format) {

@@ -49,3 +49,49 @@ Private Quellen/Decompiles und Shaderpack-ZIPs nie in JAR/Quellpaket übernehmen
 Abschließender Lauf: `verify-final-client.log`, alle vier GPU-Gruppen bestanden,
 keine ERROR/FATAL-Einträge, BUILD SUCCESSFUL. Paket-/Testdaten in
 `docs/verification/0.2.0-dev.json`.
+
+## Fortsetzung 09.11.2026 — 0.3
+
+NativeShaderChain/NativeColorTargets/NativeWorldDepth sind hinzugefügt. Reale
+Pack-Reihenfolge, Größen und Mipmaps werden über ShaderChainPlan vorbereitet.
+Die Kette ist mit eigener Testgeometrie über mehrere Frames auf der GPU geprüft.
+Depth-Sentinels für D32, D24S8 und D32S8 sowie Stencil-Kopien sind enthalten.
+RenderGraphAudit bereitet alle drei Complementary-Dimensionen ohne GPU vor.
+
+Neue Fehlerbefunde und Korrekturen:
+- Mipmap-Schalter im ersten Diagnosepack waren inline geschrieben und wurden
+  nicht gelesen. Mehrzeilige Direktiven plus Schachbrett-/Mittelwerttest beheben
+  den Testfehler. JUnit kontrolliert die tatsächlich angeforderten Mipmaps.
+- Die echte Complementary-Kette deckte einen Indexfehler in Reforged Pipeline auf:
+  Descriptor-Bindungsnummern wurden als Array-Positionen verwendet. Kompaktes
+  Layout-Array, explizite Bindungsnummern und sortierte dynamische UBOs sind korrigiert.
+  Ein wegoptimierter unaufgerufener Shadow-Sampler erzeugt eine echte Bindungslücke
+  im Regressionstest.
+- Rendern verwendet Mipmap-Stufe 0; die übrigen Stufen erhalten auch bei abweichendem
+  RenderPass-Endlayout eine konsistente Zustandsverfolgung.
+
+API und Aussagegrenzen: docs/RENDER_GRAPH.md. Vollständige Weltgeometrie/-Uniforms,
+Material-IDs, Schattengeometrie, weitere Geometriefamilien und DH-Pack-Ausgabe sind
+weiterhin erforderlich. Keine sichtbare Shader-Aktivierung vortäuschen.
+Die obige ältere Aufgabenliste zu colortex/History/Tiefenkopien ist damit teilweise
+umgesetzt; die Verdrahtung in die tatsächliche Welt-Pipeline bleibt offen.
+
+## Verifizierter Abschluss dieses Entwicklungsschritts
+
+Aktuell 0.3.0-dev. `verify-0.3-client-fixed.log`: zwei Welten, fünf unterschiedliche
+Prüfgruppen je viermal bestanden, keine ERROR/FATAL-Zeilen, BUILD SUCCESSFUL.
+Neun echte Complementary-Pipelines werden mit vorgezogener Vk-Pipeline-Erstellung
+geprüft; die gesamte echte Welt wird weiter nicht durch das Pack gezeichnet.
+16 Tests bestanden. Bericht: docs/verification/0.3.0-dev.json.
+
+Konkrete nächste Einstiegspunkte: PipelineManager.TERRAIN_VERTEX_FORMAT und
+getTerrainShader; WorldRenderer.renderSectionLayer; CustomVertexFormat und
+VertexBuilder.CompressedVertexBuilder; TerrainBufferBuilder.setBlockAttributes
+ist in der Referenz leer. Ein Shader-Terrainformat muss Material- und Normaldaten
+wirklich liefern. VertexInputs.TERRAIN aus Vitrail dekodiert Sodium, nicht Reforged.
+Nicht ungeprüft wiederverwenden. Auch ClipSpace.toLegacyDepth stammt aus dem
+26.x-Reversed-Z-Kontext und darf vor Anpassung nicht in die 1.21.1-Weltmatrix-
+Anbindung übernommen werden. Die bislang aktive Vollbildkette benötigt es nicht.
+
+Keine erneute Addon/Fork-Frage; der Nutzer will Weiterarbeit. Alte Artefakte behalten,
+keinen vollständigen Shader-Modus behaupten oder einen bloßen Filter aktivieren.

@@ -101,7 +101,7 @@ public class RenderPass {
         if (presents) dependencies.get(n++).srcSubpass(0).dstSubpass(VK_SUBPASS_EXTERNAL)
                 .srcStageMask(stages).dstStageMask(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT).srcAccessMask(writes).dstAccessMask(0);
         if (samples) dependencies.get(n).srcSubpass(0).dstSubpass(VK_SUBPASS_EXTERNAL)
-                .srcStageMask(stages).dstStageMask(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT)
+                .srcStageMask(stages).dstStageMask(VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT)
                 .srcAccessMask(writes).dstAccessMask(VK_ACCESS_SHADER_READ_BIT);
         return dependencies;
     }
@@ -129,12 +129,31 @@ public class RenderPass {
     }
     public void endRenderPass(VkCommandBuffer cmd) {
         vkCmdEndRenderPass(cmd);
-        recordFinalLayouts();
+        recordFinalLayouts(cmd);
         Renderer.getInstance().setBoundRenderPass(null);
     }
-    private void recordFinalLayouts() {
-        for (int i = 0; i < colors.length; i++) framebuffer.getColorAttachment(i).setCurrentLayout(colors[i].finalLayout);
-        if (depthAttachmentInfo != null) framebuffer.getDepthAttachment().setCurrentLayout(depthAttachmentInfo.finalLayout);
+    private void recordFinalLayouts(VkCommandBuffer cmd) {
+        for (int i = 0; i < colors.length; i++)
+            completeFinalLayout(cmd, framebuffer.getColorAttachment(i), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, colors[i].finalLayout);
+        if (depthAttachmentInfo != null)
+            completeFinalLayout(cmd, framebuffer.getDepthAttachment(), VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, depthAttachmentInfo.finalLayout);
+    }
+    private static void completeFinalLayout(VkCommandBuffer cmd, VulkanImage image, int attachmentLayout, int finalLayout) {
+        // The render pass transitions only the attached base mip. Keep the remaining levels in
+        // the same layout before publishing a whole-image state to VulkanImage's transition tracker.
+        if (image.mipLevels > 1 && finalLayout != attachmentLayout) {
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                var barrier = VkImageMemoryBarrier.calloc(1, stack).sType$Default()
+                        .oldLayout(attachmentLayout).newLayout(finalLayout).image(image.getId())
+                        .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED).dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .srcAccessMask(VK_ACCESS_MEMORY_WRITE_BIT).dstAccessMask(VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT);
+                barrier.subresourceRange().aspectMask(image.aspect).baseMipLevel(1).levelCount(image.mipLevels - 1)
+                        .baseArrayLayer(0).layerCount(1);
+                vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                        0, null, null, barrier);
+            }
+        }
+        image.setCurrentLayout(finalLayout);
     }
     public void beginDynamicRendering(VkCommandBuffer cmd, MemoryStack stack) {
         transitionForRendering(cmd, stack);
@@ -145,13 +164,13 @@ public class RenderPass {
         if (colors.length > 0) {
             VkRenderingAttachmentInfo.Buffer attachments = VkRenderingAttachmentInfo.calloc(colors.length, stack);
             for (int i = 0; i < colors.length; i++) attachments.get(i).sType$Default()
-                    .imageView(framebuffer.getColorAttachment(i).getImageView()).imageLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+                    .imageView(framebuffer.getColorAttachment(i).getLevelImageView(0)).imageLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
                     .loadOp(colors[i].loadOp).storeOp(colors[i].storeOp).clearValue(values.get(i));
             info.pColorAttachments(attachments);
         }
         if (depthAttachmentInfo != null) {
             VkRenderingAttachmentInfo depth = VkRenderingAttachmentInfo.calloc(stack).sType$Default()
-                    .imageView(framebuffer.getDepthAttachment().getImageView()).imageLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                    .imageView(framebuffer.getDepthAttachment().getLevelImageView(0)).imageLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
                     .loadOp(depthAttachmentInfo.loadOp).storeOp(depthAttachmentInfo.storeOp).clearValue(values.get(colors.length));
             info.pDepthAttachment(depth);
             if (VulkanImage.hasStencilComponent(depthAttachmentInfo.format)) info.pStencilAttachment(depth);

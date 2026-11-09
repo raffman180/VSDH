@@ -1,8 +1,8 @@
-# VSDH — Entwicklungsstand 0.2.0-dev
+# VSDH — Entwicklungsstand 0.3.0-dev
 
 VSDH enthält einen eigenen **VulkanMod-Reforged-Fork** und eine native Anbindung
-für Distant Horizons. Mehrere Farbausgaben, HDR-Puffer, Shaderübersetzung und native
-Vollbilddurchläufe sind hinzugekommen. **Der vollständige Complementary-Renderer
+für Distant Horizons. Die Durchlaufkette für Shader-Farbpuffer, HDR/Mipmaps, gespeicherte Werte zwischen
+Frames und getrennte Tiefenkopien ist hinzugekommen. **Der vollständige Complementary-Renderer
 ist noch nicht fertig.** Iris und Sodium können nicht zusätzlich geladen werden.
 
 | Bestandteil | Gebundene Version |
@@ -42,13 +42,22 @@ oder Weltdaten; dedizierte Server und große Modpacks sind noch ungetestet.
   an Java 21 und die Zielversion angepasst. Kein Minecraft-26.x-Runtime-Import.
 - Native Vollbilddurchläufe mit eigenen Deskriptoren, geprüfter std140-Anordnung
   und Erkennung versehentlichen Lesens und Schreibens desselben Bildes.
+- Native Durchlaufreihenfolge begin/prepare/deferred/composite/final; getrennte
+  Lese-/Schreibbilder, profilspezifische Puffergrößen, Speicher-Vorprüfung und
+  Rückkopieren gespeicherter Bilddaten am Frame-Ende.
+- Getrennte Tiefenbilder vor der Hand und vor transparenten Blöcken, einschließlich
+  korrekter Stencil-Kopien. D32, D24S8 und D32S8 im Entwicklungstest geprüft.
+- Korrigierte Behandlung von Nummernlücken bei optimierten Textur-Bindings.
 - Gezielte DH-3.3.3-Abschaltergänzung: laufende lesende Regenerationsabfragen werden
   abgebrochen, Worker beendet und erst danach ihre Datenbank geschlossen.
 
 ## Grenzen
 
-Der Welt-Rendergraph mit Materialdaten, Schatten, Himmel, Entitäten, Transparenz
-und shaderseitigen DH-Ausgaben ist noch zu vervollständigen. Erfolgreich übersetzte
+Die Integration der echten Weltgeometrie mit Materialdaten, Schatten, Himmel,
+Entitäten, Transparenz und shaderseitigen DH-Ausgaben ist noch zu vervollständigen.
+Die neue Kette ist bislang mit kontrollierter Testgeometrie ausgeführt worden;
+alle neun Vollbild-Pipelines des echten Complementary-Packs wurden auf der GPU
+angelegt. Das aktiviert noch keinen vollständigen Shader-Modus. Erfolgreich übersetzte
 Programme allein bedeuten keine vollständige Pack-Unterstützung. Es gibt keine
 Freigabe für beliebige Shaderpacks, DH-Versionen oder Grafikkarten.
 
@@ -81,12 +90,14 @@ Vorhandene Welten werden nicht ausgewählt oder gelöscht. Der gesamte Code unte
 Eine externe Originalkopie von Complementary für die Compilerprüfung angeben:
 
 ```powershell
-.\gradlew.bat auditShaderPack '-PshaderPack=C:/Pfad/ComplementaryReimagined_r5.9.3.zip'
+.\gradlew.bat auditShaderPack auditRenderGraph '-PshaderPack=C:/Pfad/ComplementaryReimagined_r5.9.3.zip'
 .\gradlew.bat runSmokeClient '-PsmokeShaderPack=C:/Pfad/ComplementaryReimagined_r5.9.3.zip'
 ```
 
-Die zweite Prüfung führt nur den echten abschließenden Pack-Durchlauf mit
-kontrollierten Eingabebildern außerhalb des sichtbaren Weltbildes aus.
+Der Spieltest prüft die native Kette mit einem eigenen Diagnosepack, Tiefen- und
+Stencil-Kopien und Schachbrett-Mipmaps. Beim Originalpack führt er nur den
+abschließenden Durchlauf mit kontrollierten Eingabebildern aus und legt zusätzlich
+die vollständige Vollbild-Pipeline-Kette an. Das sichtbare Weltbild bleibt ohne Shader.
 Das Shaderpack wird nicht mitgeliefert. Übersetzte Pack-Quellen bleiben in `build/`
 und gehören nicht in ein öffentliches Quellpaket. Auch ohne GPU lassen sich
 Java-Build, Logiktests und die SPIR-V-Compilerprüfung ausführen.

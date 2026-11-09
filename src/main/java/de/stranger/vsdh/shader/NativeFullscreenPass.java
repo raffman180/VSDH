@@ -103,6 +103,12 @@ public final class NativeFullscreenPass implements AutoCloseable {
     public Std140Layout layout() { return layout; }
     public ByteBuffer uniforms() { requireOpen(); return uniforms; }
     public java.util.Set<String> requiredSamplers() { return java.util.Set.copyOf(samplers.keySet()); }
+    /** Build a render-pass-compatible Vulkan pipeline before the pack's first visible frame. */
+    public void prepare(RenderPass pass) {
+        RenderSystem.assertOnRenderThread();
+        requireOpen();
+        pipeline.getHandle(fullscreenState(pass));
+    }
     public void bindImage(String name, VulkanImage image) {
         requireOpen();
         if (!samplers.containsKey(name)) throw new IllegalArgumentException("Program does not sample " + name);
@@ -131,9 +137,7 @@ public final class NativeFullscreenPass implements AutoCloseable {
             var command = Renderer.getCommandBuffer();
             for (var image : images.values()) image.transitionImageLayout(stack, command, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
             target.beginRenderPass(command, pass, stack);
-            int assembly = PipelineState.AssemblyRasterState.encode(false, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_POLYGON_MODE_FILL);
-            var state = new PipelineState(assembly, 0, 0, 0, 0, 15, pass);
-            vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.getHandle(state));
+            vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.getHandle(fullscreenState(pass)));
             renderer.uploadAndBindUBOs(pipeline);
             vkCmdSetViewport(command, 0, VkViewport.calloc(1, stack).x(0).y(0)
                     .width(target.getWidth()).height(target.getHeight()).minDepth(0).maxDepth(1));
@@ -144,10 +148,16 @@ public final class NativeFullscreenPass implements AutoCloseable {
             vkCmdSetDepthBias(command, 0, 0, 0);
             vkCmdSetBlendConstants(command, stack.floats(0, 0, 0, 0));
             vkCmdDraw(command, 3, 1, 0, 0);
+            for (int i = 0; i < target.getColorAttachmentCount(); i++) target.getColorAttachment(i).recordRasterOrigin(false);
         } finally {
             renderer.endRenderPass();
             renderer.restoreGraphicsPipeline(null);
         }
+    }
+
+    private static PipelineState fullscreenState(RenderPass pass) {
+        int assembly = PipelineState.AssemblyRasterState.encode(false, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_POLYGON_MODE_FILL);
+        return new PipelineState(assembly, 0, 0, 0, 0, 15, pass);
     }
 
     private static SPIRV owned(byte[] bytes) {

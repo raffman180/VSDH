@@ -22,6 +22,7 @@ project.ext.devNatives = host.windows ? 'natives-windows' : host.macOsX ?
 
 
 sourceSets {
+    test { resources.srcDir 'src/smoke/resources' }
     smoke {
         compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
         runtimeClasspath += sourceSets.main.runtimeClasspath
@@ -70,6 +71,7 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly "org.lwjgl:lwjgl:${lwjglVersion}:${devNatives}"
+    testRuntimeOnly 'org.joml:joml:1.10.5'
 }
 
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
@@ -83,8 +85,17 @@ tasks.register('auditShaderPack', JavaExec) {
             layout.buildDirectory.dir('shader-audit').get().asFile.absolutePath,
             providers.gradleProperty('shaderProfile').getOrElse('MEDIUM')
 }
+tasks.register('auditRenderGraph', JavaExec) {
+    group = 'verification'
+    description = 'Prepares the actual shader pass chain and estimates all color target allocations without a GPU.'
+    classpath = sourceSets.smoke.runtimeClasspath
+    mainClass = 'de.stranger.vsdh.smoke.RenderGraphAudit'
+    args providers.gradleProperty('shaderPack').getOrElse('run/shaderpacks/ComplementaryReimagined_r5.9.3.zip'),
+            providers.gradleProperty('shaderProfile').getOrElse('MEDIUM')
+}
 processResources {
     inputs.property 'version', project.version
+    inputs.property 'rendererVersion', project.renderer_version
     filesMatching('META-INF/neoforge.mods.toml') { expand version: project.version, renderer_version: project.renderer_version }
 }
 tasks.named('jar', Jar) {

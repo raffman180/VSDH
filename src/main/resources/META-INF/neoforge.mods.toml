@@ -26,7 +26,7 @@ side="CLIENT"
 [[dependencies.vsdh]]
 modId="vulkanmod"
 type="required"
-versionRange="[0.3.5-vsdh.0.2.0+1.21.1]"
+versionRange="[${renderer_version}]"
 side="CLIENT"
 [[dependencies.vsdh]]
 modId="distanthorizons"

@@ -22,3 +22,10 @@ recommendation; use the recommended Reforged fork. Renderer sources are now
 part of this project; do not also install the original Reforged JAR. Keep
 6699fe6 / dist/0.1 artifacts as the baseline. Complementary test reference:
 r5.9.3, SHA-1 838139b54cddb56b2e83cd260d8efd960ac536d6; never bundle the pack.
+
+
+Current 0.3 adds ShaderChainPlan, NativeShaderChain, NativeColorTargets and
+NativeWorldDepth. Synthetic stage/history/mip/depth/stencil GPU checks pass;
+all 9 Complementary fullscreen Vk pipelines are prewarmed. Full world geometry,
+material/uniform/shadow/DH integration is still missing. Read docs/RENDER_GRAPH.md
+and docs/verification/0.3.0-dev.json; do not call the synthetic inputs a world shader.

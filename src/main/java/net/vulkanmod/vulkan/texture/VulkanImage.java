@@ -73,7 +73,7 @@ public class VulkanImage {
         return (this.rasterMipLevels & bit) != 0 && (this.bottomUpMipLevels & bit) == 0;
     }
 
-    void recordGeneratedMipmaps() {
+    public void recordGeneratedMipmaps() {
         int levels = this.mipLevels == 32 ? -1 : (1 << this.mipLevels) - 1;
         this.rasterMipLevels = (this.rasterMipLevels & 1) != 0 ? levels : 0;
         this.bottomUpMipLevels = this.rowsBottomUp ? levels : 0;
@@ -107,20 +107,25 @@ public class VulkanImage {
     public static VulkanImage createTextureImage(Builder builder) {
         VulkanImage image = new VulkanImage(builder);
 
-        image.createImage(builder.mipLevels, builder.width, builder.height, builder.format, builder.usage);
-        image.mainImageView = createImageView(image.id, builder.format, image.aspect, builder.mipLevels);
+        try {
+            image.createImage(builder.mipLevels, builder.width, builder.height, builder.format, builder.usage);
+            image.mainImageView = createImageView(image.id, builder.format, image.aspect, builder.mipLevels);
 
-        image.sampler = SamplerManager.getTextureSampler(builder.mipLevels, builder.samplerFlags);
+            image.sampler = SamplerManager.getTextureSampler(builder.mipLevels, builder.samplerFlags);
 
-        if (builder.levelViews) {
-            image.levelImageViews = new long[builder.mipLevels];
+            if (builder.levelViews) {
+                image.levelImageViews = new long[builder.mipLevels];
 
-            for (int i = 0; i < builder.mipLevels; ++i) {
-                image.levelImageViews[i] = createImageView(image.id, image.format, image.aspect, i, 1);
+                for (int i = 0; i < builder.mipLevels; ++i) {
+                    image.levelImageViews[i] = createImageView(image.id, image.format, image.aspect, i, 1);
+                }
             }
-        }
 
-        return image;
+            return image;
+        } catch (Throwable failure) {
+            image.free();
+            throw failure;
+        }
     }
 
     public static VulkanImage createDepthImage(int format, int width, int height, int usage, boolean blur, boolean clamp) {
@@ -330,6 +335,11 @@ public class VulkanImage {
         this.sampler = SamplerManager.getTextureSampler((byte) maxLod, flags);
     }
 
+    /** Borrow a shared renderer sampler with an explicit policy, e.g. unbiased shader targets. */
+    public void updateTextureSampler(SamplerManager.SamplerKey policy) {
+        this.sampler = SamplerManager.getTextureSampler(policy);
+    }
+
     public void transitionImageLayout(MemoryStack stack, VkCommandBuffer commandBuffer, int newLayout) {
         transitionImageLayout(stack, commandBuffer, this, newLayout);
     }
@@ -357,7 +367,7 @@ public class VulkanImage {
             }
             case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL -> {
                 srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-                sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+                sourceStage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
             }
             case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> {
                 srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -381,7 +391,7 @@ public class VulkanImage {
             }
             case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL -> {
                 dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-                destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+                destinationStage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
             }
             case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> {
                 dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
@@ -560,6 +570,11 @@ public class VulkanImage {
     }
 
     public long getLevelImageView(int i) {
+        if (i < 0 || i >= mipLevels) throw new IndexOutOfBoundsException(i);
+        if (mipLevels == 1) return mainImageView;
+        if (levelImageViews == null) levelImageViews = new long[mipLevels];
+        if (levelImageViews[i] == 0L)
+            levelImageViews[i] = createImageView(id, format, aspect, i, 1);
         return levelImageViews[i];
     }
 

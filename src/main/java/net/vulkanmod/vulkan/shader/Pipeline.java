@@ -155,13 +155,23 @@ public abstract class Pipeline {
     }
 
     protected void createDescriptorSetLayout() {
+        // Descriptor binding numbers are identifiers, not offsets into the packed Vulkan array.
+        // Optimized pack programs legitimately leave holes between the bindings still in use.
+        this.buffers = new ArrayList<>(this.buffers);
+        this.buffers.sort(java.util.Comparator.comparingInt(UBO::getBinding));
+        this.imageDescriptors = new ArrayList<>(this.imageDescriptors);
+        this.imageDescriptors.sort(java.util.Comparator.comparingInt(ImageDescriptor::getBinding));
+        var usedBindings = new java.util.HashSet<Integer>();
         try (MemoryStack stack = stackPush()) {
             int bindingsSize = this.buffers.size() + imageDescriptors.size();
 
             VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(bindingsSize, stack);
+            int layoutIndex = 0;
 
             for (UBO ubo : this.buffers) {
-                VkDescriptorSetLayoutBinding uboLayoutBinding = bindings.get(ubo.getBinding());
+                if (ubo.getBinding() < 0 || !usedBindings.add(ubo.getBinding()))
+                    throw new IllegalArgumentException("Invalid or duplicate uniform binding " + ubo.getBinding());
+                VkDescriptorSetLayoutBinding uboLayoutBinding = bindings.get(layoutIndex++);
                 uboLayoutBinding.binding(ubo.getBinding());
                 uboLayoutBinding.descriptorCount(1);
                 uboLayoutBinding.descriptorType(ubo.getType());
@@ -170,7 +180,9 @@ public abstract class Pipeline {
             }
 
             for (ImageDescriptor imageDescriptor : this.imageDescriptors) {
-                VkDescriptorSetLayoutBinding samplerLayoutBinding = bindings.get(imageDescriptor.getBinding());
+                if (imageDescriptor.getBinding() < 0 || !usedBindings.add(imageDescriptor.getBinding()))
+                    throw new IllegalArgumentException("Invalid or duplicate image binding " + imageDescriptor.getBinding());
+                VkDescriptorSetLayoutBinding samplerLayoutBinding = bindings.get(layoutIndex++);
                 samplerLayoutBinding.binding(imageDescriptor.getBinding());
                 samplerLayoutBinding.descriptorCount(1);
                 samplerLayoutBinding.descriptorType(imageDescriptor.getType());

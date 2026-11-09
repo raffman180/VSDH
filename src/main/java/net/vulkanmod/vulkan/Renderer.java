@@ -1133,8 +1133,9 @@ public class Renderer {
         Renderer renderer = INSTANCE;
         if (renderer == null || renderer.boundFramebuffer == null) return;
         Framebuffer target = renderer.boundFramebuffer;
-        if (VRenderSystem.getColorMask() != 0 && target.getColorAttachment() != null)
-            target.getColorAttachment().recordRasterOrigin(rasterRowsBottomUp);
+        if (VRenderSystem.getColorMask() != 0)
+            for (int i = 0; i < target.getColorAttachmentCount(); i++)
+                target.getColorAttachment(i).recordRasterOrigin(rasterRowsBottomUp);
 
 
         if (VRenderSystem.depthTest && VRenderSystem.depthMask && target.getDepthAttachment() != null)

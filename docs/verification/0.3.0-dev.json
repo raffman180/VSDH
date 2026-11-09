@@ -1,0 +1,102 @@
+{
+  "version": "0.3.0-dev",
+  "date": "2026-11-09",
+  "minecraft": "1.21.1",
+  "neoforge": "21.1.264",
+  "dh": "3.3.3",
+  "gpu": "NVIDIA RTX 4070",
+  "os": "Windows",
+  "testSuites": [
+    {
+      "name": "com.braffolk.dhvulkan.api.DhRegistrationTest",
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "com.braffolk.dhvulkan.core.data.VkVertexDataTest",
+      "tests": "4",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.compat.ExecutorShutdownTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.compat.SqliteRegenCancellationTest",
+      "tests": "2",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.shader.ShaderChainPlanTest",
+      "tests": "4",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    },
+    {
+      "name": "de.stranger.vsdh.shader.Std140LayoutTest",
+      "tests": "3",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0"
+    }
+  ],
+  "game": {
+    "log": "verify-0.3-client-fixed.log",
+    "isolatedWorlds": 2,
+    "resize": true,
+    "nightRain": true,
+    "gpuCheckGroups": {
+      "MRT GPU PASS:": 4,
+      "PACK GPU PASS:": 4,
+      "COMPLEMENTARY FINAL GPU PASS:": 4,
+      "CHAIN GPU PASS:": 4,
+      "COMPLEMENTARY CHAIN PREPARE PASS:": 4
+    },
+    "depthFormats": [
+      "D32_SFLOAT",
+      "D24_UNORM_S8_UINT",
+      "D32_SFLOAT_S8_UINT"
+    ],
+    "stencilCopiesVerified": true,
+    "fourFrameHistoryVerified": true,
+    "checkerboardMipAverageVerified": true,
+    "finalLayoutMipTest": true,
+    "noFinalBlitVerified": true,
+    "errors": 0,
+    "fatal": 0,
+    "exit": "BUILD SUCCESSFUL"
+  },
+  "shaderPack": {
+    "name": "Complementary Reimagined",
+    "version": "r5.9.3",
+    "profile": "MEDIUM",
+    "sha1": "838139b54cddb56b2e83cd260d8efd960ac536d6",
+    "programPairsCompiled": 96,
+    "nativeFullscreenPipelinesPrepared": 9,
+    "colorTargetsPrepared": 11,
+    "estimatedColorTexelBytesAt2560x1440": 328088712,
+    "fullWorldShaderSupport": false
+  },
+  "packaging": {
+    "bundledLwjglVerified": true,
+    "smokeCodeExcluded": true,
+    "externalShaderPackExcluded": true,
+    "upstreamNoticesPresent": true
+  },
+  "limitations": [
+    "World geometry/material/lighting uniform integration unfinished",
+    "Shadow geometry and shader-side DH terrain/water unfinished",
+    "Other GPUs, operating systems and DH versions unverified",
+    "No FPS benchmark"
+  ]
+}

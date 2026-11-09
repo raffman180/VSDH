@@ -47,3 +47,27 @@ Der echte Complementary-`world0/final` wurde viermal mit kontrolliertem HDR-Eing
 und Rauschwert ausgeführt. Sein mittlerer Ausgabepixel entspricht dem erwarteten
 Dithering-Ergebnis. Das bestätigt Übersetzung, Bindings, Uniformlayout und native
 Ausführung dieses Programms. Material-/Schatten-/Welt-Integration bleiben offen.
+
+## 09.11.2026 — Shader-Kette
+
+Die vollständige kontrollierte Diagnosekette läuft über BEGIN/PREPARE/DEFERRED/
+COMPOSITE/FINAL, einschließlich gespeicherter Werte über vier Frames, verkleinerten
+Puffern, HDR-Mipmaps und dem Pfad ohne FINAL. Die zuerst inline geschriebenen
+Mipmap-Direktiven wurden nicht ausgewertet; der neue CPU-Test entdeckte dies.
+Das Diagnosepack verwendet nun mehrzeilige Direktiven und ein Schachbrettmuster,
+dessen Mittelwert tatsächlich im Mipmap-Bild geprüft wird.
+
+Die echte Complementary-Konstruktion scheiterte zunächst in
+Pipeline.createDescriptorSetLayout mit IndexOutOfBoundsException. shaderc hatte
+inaktive Sampler entfernt, die Bindungsnummern der übrigen aber beibehalten.
+Das Layout ist nun kompakt aufgebaut; seine Einträge tragen die unveränderten
+Bindungsnummern. Der Regressionstest prüft aktive SPIR-V-Bindungen {0,2}, nachdem
+Binding 1 eines unbenutzten Shadow-Samplers entfernt wurde.
+
+NativeWorldDepth behält das Originalbild beim Schließen bei und kopiert D32/
+D24S8/D32S8. Die Prüfwerte .25/.5/.75 und unterschiedliche Stencilwerte vor Hand,
+Transparenz und danach bleiben in den korrekten Snapshots erhalten.
+
+Parsec wurde auf ausdrücklichen Nutzerwunsch gestartet; Prozess und Fenstername
+Parsec wurden beobachtet. Es wurde keine Remote-Verbindung oder Kontoeinstellung
+bedient. Kein direkter Eingriff in andere Anwendungen während der Spieltests.
