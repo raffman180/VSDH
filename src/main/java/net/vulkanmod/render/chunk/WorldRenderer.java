@@ -323,11 +323,11 @@ public class WorldRenderer {
         }
         if (AeronauticsWorldLayers.isGhost(renderType)) return;
         TerrainRenderType terrainRenderType = TerrainRenderType.get(renderType);
-        TerrainRenderState.prepareWorldTerrainState();
-        renderType.setupRenderState();
-
         var shaders = de.stranger.vsdh.shader.WorldShaderSession.current();
         boolean shaderFrame = shaders != null && shaders.active();
+        if (shaderFrame) shaders.beforeTerrain(terrainRenderType);
+        TerrainRenderState.prepareWorldTerrainState();
+        renderType.setupRenderState();
         // Keep vanilla culling for translucent pack draws. The liquid mesh can
         // contain both windings, with a different normal on each side.
         if (!Initializer.CONFIG.backFaceCulling

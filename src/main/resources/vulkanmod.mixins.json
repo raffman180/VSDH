@@ -139,6 +139,8 @@
     "shader.WorldShaderSkyMixin",
     "shader.WorldShaderParticleMixin",
     "shader.WorldShaderGameMixin",
+    "shader.WorldShaderHandMixin",
+    "shader.WorldShaderHandItemMixin",
     "shader.WorldShaderLightMixin"
   ],
   "injectors": {

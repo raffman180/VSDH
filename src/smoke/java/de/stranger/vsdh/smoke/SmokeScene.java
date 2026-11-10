@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 public final class SmokeScene {
     private static final Logger LOGGER = LoggerFactory.getLogger("VSDH-Smoke");
     private static boolean started;
+    private static boolean handVerified;
     private static int ticks;
     private static int worldNumber;
     private static long drawsBeforeReload;
@@ -38,6 +39,10 @@ public final class SmokeScene {
         if (!Boolean.getBoolean("vsdh.smoke") || event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) return;
         int check = (worldNumber - 1) * 2 + (ticks >= 950 ? 2 : 1);
         WorldHostCheck.verifyIfReady(ticks);
+        if (worldNumber == 1 && ticks >= 455 && ticks < 480 && !handVerified && Boolean.getBoolean("vsdh.smoke.livePack")) {
+            HandWorldProbe.verify(de.stranger.vsdh.shader.WorldShaderSession.current());
+            handVerified = true;
+        }
         if (ticks >= 100 && check > gpuChecks && NativePassGpuCheck.ready() && ChainGpuCheck.ready() && TerrainGpuCheck.ready() && EntityContractGpuCheck.ready()) {
             MrtGpuCheck.run();
             NativePassGpuCheck.run();
@@ -85,6 +90,15 @@ public final class SmokeScene {
                     mc.getConnection().sendCommand("summon minecraft:slime -3 97.5 5.5 {Size:1,NoAI:1b,NoGravity:1b,Silent:1b,PersistenceRequired:1b}");
                     mc.getConnection().sendCommand("summon minecraft:iron_golem -2.5 97.5 3.5 {NoAI:1b,NoGravity:1b,Silent:1b}");
                     mc.getConnection().sendCommand("summon minecraft:chicken -1.5 98 4.5 {NoAI:1b,NoGravity:1b,Silent:1b}");
+                }
+                if (ticks == 385) {
+                    mc.getConnection().sendCommand("gamemode creative");
+                    mc.getConnection().sendCommand("item replace entity @s weapon.mainhand with minecraft:torch");
+                    mc.getConnection().sendCommand("item replace entity @s weapon.offhand with minecraft:blue_stained_glass");
+                }
+                if (ticks == 480) {
+                    if (!handVerified) throw new AssertionError("Native hand probe did not run");
+                    mc.getConnection().sendCommand("gamemode spectator");
                 }
                 if (ticks == 360) {
                     var session = de.stranger.vsdh.shader.WorldShaderSession.current();

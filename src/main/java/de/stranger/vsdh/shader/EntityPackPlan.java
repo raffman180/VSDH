@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
 /** Prepared programs for supported entity mesh layers. */
 public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource.Prepared cutout,
                              Map<String, Integer> materials, BlockPrograms blocks,
-                             PackProgramSource.Prepared translucent, boolean lateTransparency) {
+                             PackProgramSource.Prepared translucent, boolean lateTransparency, HandPrograms hand) {
     private static final String NAME = "gbuffers_entities";
     private static final String BLOCK = "gbuffers_block";
     private static final String TRANSLUCENT = "gbuffers_entities_translucent";
@@ -33,6 +33,7 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
     public EntityPackPlan { materials = Map.copyOf(materials); }
 
     public record BlockPrograms(PackProgramSource.Prepared solid, PackProgramSource.Prepared cutout) {}
+    public record HandPrograms(PackProgramSource.Prepared solid, PackProgramSource.Prepared translucent) {}
 
     static EntityPackPlan prepare(OpenedPack pack, String prefix, ShaderChainPlan chain,
                                   Set<String> customUniforms, boolean shadows, boolean distant, Consumer<String> warning) {
@@ -91,11 +92,33 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
                     warning.accept("Keeping standard translucent entity rendering for " + prefix + TRANSLUCENT + ": " + failure.getMessage());
                 }
             }
-            return new EntityPackPlan(solid, cutout, ids, blocks, translucent, pack.properties().separateEntityDraws(defines));
+            HandPrograms hand = null;
+            String handSolid = "gbuffers_hand";
+            if (hasProgram(pack, prefix, chain, handSolid)) {
+                String handLate = hasProgram(pack, prefix, chain, "gbuffers_hand_water") ? "gbuffers_hand_water" : handSolid;
+                try {
+                    var solidHand = PackProgramSource.prepare(pack, prefix + handSolid, inputs, inputs.elements(),
+                            alphas.getOrDefault(handSolid, AlphaTest.ONE_TENTH));
+                    var lateHand = PackProgramSource.prepare(pack, prefix + handLate, inputs, inputs.elements(),
+                            alphas.getOrDefault(handLate, AlphaTest.ONE_TENTH));
+                    validate(solidHand, customUniforms, shadows, distant, textures);
+                    validate(lateHand, customUniforms, shadows, distant, textures);
+                    hand = new HandPrograms(solidHand, lateHand);
+                } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
+                    warning.accept("Keeping standard hand rendering for " + prefix + handSolid + ": " + failure.getMessage());
+                }
+            }
+            return new EntityPackPlan(solid, cutout, ids, blocks, translucent, pack.properties().separateEntityDraws(defines), hand);
         } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
             warning.accept("Keeping standard opaque entity rendering for " + prefix + NAME + ": " + failure.getMessage());
             return null;
         }
+    }
+
+    private static boolean hasProgram(OpenedPack pack, String prefix, ShaderChainPlan chain, String name) {
+        return chain.targets().schedule().step(name).isPresent()
+                && pack.source().file(prefix + name + ".vsh").isPresent()
+                && pack.source().file(prefix + name + ".fsh").isPresent();
     }
 
     private static void validate(PackProgramSource.Prepared source, Set<String> customUniforms, boolean shadows,
@@ -129,6 +152,10 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
             programs.add(blocks.cutout());
         }
         if (translucent != null) programs.add(translucent);
+        if (hand != null) {
+            programs.add(hand.solid());
+            programs.add(hand.translucent());
+        }
         return List.copyOf(programs);
     }
 }

@@ -45,7 +45,7 @@ public class WorldShaderLevelMixin {
     private void vsdh$beginWorld(DeltaTracker delta, boolean renderBlockOutline, Camera camera, GameRenderer renderer,
                                  LightTexture light, Matrix4f view, Matrix4f projection, CallbackInfo ci) {
         var session=WorldShaderSession.current();
-        if(session!=null) session.beginWorld(camera,view,projection,delta.getGameTimeDeltaPartialTick(false));
+        if(session!=null) session.beginWorld(camera,view,projection,delta.getGameTimeDeltaPartialTick(false),delta.getGameTimeDeltaPartialTick(true));
     }
     @Inject(method="setLevel",at=@At("HEAD"))
     private void vsdh$changeWorld(ClientLevel level,CallbackInfo ci) {

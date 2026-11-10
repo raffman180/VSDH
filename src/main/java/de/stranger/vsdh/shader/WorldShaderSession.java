@@ -60,6 +60,9 @@ public final class WorldShaderSession implements MainPass {
     private final NativeEntityMesh entityMesh = new NativeEntityMesh();
     private final Map<ResourceLocation, Integer> entityMaterials = new HashMap<>();
     private NativeGeometryPass entitySolid, entityCutout, blockSolid, blockCutout, entityTranslucent;
+    private NativeGeometryPass handSolid, handLate;
+    private NativeHandRenderer hand;
+    private final long[] handDraws = new long[2];
     private record PendingEntity(RenderType type, MeshData mesh) {}
     private final ArrayDeque<PendingEntity> pendingEntities = new ArrayDeque<>();
     private final long[] transparentEntityDraws = new long[2];
@@ -261,12 +264,20 @@ public final class WorldShaderSession implements MainPass {
         return true;
     }
 
+    public NativeHandRenderer handRenderer() { return hand; }
+    public long handDraws(boolean late) { return handDraws[late ? 1 : 0]; }
+    public VulkanImage worldDepth(String sampler) { return depth.image(sampler); }
+
     public boolean renderEntityGeometry(MeshData mesh) {
         if (!active || entitySolid == null
                 || net.vulkanmod.compat.sable.render.SublevelRenderScope.current().isPresent()) return false;
         var state = mesh.drawState();
         if (state.format() != DefaultVertexFormat.NEW_ENTITY || state.mode() != VertexFormat.Mode.QUADS
                 || state.vertexCount() < 4 || state.vertexCount() % 4 != 0) return false;
+        if (hand != null && hand.drawing()) {
+            try (mesh) { drawHandBatch(mesh, state); }
+            return true;
+        }
         var batch = ((NativeEntityMesh.EntityIds) (Object) mesh).vsdh$getEntityIds();
         if (batch == null || (batch.blocks() && blockSolid == null)) return false;
 
@@ -300,6 +311,32 @@ public final class WorldShaderSession implements MainPass {
             drawEntityBatch(mesh, batch, state, program, source, false);
         }
         return true;
+    }
+
+    private void drawHandBatch(MeshData mesh, MeshData.DrawState state) {
+        boolean late = hand.late();
+        var program = late ? handLate : handSolid;
+        var source = late ? plan.entities().hand().translucent() : plan.entities().hand().solid();
+        var vertices = entityMesh.extendHand(mesh, hand.identifiers());
+        var nativeState = new MeshData.DrawState(NativeEntityMesh.FORMAT, state.vertexCount(), state.indexCount(),
+                state.mode(), state.indexType());
+        uniforms.writeDraw(program, RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix(),
+                late ? RenderStage.HAND_TRANSLUCENT : RenderStage.HAND_SOLID);
+        boolean overlay = program.requiredSamplers().contains("ofOverlay") && RenderSystem.getShaderTexture(1) == 0;
+        if (overlay) Minecraft.getInstance().gameRenderer.overlayTexture().setupOverlayColor();
+        try {
+            bindGeometry(program, source, late, false);
+            int topology = VRenderSystem.topology;
+            try (var scope = Renderer.getInstance().temporaryRenderTarget()) {
+                VRenderSystem.setPrimitiveTopology(state.mode());
+                program.render(pipeline -> Renderer.getDrawer().draw(vertices, nativeState, mesh.indexBuffer()));
+            } finally {
+                VRenderSystem.topology = topology;
+            }
+        } finally {
+            if (overlay) Minecraft.getInstance().gameRenderer.overlayTexture().teardownOverlayColor();
+        }
+        handDraws[late ? 1 : 0]++;
     }
 
     private void drawEntityBatch(MeshData mesh, NativeEntityMesh.Batch batch, MeshData.DrawState state,
@@ -392,7 +429,8 @@ public final class WorldShaderSession implements MainPass {
     }
 
     /** Called after Minecraft has selected the current fog colour and before clearing/drawing the world. */
-    public void beginWorld(Camera camera, Matrix4f view, Matrix4f projection, float partialTick) {
+    public void beginWorld(Camera camera, Matrix4f view, Matrix4f projection, float partialTick, float handPartialTick) {
+        if (hand != null) hand.resetFrame();
         if (closed || active) throw new IllegalStateException("Invalid world shader frame entry");
         var position=camera.getPosition();
         if (!view.isFinite() || !projection.isFinite() || !Double.isFinite(position.x)
@@ -446,9 +484,15 @@ public final class WorldShaderSession implements MainPass {
                         blockCutout = entityPass(plan.entities().blocks().cutout(), worldDepth, false);
                     }
                 }
+                if (plan.entities() != null && plan.entities().hand() != null) {
+                    handSolid = entityPass(plan.entities().hand().solid(), worldDepth, false);
+                    handLate = entityPass(plan.entities().hand().translucent(), worldDepth, true);
+                    hand = new NativeHandRenderer(blockMaterials, plan.items());
+                }
                 chain.prepareOutput(output);
             } catch (Throwable failure) {releaseGraph();throw failure;}
         }
+        if (hand != null) hand.beginFrame(camera, view, handPartialTick);
         uniforms.capture(camera,view,projection,partialTick,worldDepth.width,worldDepth.height);
         float[] fog=RenderSystem.getShaderFogColor();
         try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
@@ -465,9 +509,12 @@ public final class WorldShaderSession implements MainPass {
         active=true;rebindMainTarget();
     }
 
+    public void beforeTerrain(TerrainRenderType type) {
+        if (active && !deferred && (type == TerrainRenderType.TRANSLUCENT || type == TerrainRenderType.TRIPWIRE)) runDeferred();
+    }
+
     public void renderTerrain(TerrainRenderType type, Consumer<GraphicsPipeline> batches) {
         if (!active) throw new IllegalStateException("No world shader frame");
-        if ((type==TerrainRenderType.TRANSLUCENT || type==TerrainRenderType.TRIPWIRE) && !deferred) runDeferred();
         var source=sources.get(type);
         var target=chain.geometry(bare(source.path()),deferred,borrowedDepth);
         var pipeline=terrain.get(type);
@@ -529,8 +576,11 @@ public final class WorldShaderSession implements MainPass {
 
     private void runDeferred() {
         try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
-            // Hand reordering is not implemented yet; the two pre-translucent snapshots coincide.
-            depth.capturePreHand();depth.capturePreTranslucent();
+            depth.capturePreHand();
+        }
+        if (hand != null) hand.draw(false);
+        try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
+            depth.capturePreTranslucent();
             if(distant!=null)distant.snapshotOpaque();
             chain.render(ShaderChainPlan.Stage.DEFERRED,null,this::writeFullscreen,this::external);
             if(distant!=null)distant.render(this,true);
@@ -548,6 +598,7 @@ public final class WorldShaderSession implements MainPass {
     public void finishWorld() {
         if (!active) return;
         if (!deferred) runDeferred();
+        if (hand != null) hand.draw(true);
         Renderer renderer=Renderer.getInstance();renderer.endRenderPass();
         active=false;scene=null;
         try (var scope=renderer.temporaryRenderTarget()) {
@@ -606,6 +657,12 @@ public final class WorldShaderSession implements MainPass {
         if (entityTranslucent != null) entityTranslucent.close();
         entityTranslucent = null;
         while (!pendingEntities.isEmpty()) pendingEntities.removeFirst().mesh().close();
+        if (handSolid != null) handSolid.close();
+        handSolid = null;
+        if (handLate != null) handLate.close();
+        handLate = null;
+        if (hand != null) hand.close();
+        hand = null;
         entityMesh.close();
         if (chain!=null) chain.close();chain=null;
         if(distant!=null)distant.close();distant=null;

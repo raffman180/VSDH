@@ -44,9 +44,17 @@ public final class NativeEntityMesh implements AutoCloseable {
     private ByteBuffer data;
 
     ByteBuffer extend(MeshData mesh, short[] ids, boolean blocks) {
+        return extend(mesh, ids.length, index -> blocks ? (long) Short.toUnsignedInt(ids[index]) << 16 : Short.toUnsignedInt(ids[index]));
+    }
+
+    ByteBuffer extendHand(MeshData mesh, long identifiers) {
+        return extend(mesh, mesh.drawState().vertexCount(), index -> identifiers);
+    }
+
+    private ByteBuffer extend(MeshData mesh, int materialCount, java.util.function.IntToLongFunction identifiers) {
         var state = mesh.drawState();
         if (state.format() != DefaultVertexFormat.NEW_ENTITY || state.format().getVertexSize() != BASE
-                || state.vertexCount() % 4 != 0 || state.vertexCount() > ids.length)
+                || state.vertexCount() % 4 != 0 || state.vertexCount() > materialCount)
             throw new IllegalArgumentException("Invalid Minecraft entity quad batch");
         int stride = FORMAT.getVertexSize();
         int bytes = Math.multiplyExact(stride, state.vertexCount());
@@ -66,9 +74,11 @@ public final class NativeEntityMesh implements AutoCloseable {
             for (int corner = 0; corner < 4; corner++) {
                 int index = vertex + corner, offset = index * stride;
                 MemoryUtil.memCopy(input + index * BASE, output + offset, BASE);
-                data.putShort(offset + 36, blocks ? (short) 0 : ids[index]);
-                data.putShort(offset + 38, blocks ? ids[index] : (short) 0);
-                data.putInt(offset + 40, 0);
+                long ids = identifiers.applyAsLong(index);
+                data.putShort(offset + 36, (short) ids);
+                data.putShort(offset + 38, (short) (ids >>> 16));
+                data.putShort(offset + 40, (short) (ids >>> 32));
+                data.putShort(offset + 42, (short) 0);
                 data.putFloat(offset + 44, midU).putFloat(offset + 48, midV);
                 data.putInt(offset + 52, packedTangent);
             }

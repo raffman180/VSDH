@@ -23,6 +23,15 @@ class ForwardDepthProjectionTest {
         var expected=new Matrix4f().setPerspective(1.2f,1.7f,.05f,256,false).mul(bob);
         ForwardDepthProjection.toLegacy(source,source);assertTrue(source.equals(expected,1e-6f));
     }
+    @Test void handScalesLegacyDepthWithoutChangingXYOrW() {
+        var source = new Matrix4f().setPerspective(1.2f, 1.7f, .05f, 256, true)
+                .translate(.02f, -.1f, .04f).rotateZ(.06f);
+        var hand = ForwardDepthProjection.toLegacy(ForwardDepthProjection.hand(source), new Matrix4f());
+        var expected = new Matrix4f().scaling(1, 1, .125f)
+                .mul(ForwardDepthProjection.toLegacy(source, new Matrix4f()));
+        assertTrue(hand.equals(expected, 1e-6f));
+    }
+
     @Test void finiteSkyDepthStaysInFrontWhereJomlInfiniteEpsilonReversesIt() {
         var infinite=ForwardDepthProjection.toLegacy(new Matrix4f().setPerspective(1.2f,1.7f,.05f,Float.POSITIVE_INFINITY,true),new Matrix4f());
         var finite=ForwardDepthProjection.toLegacy(new Matrix4f().setPerspective(1.2f,1.7f,.05f,256,true),new Matrix4f());
