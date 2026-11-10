@@ -4,6 +4,8 @@ import dev.vitrail.glsl.VertexInputs;
 import dev.vitrail.pack.model.AlphaTest;
 import dev.vitrail.pack.model.ProgramStage;
 import dev.vitrail.pack.model.TextureStage;
+import dev.vitrail.pack.model.TargetName;
+import dev.vitrail.pack.target.TargetPlan;
 import dev.vitrail.pack.source.OpenedPack;
 import dev.vitrail.pack.source.PropertiesFile;
 import dev.vitrail.pack.texture.PackTextures;
@@ -53,7 +55,7 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
             var textures = PackTextures.read(pack.properties(), defines, pack.source());
             var optional = new OptionalPrograms(pack, prefix, chain, alphas, customUniforms, shadows, distant, textures, warning);
             for (var source : List.of(solid, cutout)) {
-                validate(source, customUniforms, shadows, distant, textures);
+                validate(source, customUniforms, shadows, distant, textures, chain.targets());
             }
             var ids = new HashMap<String, Integer>();
             PropertiesFile.read(pack.source(), "entity.properties").walk(defines, line -> {
@@ -75,8 +77,8 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
                             alphas.getOrDefault(BLOCK, AlphaTest.OFF));
                     var blockCutout = PackProgramSource.prepare(pack, prefix + BLOCK, inputs, inputs.elements(),
                             alphas.getOrDefault(BLOCK, AlphaTest.ONE_TENTH));
-                    validate(blockSolid, customUniforms, shadows, distant, textures);
-                    validate(blockCutout, customUniforms, shadows, distant, textures);
+                    validate(blockSolid, customUniforms, shadows, distant, textures, chain.targets());
+                    validate(blockCutout, customUniforms, shadows, distant, textures, chain.targets());
                     blocks = new BlockPrograms(blockSolid, blockCutout,
                             optional.prepare("gbuffers_block_translucent", inputs, AlphaTest.ONE_TENTH));
                 } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
@@ -90,7 +92,7 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
                 try {
                     var source = PackProgramSource.prepare(pack, prefix + TRANSLUCENT, inputs, inputs.elements(),
                             alphas.getOrDefault(TRANSLUCENT, AlphaTest.ONE_TENTH));
-                    validate(source, customUniforms, shadows, distant, textures);
+                    validate(source, customUniforms, shadows, distant, textures, chain.targets());
                     translucent = source;
                 } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
                     warning.accept("Keeping standard translucent entity rendering for " + prefix + TRANSLUCENT + ": " + failure.getMessage());
@@ -105,8 +107,8 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
                             alphas.getOrDefault(handSolid, AlphaTest.ONE_TENTH));
                     var lateHand = PackProgramSource.prepare(pack, prefix + handLate, inputs, inputs.elements(),
                             alphas.getOrDefault(handLate, AlphaTest.ONE_TENTH));
-                    validate(solidHand, customUniforms, shadows, distant, textures);
-                    validate(lateHand, customUniforms, shadows, distant, textures);
+                    validate(solidHand, customUniforms, shadows, distant, textures, chain.targets());
+                    validate(lateHand, customUniforms, shadows, distant, textures, chain.targets());
                     hand = new HandPrograms(solidHand, lateHand);
                 } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
                     warning.accept("Keeping standard hand rendering for " + prefix + handSolid + ": " + failure.getMessage());
@@ -131,7 +133,7 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
             if (!hasProgram(pack, prefix, chain, name)) return null;
             try {
                 var source = PackProgramSource.prepare(pack, prefix + name, inputs, inputs.elements(), alphas.getOrDefault(name, alpha));
-                validate(source, uniforms, shadows, distant, textures);
+                validate(source, uniforms, shadows, distant, textures, chain.targets());
                 return source;
             } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
                 warning.accept("Keeping standard geometry for " + prefix + name + ": " + failure.getMessage());
@@ -147,7 +149,7 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
     }
 
     private static void validate(PackProgramSource.Prepared source, Set<String> customUniforms, boolean shadows,
-                                 boolean distant, PackTextures textures) {
+                                 boolean distant, PackTextures textures, TargetPlan targets) {
         if (!source.compiled().stages().keySet().equals(Set.of(ProgramStage.VERTEX, ProgramStage.FRAGMENT))
                 || source.translated().stages().values().stream().anyMatch(stage -> !stage.notes().storageBlocks().isEmpty()))
             throw new IllegalArgumentException("Unsupported entity shader stages or storage");
@@ -158,8 +160,11 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
         for (var sampler : source.translated().samplers()) {
             String name = sampler.name();
             if (!active.contains(source.compiled().bindings().get(name))) continue;
-            boolean supported = switch (sampler.type()) {
-                case "sampler2D" -> DRAW_IMAGES.contains(name)
+            var target = TargetName.index(name);
+            boolean supported = target.isPresent() && targets.allocated().contains(target.getAsInt())
+                    && VulkanTargetFormat.acceptsSampler(VulkanTargetFormat.of(targets.directives().format(target.getAsInt()).used()), sampler.type());
+            supported |= switch (sampler.type()) {
+                case "sampler2D" -> DRAW_IMAGES.contains(name) || PackTexturePlan.hasMaterialDefault(name)
                         || shadows && (SHADOW_DEPTH.contains(name) || SHADOW_COLOR.contains(name));
                 case "sampler2DShadow" -> shadows && SHADOW_DEPTH.contains(name);
                 default -> false;

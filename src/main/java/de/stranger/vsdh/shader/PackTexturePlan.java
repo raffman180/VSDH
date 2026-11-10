@@ -22,6 +22,12 @@ public record PackTexturePlan(Map<String,Asset> bindings) {
             rgba=rgba.clone();
         }
     }
+    private static final Map<String, Pixels> MATERIAL_DEFAULTS = Map.of(
+            "normals", new Pixels(1, 1, new byte[]{127, 127, (byte) 255, (byte) 255}, false, false),
+            "specular", new Pixels(1, 1, new byte[4], false, false));
+
+    static boolean hasMaterialDefault(String sampler) {return MATERIAL_DEFAULTS.containsKey(sampler);}
+
     public PackTexturePlan {bindings=Map.copyOf(bindings);}
     public static PackTexturePlan empty() {return new PackTexturePlan(Map.of());}
     private static String key(String program,String sampler) {return program.substring(program.lastIndexOf('/')+1)+"/"+sampler;}
@@ -59,6 +65,8 @@ public record PackTexturePlan(Map<String,Asset> bindings) {
                     Asset asset=decoded.get(id);
                     if(asset==null){asset=decode(pack,texture);decoded.put(id,asset);}
                     bindings.put(key(name,sampler.name()),asset);
+                } else if (sampler.type().equals("sampler2D") && hasMaterialDefault(sampler.name())) {
+                    bindings.put(key(name, sampler.name()), MATERIAL_DEFAULTS.get(sampler.name()));
                 } else if(sampler.name().equals("noisetex")) {
                     Asset noise=decoded.get("<noise>");
                     if(noise==null) {

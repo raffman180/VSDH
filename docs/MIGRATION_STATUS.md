@@ -1,6 +1,35 @@
-# VSDH — Prüfstand 0.24.0-dev, 10.11.2026
+# VSDH — Prüfstand 0.25.0-dev, 10.11.2026
 
-## Umfang der Kompatibilität
+DH 3.2.0-b ist die erste ältere Vorabversion im regulären Build. Der
+Mixin-Plugin liest die Methoden der installierten DH-JAR und lädt
+die Abfrage- und Shutdown-Hooks der passenden API-Generation.
+Der Texturadapter unterstützt den älteren und den aktuellen DH-Aufruf.
+Die Spieltests und der 1440p-Benchmark stehen in
+`dist/0.25.0-dev/verification.json`.
+
+## Änderungen im Shader-Backend
+
+Bliss 2.1.2 lässt sich nach den Ergänzungen für Materialtexturen,
+Licht, Projektion und Wetter in allen drei Vanilla-Dimensionen
+vorbereiten. Für normale und spiegelnde Materialkarten stehen neutrale
+Standardtexel bereit. Eigene PBR-Texturen aus Resourcepacks fehlen noch.
+Der native Renderer verbindet die GLSL-Ausgabe eines Vertexshaders mit
+der gleichnamigen Fragmenteingabe. Explizite Fragmenteingänge behalten
+ihren angegebenen Slot. Wenn ein Geometriepass eine eigene Farbausgabe
+gleichzeitig abtastet, verwendet er einen separaten GPU-Snapshot.
+Das Budget der Farbziele richtet sich nach dem verfügbaren GPU-Heap.
+Die native Oberwelt-Szene mit DH 3.3.3 wurde bei 2560×1440 auf einer
+RTX 4070 geprüft. Bild und GPU-Pixel zeigen nach der Stage-IO-Korrektur
+wieder Wasser, Reflexionen und Terrain. Die anderen Dimensionen sind
+für Bliss CPU-geprüft. Die DH-Schattenprogramme von Bliss fehlen.
+
+Photon 1.4 benötigt für `deferred4_a` einen nativen Compute-Durchlauf.
+DH 3.1.2 fehlt bereits die 3.2-Texturkonfiguration. Für DH 2.x ist
+ein eigener Renderer-Einstieg erforderlich.
+
+## Stand 0.24
+
+### Umfang der Kompatibilität in 0.24
 
 Modrinth listet für Minecraft 1.21.1 und NeoForge vier stabile DH-Versionen
 und 22 Vorabversionen. 0.24 prüft die reguläre JAR mit 3.3.1 bis 3.3.3

@@ -20,7 +20,7 @@ class ShaderItemMaterialsTest {
                 item.999 = torch
                 #endif
                 item.40008 = air
-                item.44003 = end_rod torch
+                item.44003 = end_rod invalid:double:namespace torch
                 """);
         try(var pack=OpenedPack.open(directory,Map.of(),"")) {
             assertEquals(Map.of("minecraft:torch",44002,"mod:colored_lantern",44002,"minecraft:air",40008,"minecraft:end_rod",44003),ShaderItemMaterials.read(pack));

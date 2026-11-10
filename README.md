@@ -1,10 +1,9 @@
-# VSDH — Entwicklungsstand 0.24.0-dev
+# VSDH — Entwicklungsstand 0.25.0-dev
 
 VSDH enthält einen **VulkanMod-Reforged-Fork**, eine native Anbindung für
 Distant Horizons und einen Vulkan-Renderer für ausgewählte Iris-Shaderpacks.
-Die Spieltests dieser Ausgabe verwenden Complementary Reimagined r5.9.3
-und BSL 10.1. Verwende
-für dieses Profil die VSDH-JAR als Renderer.
+Die Spieltests verwenden Complementary Reimagined r5.9.3, BSL 10.1 und
+Bliss 2.1.2. Verwende für dieses Profil die VSDH-JAR als Renderer.
 
 | Bestandteil | Gebundene Version |
 |---|---|
@@ -12,13 +11,13 @@ für dieses Profil die VSDH-JAR als Renderer.
 | NeoForge | 21.1.264 |
 | Java | 21 |
 | Vulkan-Renderer | in dieser VSDH-JAR enthalten; Reforged-Basis 0618965 |
-| Distant Horizons | 3.3.1 bis 3.3.3 für 1.21.1 mit der regulären JAR. Für 3.3.0 die Datei mit Endung `-dh330.jar` verwenden. |
+| Distant Horizons | 3.2.0-b sowie 3.3.1 bis 3.3.3 für 1.21.1 mit der regulären JAR. Für 3.3.0 die Datei mit Endung `-dh330.jar` verwenden. |
 | Erstes Shader-Ziel | Complementary Reimagined r5.9.3, Profil MEDIUM |
 
 ## Testinstallation
 
 1. Ein separates Profil für Minecraft 1.21.1 / NeoForge 21.1.264 anlegen.
-2. Eine passende VSDH-0.24.0-dev-JAR und genau eine der oben genannten
+2. Eine passende VSDH-0.25.0-dev-JAR und genau eine der oben genannten
    DH-Versionen in dessen `mods`-Ordner legen.
 3. Aus diesem Profil die originale Reforged-JAR und frühere VSDH-JARs entfernen.
    Die VSDH-JAR enthält den Renderer und die Anbindung für Distant Horizons.
@@ -29,7 +28,7 @@ für dieses Profil die VSDH-JAR als Renderer.
 
 Das Installationsbeispiel verwendet Complementary Reimagined r5.9.3 mit
 Profil MEDIUM. Die genauen Spieltests jeder Ausgabe stehen in
-`dist/0.24.0-dev/verification.json`.
+`dist/0.25.0-dev/verification.json`.
 
 1. Die Originaldatei `ComplementaryReimagined_r5.9.3.zip` in den Ordner
    `shaderpacks` des Testprofils legen.
@@ -55,7 +54,18 @@ VSDH wird ausschließlich auf dem Client installiert. Bestehende DH-Speicherung
 und Multiplayer-Protokolle bleiben bei DH. Keine eigenen Änderungen an Inventaren
 oder Weltdaten; dedizierte Server und große Modpacks sind noch ungetestet.
 
-## Aktuell 0.24
+## Stand 0.25
+
+DH 3.2.0-b verwendet die ältere Methode zum Übertragen der fertigen
+Textur und ältere Datenbankabfragen. VSDH wählt die passenden Hooks
+anhand der installierten DH-JAR. Der Vulkan-Shaderpfad verbindet
+Vertex- und Fragmentwerte über ihre GLSL-Namen und sichert bei Bedarf
+eine Farbtextur, bevor Geometrie denselben Puffer liest und beschreibt.
+Bliss 2.1.2 ist mit den Standardoptionen in der Oberwelt bei 1440p geprüft.
+Setze dafür `shaderPack` auf den Namen des originalen Bliss-ZIPs und
+`shaderProfile` auf eine leere Zeichenfolge.
+
+## Stand 0.24
 
 Für BSL 10.1 liefert der gemeinsame Renderer zusätzliche Werte für
 Welthöhe, Sonnenrichtung, dominante Hand und Blockentitätskontext.

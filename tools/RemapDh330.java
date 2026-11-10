@@ -22,7 +22,7 @@ class RemapDh330 {
     private static final String DH_SHA1 = "685808f4d3cbff5dec903cbea08fa9ccffc1a925";
     private static final String NEOFORGE_SUFFIX = "_neoforge";
     private static final String CLASS_SUFFIX = ".class";
-    private static final String STANDARD_RANGE = "[3.3.1,3.3.3]";
+    private static final String STANDARD_RANGE = "[3.2.0-b],[3.3.1],[3.3.2],[3.3.3]";
 
     public static void main(String[] args) throws Exception {
         if (args.length != 3) throw new IllegalArgumentException("Expected DH 3.3.0 JAR, standard VSDH JAR and output JAR");
@@ -66,7 +66,7 @@ class RemapDh330 {
                 } else if (name.equals("META-INF/neoforge.mods.toml")) {
                     String toml = new String(bytes, StandardCharsets.UTF_8);
                     if (!toml.contains(STANDARD_RANGE)) throw new IOException("Unexpected VSDH dependency range");
-                    bytes = toml.replace("DH 3.3.1–3.3.3", "DH 3.3.0 (NeoForge build)")
+                    bytes = toml.replace("DH 3.2.0-b and 3.3.1–3.3.3", "DH 3.3.0 (NeoForge build)")
                             .replace(STANDARD_RANGE, "[3.3.0]").getBytes(StandardCharsets.UTF_8);
                 }
                 var entry = new ZipEntry(name);

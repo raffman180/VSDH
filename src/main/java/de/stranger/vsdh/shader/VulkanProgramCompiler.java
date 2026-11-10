@@ -42,6 +42,10 @@ public final class VulkanProgramCompiler {
                     Shaderc.shaderc_env_version_vulkan_1_2);
             Shaderc.shaderc_compile_options_set_auto_map_locations(options, true);
             Shaderc.shaderc_compile_options_set_optimization_level(options, Shaderc.shaderc_optimization_level_performance);
+            boolean linkGraphics = translated.stages().size() == 2
+                    && translated.stages().containsKey(ProgramStage.VERTEX)
+                    && translated.stages().containsKey(ProgramStage.FRAGMENT);
+            if (linkGraphics) Shaderc.shaderc_compile_options_set_generate_debug_info(options);
             Map<ProgramStage, byte[]> stages = new LinkedHashMap<>();
             Map<ProgramStage, String> sources = new LinkedHashMap<>();
             for (ProgramStage stage : ProgramStage.values()) {
@@ -78,6 +82,11 @@ public final class VulkanProgramCompiler {
                 } finally {
                     Shaderc.shaderc_result_release(result);
                 }
+            }
+            if (linkGraphics) {
+                SpirvInterface.linkGraphics(stages.get(ProgramStage.VERTEX), stages.get(ProgramStage.FRAGMENT),
+                        sources.get(ProgramStage.FRAGMENT));
+                stages.replaceAll((stage, bytes) -> SpirvInterface.withoutDebugSource(bytes));
             }
             return new Compiled(stages, bindings, sources);
         } finally {

@@ -64,8 +64,12 @@ public record ShaderChainPlan(TargetPlan targets, Map<Stage, List<Pass>> stages,
             for (var sampler : program.translated().samplers())
                 if (active.contains(program.compiled().bindings().get(sampler.name()))) types.put(sampler.name(), sampler.type());
             var textureStage=dev.vitrail.pack.model.TextureStage.of(name).orElseThrow();
+            var supplied = new HashSet<>(textures.suppliedTo(textureStage));
+            types.forEach((sampler, type) -> {
+                if (type.equals("sampler2D") && PackTexturePlan.hasMaterialDefault(sampler)) supplied.add(sampler);
+            });
             var samplers = SamplerPlan.of(List.copyOf(types.keySet()), types, targets, name,
-                    textures.suppliedTo(textureStage),textures.picturesTo(textureStage));
+                    supplied,textures.picturesTo(textureStage));
             for (var input : samplers.bindings()) {
                 if (input.kind() == SamplerPlan.Kind.UNBINDABLE || input.kind() == SamplerPlan.Kind.UNSERVED
                         || input.kind() == SamplerPlan.Kind.CUSTOM_IMAGE || input.kind() == SamplerPlan.Kind.COLOUR_IMAGE)

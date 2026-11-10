@@ -1,12 +1,32 @@
 # Weiterarbeit an VSDH
 
 Projekt: `C:/Users/Stranger/Documents/Meine Mods/VSDH`, Branch `codex/renderer-shaders`.
-MC 1.21.1 / NeoForge 21.1.264 / Java 21 / DH 3.3.0–3.3.3. Der Nutzer hat nach der
+MC 1.21.1 / NeoForge 21.1.264 / Java 21 / DH 3.2.0-b, 3.3.0–3.3.3. Der Nutzer hat nach der
 Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.24 — DH-Tiefenadapter und BSL
+## Aktuell 0.25 — DH 3.2.0-b und Shader-Stufen
+
+`DhMixinPlugin` liest FullDataSourceV2Repo.class direkt aus der installierten
+DH-JAR. Die NeoForge-Mixin-Phase hat dafür noch keine zuverlässig
+zugängliche transformierte Klasse. Die ältere Abfrage heißt
+getChildPositionsToUpdate(III), die neuere getChildPositionsToRegen(IIII).
+Die Legacy-Variante wartet vor dem Schließen der DB auf einen Executor,
+die moderne auf zwei. VkMetaRenderer unterstützt applyToMcTexture und
+copyToMcTexture. 3.3.0 wird weiterhin gesondert gebaut.
+
+`VulkanProgramCompiler` verwendet für ein Vertex-/Fragment-Paar
+SPIR-V-Namen zum Verbinden impliziter Stage-IO. Optimierung bleibt
+aktiv. Explizite Fragment-Locations bleiben erhalten, eingebetteter
+Quelltext wird nach der Zuordnung entfernt. Der Regressionstest
+enthält absichtlich unterschiedlich deklarierte Reihenfolgen.
+`NativeColorTargets` hält bei geometrischen Feedback-Lesezugriffen
+eine bedarfsgerechte Kopie des aktiven Mip-Bereichs. Kopien zählen
+zum gleichen GPU-Budget wie die ursprünglichen Farbziele.
+Details zur Laufzeit in `dist/0.25.0-dev/verification.json`.
+
+## Stand 0.24 — DH-Tiefenadapter und BSL
 
 `src/dh33Early` kompiliert den 3.3.1-Tiefenadapter gegen das
 geprüfte DH-3.3.1-Artefakt. Der moderne Adapter verwendet DH 3.3.3 zum

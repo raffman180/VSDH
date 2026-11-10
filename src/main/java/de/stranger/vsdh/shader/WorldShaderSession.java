@@ -533,7 +533,10 @@ public final class WorldShaderSession implements MainPass {
             try {
                 borrowedDepth=worldDepth;
                 depth=new NativeWorldDepth(worldDepth,true,true);
-                chain=new NativeShaderChain(plan.chain(),worldDepth.width,worldDepth.height,512L*1024*1024);
+                // Larger packs can use more of a dedicated heap without lifting the old limit on small GPUs.
+                long deviceMiB = net.vulkanmod.vulkan.memory.MemoryManager.getInstance().getDeviceMemoryMB();
+                long colorBudget = Math.clamp(deviceMiB / 8, 512L, 1024L) * 1024 * 1024;
+                chain=new NativeShaderChain(plan.chain(),worldDepth.width,worldDepth.height,colorBudget);
                 textures=new NativeWorldTextures(plan.textures());
                 if(plan.distant()!=null)distant=new NativeDistantTerrain(plan,worldDepth.width,worldDepth.height);
                 if(plan.shadow()!=null) {
@@ -664,8 +667,8 @@ public final class WorldShaderSession implements MainPass {
             }
             var color=dev.vitrail.pack.model.TargetName.index(sampler);
             if(color.isPresent()) {
-                var step=(afterDeferred?plan.chain().targets().schedule().stepAfterDeferred(bare(source.path())):plan.chain().targets().schedule().step(bare(source.path()))).orElseThrow();
-                pipeline.bindImage(sampler,chain.targets().image(color.getAsInt(),step.read(color.getAsInt())));continue;
+                pipeline.bindImage(sampler, chain.geometrySampler(bare(source.path()), color.getAsInt(), afterDeferred));
+                continue;
             }
             if(dh&&sampler.equals("lightmap")) {
                 var lightmap=com.braffolk.dhvulkan.compat.Compat.getLightmapVulkanImage();

@@ -17,11 +17,17 @@ public final class PackExpressions {
         var inputs = new LinkedHashMap<String, UniformShape>();
         for (String name : List.of("frameTime", "frameTimeCounter", "rainStrength", "wetness", "eyeAltitude",
                 "blindness", "darknessFactor", "darknessLightFactor", "nightVision", "sunAngle", "screenBrightness",
-                "cloudHeight", "viewWidth", "viewHeight", "aspectRatio", "near", "far")) inputs.put(name, UniformShape.FLOAT);
+                "cloudHeight", "viewWidth", "viewHeight", "aspectRatio", "near", "far", "farPlane",
+                "currentPlayerHealth", "maxPlayerHealth", "thunderStrength")) inputs.put(name, UniformShape.FLOAT);
         for (String name : List.of("frameCounter", "worldTime", "worldDay", "isEyeInWater", "moonPhase", "biome",
                 "biome_precipitation", "heldItemId", "heldItemId2", "heldBlockLightValue", "heldBlockLightValue2")) inputs.put(name, UniformShape.INT);
         for (String name : List.of("cameraPosition", "previousCameraPosition", "eyePosition", "relativeEyePosition",
-                "playerLookVector", "cameraPositionFract", "previousCameraPositionFract", "fogColor", "skyColor")) inputs.put(name, UniformShape.VEC3);
+                "playerLookVector", "cameraPositionFract", "previousCameraPositionFract", "fogColor", "skyColor",
+                "sunPosition", "upPosition")) inputs.put(name, UniformShape.VEC3);
+        inputs.put("lightningBoltPosition", UniformShape.VEC4);
+        inputs.put("is_hurt", UniformShape.BOOL);
+        for (String name : List.of("gbufferProjection", "gbufferModelViewInverse", "shadowModelView"))
+            inputs.put(name, UniformShape.MAT4);
         inputs.put("cameraPositionInt", UniformShape.IVEC3); inputs.put("previousCameraPositionInt", UniformShape.IVEC3);
         inputs.put("eyeBrightness", UniformShape.IVEC2); inputs.put("eyeBrightnessSmooth", UniformShape.IVEC2);
         INPUTS = Map.copyOf(inputs);
@@ -98,7 +104,7 @@ public final class PackExpressions {
             if(member.arrayLength()!=0 || shape!=UniformShape.of(member.type()))
                 throw new IllegalArgumentException("Custom uniform type mismatch: "+member.name()+" / "+member.type());
             source.read(null,value); // Derived values were already captured once this frame.
-            if(shape==UniformShape.INT) {
+            if(shape==UniformShape.INT || shape==UniformShape.BOOL) {
                 integer[0]=value.i(0); layout.putInts(destination,member.name(),0,integer);
             } else {
                 var values=floats[shape.rank()];

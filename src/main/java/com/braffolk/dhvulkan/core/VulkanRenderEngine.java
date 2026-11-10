@@ -820,7 +820,7 @@ public class VulkanRenderEngine implements VulkanBackend {
         // API overrides are session-local and do not rewrite the user's config file.
         DhConfigHelper.disableForSession(Config.Client.Advanced.Graphics.GenericRendering.enableGenericRendering, "VSDH: custom DH API geometry unsupported");
         DhConfigHelper.disableForSession(Config.Client.Advanced.Graphics.Texture.enableTexturedLods, "VSDH: untextured LOD pipeline");
-        DhConfigHelper.disableForSession(Config.Client.Advanced.Graphics.enableAntiAliasing, "VSDH: AA pass not implemented");
+        DhConfigHelper.disableAntiAliasingIfPresent();
         DhConfigHelper.disableForSession(Config.Client.Advanced.Debugging.renderWireframe, "VSDH: wireframe unsupported");
         DhConfigHelper.disableForSession(Config.Client.Advanced.Debugging.DebugWireframe.enableRendering, "VSDH: debug boxes unsupported");
     }

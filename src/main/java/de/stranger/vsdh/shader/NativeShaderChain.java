@@ -50,7 +50,7 @@ public final class NativeShaderChain implements AutoCloseable {
         this.plan = plan;
         var layout = ShaderTargetLayout.of(plan.targets(), width, height,
                 DeviceManager.deviceProperties.limits().maxImageDimension2D(), colorBudgetBytes);
-        targets = new NativeColorTargets(layout);
+        targets = new NativeColorTargets(layout, colorBudgetBytes);
         try {
             for (var stage : ShaderChainPlan.Stage.values()) {
                 var runtime = new ArrayList<RuntimePass>();
@@ -145,6 +145,15 @@ public final class NativeShaderChain implements AutoCloseable {
         var attachments = plan.targets().writes(program).stream()
                 .map(index -> new ShaderChainPlan.Attachment(index, step.write(index))).toList();
         return view(attachments, depth);
+    }
+
+    VulkanImage geometrySampler(String program, int index, boolean afterDeferred) {
+        var step = (afterDeferred ? plan.targets().schedule().stepAfterDeferred(program)
+                : plan.targets().schedule().step(program)).orElseThrow();
+        var source = targets.image(index, step.read(index));
+        if (plan.targets().writes(program).contains(index) && source == targets.image(index, step.write(index)))
+            return targets.feedbackImage(index, source);
+        return source;
     }
 
     /** Vanilla fallback shaders emit only location zero, independently of a pack's multi-output basic program. */

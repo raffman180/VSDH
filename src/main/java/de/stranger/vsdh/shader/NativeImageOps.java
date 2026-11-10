@@ -38,6 +38,17 @@ public final class NativeImageOps {
 
     /** Exact copy of the final persistent ALT image back to MAIN, matching Iris 1.21.1. */
     public static void copyBase(VulkanImage source, VulkanImage destination) {
+        copy(source, destination, 1);
+    }
+
+    static void copyColourMipChain(VulkanImage source, VulkanImage destination) {
+        if (source.aspect != VK_IMAGE_ASPECT_COLOR_BIT || source.mipLevels != destination.mipLevels)
+            throw new IllegalArgumentException("Color mip copy requires matching color images");
+        copy(source, destination, source.mipLevels);
+        destination.recordGeneratedMipmaps();
+    }
+
+    private static void copy(VulkanImage source, VulkanImage destination, int levels) {
         if (source == destination) throw new IllegalArgumentException("Cannot copy an image onto itself");
         if (source.width != destination.width || source.height != destination.height || source.format != destination.format
                 || source.aspect != destination.aspect)
@@ -49,12 +60,13 @@ public final class NativeImageOps {
             source.transitionImageLayout(stack, command, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
             destination.transitionImageLayout(stack, command, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
             boolean combined = source.aspect == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
-            var copy = VkImageCopy.calloc(combined ? 2 : 1, stack);
+            var copy = VkImageCopy.calloc(combined ? 2 : levels, stack);
             for (int i = 0; i < copy.capacity(); i++) {
                 int aspect = combined ? (i == 0 ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_STENCIL_BIT) : source.aspect;
-                copy.get(i).srcSubresource().aspectMask(aspect).mipLevel(0).baseArrayLayer(0).layerCount(1);
-                copy.get(i).dstSubresource().aspectMask(aspect).mipLevel(0).baseArrayLayer(0).layerCount(1);
-                copy.get(i).extent().set(source.width, source.height, 1);
+                int level = combined ? 0 : i;
+                copy.get(i).srcSubresource().aspectMask(aspect).mipLevel(level).baseArrayLayer(0).layerCount(1);
+                copy.get(i).dstSubresource().aspectMask(aspect).mipLevel(level).baseArrayLayer(0).layerCount(1);
+                copy.get(i).extent().set(Math.max(1, source.width >> level), Math.max(1, source.height >> level), 1);
             }
             vkCmdCopyImage(command, source.getId(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                     destination.getId(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, copy);

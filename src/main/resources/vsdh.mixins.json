@@ -2,10 +2,13 @@
   "required": true,
   "package": "com.braffolk.dhvulkan.mixin",
   "compatibilityLevel": "JAVA_21",
+  "plugin": "com.braffolk.dhvulkan.mixin.DhMixinPlugin",
   "client": [
     "dh3.MixinDependencySetup",
     "dh3.MixinUpdatePropagatorShutdown",
     "dh3.MixinRegenQueryScope",
+    "dh3.MixinLegacyUpdateQueryScope",
+    "dh3.MixinLegacyUpdatePropagatorShutdown",
     "dh3.MixinRegenStatementCancellation",
     "shared.MixinLevelRenderer"
   ],

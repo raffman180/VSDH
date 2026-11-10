@@ -152,6 +152,11 @@ public abstract class VkRenderApiDefinition extends AbstractDhRenderApiDefinitio
             backend.deferredComposite(this.cachedUniforms);
         }
 
+        // DH 3.2 calls the same composite boundary by its older name.
+        public void applyToMcTexture(RenderParams renderParams) {
+            copyToMcTexture(renderParams);
+        }
+
         @Override
         public void clearDhDepthAndColorTextures(RenderParams renderParams) {
             // Our framebuffer is cleared at the start of each frame in beginFrame().

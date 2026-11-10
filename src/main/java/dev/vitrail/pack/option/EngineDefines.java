@@ -152,6 +152,9 @@ public final class EngineDefines {
 		defines.put("MC_SHADOW_QUALITY", "1.0");
 		defines.put("MC_HAND_DEPTH", "0.125");
 		defines.put("MC_MIPMAP_LEVEL", Integer.toString(environment.mipmapLevel()));
+		// The renderer binds neutral material textures when the pack has no override.
+		defines.put("MC_NORMAL_MAP", "");
+		defines.put("MC_SPECULAR_MAP", "");
 
 		// What the resource pack says its material maps mean, beside the two names above and where
 		// Iris poses it (gl/shader/StandardMacros.java:107-112, built at

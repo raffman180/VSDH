@@ -48,6 +48,33 @@ class PackTexturePlanTest {
         assertInstanceOf(PackTexturePlan.Pixels.class,textures.resolve("final","colortex3"));
         assertEquals(4,((PackTexturePlan.Pixels)textures.resolve("final","colortex3")).rgba().length);
     }
+    @Test void materialMacrosEnableDocumentedDefaultsWithoutReplacingAPackTexture() throws Exception {
+        var shaders = Files.createDirectories(directory.resolve("shaders"));
+        Files.writeString(shaders.resolve("shaders.properties"), "texture.composite.specular=lookup.png\n");
+        var image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        image.setRGB(0, 0, 0xff123456);
+        Files.write(shaders.resolve("lookup.png"), png(image));
+        Files.writeString(shaders.resolve("final.vsh"), "#version 330 compatibility\nvoid main(){gl_Position=ftransform();}\n");
+        Files.writeString(shaders.resolve("final.fsh"), """
+                #version 330 compatibility
+                #if !defined(MC_NORMAL_MAP) || !defined(MC_SPECULAR_MAP)
+                #error Missing material macros
+                #endif
+                uniform sampler2D normals;
+                uniform sampler2D specular;
+                void main(){gl_FragColor=texture2D(normals,vec2(0.5))+texture2D(specular,vec2(0.5));}
+                """);
+        try (var pack = OpenedPack.open(directory, Map.of(), "")) {
+            var chain = ShaderChainPlan.prepare(pack, "");
+            var inputs = chain.stages().get(ShaderChainPlan.Stage.FINAL).getFirst().inputs();
+            assertEquals(2, inputs.stream().filter(input -> input.kind() == SamplerPlan.Kind.PACK_TEXTURE).count());
+            var textures = PackTexturePlan.read(pack, chain, Map.of(), null);
+            var normal = assertInstanceOf(PackTexturePlan.Pixels.class, textures.resolve("final", "normals"));
+            var specular = assertInstanceOf(PackTexturePlan.Pixels.class, textures.resolve("final", "specular"));
+            assertArrayEquals(new byte[]{127, 127, (byte) 255, (byte) 255}, normal.rgba());
+            assertArrayEquals(new byte[]{0x12, 0x34, 0x56, (byte) 255}, specular.rgba());
+        }
+    }
     @Test void generatedNoiseIsDeterministicOpaqueAndHasVaryingChannels() {
         var a=PackTexturePlan.noise(32);var b=PackTexturePlan.noise(32);assertArrayEquals(a.rgba(),b.rgba());
         var distinct=new java.util.HashSet<Byte>();

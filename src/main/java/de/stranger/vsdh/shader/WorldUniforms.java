@@ -18,7 +18,7 @@ public final class WorldUniforms implements ExpressionFrame {
             "of_NormalMatrix","of_TextureMatrix","of_DepthConv","of_GlintAlpha","gbufferModelView","gbufferModelViewInverse",
             "gbufferProjection","gbufferProjectionInverse","gbufferPreviousModelView","gbufferPreviousProjection",
             "cameraPosition","previousCameraPosition","fogColor","skyColor","viewWidth","viewHeight","aspectRatio",
-            "near","far","frameCounter","frameTime","frameTimeCounter","worldTime","worldDay","rainStrength","eyeAltitude",
+            "near","far","farPlane","frameCounter","frameTime","frameTimeCounter","worldTime","worldDay","rainStrength","eyeAltitude",
             "alphaTestRef","renderStage","blockEntityId");
     private static final Set<String> DISTANT=Set.of("dhProjection","dhProjectionInverse","dhPreviousProjection","dhNearPlane","dhFarPlane","dhRenderDistance");
     private final Matrix4f distantProjection=new Matrix4f(), distantView=new Matrix4f();
@@ -52,7 +52,7 @@ public final class WorldUniforms implements ExpressionFrame {
     private PackExpressions.Runtime expressions;
     private Object previousLevel;
     private int width,height,worldTime,worldDay,frame;
-    private float rain,far,frameTime,elapsed;
+    private float rain,far,farPlane,frameTime,elapsed;
     private long lastNanos;
 
     public WorldUniforms(WorldPackPlan plan) {
@@ -108,6 +108,7 @@ public final class WorldUniforms implements ExpressionFrame {
         matrices.begin(mc.level,view,legacyCameraProjection,pos.x,pos.y,pos.z,width,height);
         builtins.capture(camera,matrices,partialTick,plan.directives().sunPathRotation());
         this.width=width; this.height=height; this.far=mc.gameRenderer.getRenderDistance();
+        farPlane=legacyCameraProjection.perspectiveFar();
         builtins.read("sunAngle",scratchValue);
         shadowCamera.capture(plan.directives(),scratchValue.f(0),pos.x,pos.y,pos.z,this.far);
         shadowCamera.view.get(shadowView);shadowCamera.projection.get(shadowProjection);
@@ -238,7 +239,7 @@ public final class WorldUniforms implements ExpressionFrame {
             scalar[0]=switch(name) {
                 case "viewWidth"->width;case "viewHeight"->height;case "aspectRatio"->(float)width/height;
                 case "of_GlintAlpha"->RenderSystem.getShaderGlintAlpha();
-                case "near"->.05f;case "far"->far;case "frameTime"->frameTime;case "frameTimeCounter"->elapsed;
+                case "near"->.05f;case "far"->far;case "farPlane"->farPlane;case "frameTime"->frameTime;case "frameTimeCounter"->elapsed;
                 case "rainStrength"->rain;case "eyeAltitude"->camera[1];case "alphaTestRef"->alphaRef;case "dhNearPlane"->dhNear;case "dhFarPlane"->dhFar;
                 default->throw new IllegalArgumentException("Unknown world uniform "+name);
             };
@@ -260,6 +261,10 @@ public final class WorldUniforms implements ExpressionFrame {
             case "rainStrength"->out.set(rain);case "eyeAltitude"->out.set(camera[1]);
             case "viewWidth"->out.set((float)width);case "viewHeight"->out.set((float)height);
             case "aspectRatio"->out.set((float)width/height);case "near"->out.set(.05f);case "far"->out.set(far);
+            case "farPlane" -> out.set(farPlane);
+            case "gbufferProjection" -> out.set(matrices.projection);
+            case "gbufferModelViewInverse" -> out.set(matrices.inverseView);
+            case "shadowModelView" -> out.set(shadowCamera.view);
             case "cameraPosition"->out.set(camera[0],camera[1],camera[2]);
             case "previousCameraPosition"->out.set(previousCamera[0],previousCamera[1],previousCamera[2]);
             case "fogColor"->out.set(fog[0],fog[1],fog[2]);case "skyColor"->out.set(sky[0],sky[1],sky[2]);

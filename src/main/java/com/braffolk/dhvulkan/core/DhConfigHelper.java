@@ -17,13 +17,24 @@ public final class DhConfigHelper {
     private DhConfigHelper() {}
 
     /** DH 3.3.2 added a source label to session-only API overrides. */
-    static void disableForSession(ConfigEntry<Boolean> setting, String reason) {
+    static void disableForSession(ConfigEntry<?> setting, String reason) {
         Method setter = SessionOverride.SETTER;
         try {
             if (setter.getParameterCount() == 2) setter.invoke(setting, false, reason);
             else setter.invoke(setting, false);
         } catch (ReflectiveOperationException failure) {
             throw new IllegalStateException("Cannot apply DH session override: " + reason, failure);
+        }
+    }
+
+    static void disableAntiAliasingIfPresent() {
+        try {
+            var field = Config.Client.Advanced.Graphics.class.getField("enableAntiAliasing");
+            disableForSession((ConfigEntry<?>) field.get(null), "VSDH: AA pass not implemented");
+        } catch (NoSuchFieldException oldDh) {
+            // DH 3.2 and older have no antialiasing option to override.
+        } catch (IllegalAccessException failure) {
+            throw new IllegalStateException("Cannot access the DH antialiasing setting", failure);
         }
     }
 

@@ -3,6 +3,7 @@ package de.stranger.vsdh.shader;
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.vitrail.pack.target.TargetDirectives.Colour;
 import dev.vitrail.pack.target.TargetSchedule.Side;
+import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.device.DeviceManager;
 import net.vulkanmod.vulkan.texture.VulkanImage;
 import org.lwjgl.system.MemoryStack;
@@ -14,6 +15,8 @@ import static org.lwjgl.vulkan.VK10.*;
 /** Sole owner of all colortex images. Framebuffers borrow these images and never free them. */
 public final class NativeColorTargets implements AutoCloseable {
     private final ShaderTargetLayout layout;
+    private final long budgetBytes;
+    private long feedbackBytes;
     private final Target[] targets = new Target[32];
     private boolean initialized, closed;
 
@@ -21,16 +24,17 @@ public final class NativeColorTargets implements AutoCloseable {
         final ShaderTargetLayout.Target spec;
         final VulkanImage main;
         final SamplerKey baseSampler, mipSampler;
-        VulkanImage alt;
+        VulkanImage alt, feedback;
         Target(ShaderTargetLayout.Target spec, VulkanImage main) {
             this.spec = spec; this.main = main; alt = main;
             baseSampler = policy(spec, false); mipSampler = policy(spec, true);
         }
     }
 
-    public NativeColorTargets(ShaderTargetLayout layout) {
+    public NativeColorTargets(ShaderTargetLayout layout, long budgetBytes) {
         RenderSystem.assertOnRenderThread();
         this.layout = layout;
+        this.budgetBytes = budgetBytes;
         // Validate EVERY target before the first allocation, including format/mipmap device support.
         var indices = new java.util.HashSet<Integer>();
         for (var spec : layout.targets()) {
@@ -60,6 +64,25 @@ public final class NativeColorTargets implements AutoCloseable {
         requireOpen();
         Target target = target(index);
         return side == Side.MAIN ? target.main : target.alt;
+    }
+
+    /** Geometry reads the image as it stood before the draw without aliasing its output. */
+    VulkanImage feedbackImage(int index, VulkanImage source) {
+        var target = target(index);
+        if (target.feedback == null) {
+            long bytes = target.spec.bytes() / (target.spec.doubled() ? 2 : 1);
+            if (bytes > budgetBytes - layout.bytes() - feedbackBytes)
+                throw new IllegalArgumentException("Shader color feedback exceeds allocation budget at colortex" + index);
+            target.feedback = allocate(target.spec);
+            feedbackBytes += bytes;
+        }
+        boolean mipmaps = source.mipLevels > 1 && source.getSampler() == getTextureSampler(target.mipSampler);
+        try (var scope = Renderer.getInstance().temporaryRenderTarget()) {
+            if (mipmaps) NativeImageOps.copyColourMipChain(source, target.feedback);
+            else NativeImageOps.copyBase(source, target.feedback);
+        }
+        sampler(target.feedback, target, mipmaps);
+        return target.feedback;
     }
 
     public void beginFrame(Colour fogColour) {
@@ -139,6 +162,7 @@ public final class NativeColorTargets implements AutoCloseable {
         for (Target target : targets) if (target != null) {
             target.main.free();
             if (target.alt != target.main) target.alt.free();
+            if (target.feedback != null) target.feedback.free();
         }
     }
 }

@@ -1,4 +1,38 @@
-# Fortsetzungs-Prompt — VSDH 0.24
+# Fortsetzungs-Prompt — VSDH 0.25
+
+Arbeite in `C:/Users/Stranger/Documents/Meine Mods/VSDH` auf
+`codex/renderer-shaders`. Der Nutzer will autonome Weiterarbeit bis zum
+Gesamtziel und gemessene FPS. Siehe AGENTS.md, README und den Bericht
+`dist/0.25.0-dev/verification.json`. Java 21 und NeoForge 21.1.264 bleiben
+fest. Nur isolierte Spielwelten verwenden.
+
+0.25 ergänzt den Legacy-Adapter für DH 3.2.0-b. Das offizielle Artefakt
+hat SHA-1 df25e8cfe06917963778723a1d9a60610dd21bec. Weiter mit DH 3.1.2.
+Dort fehlt Config.Client.Advanced.Graphics.Texture. Vergleiche die
+Original-JAR und vorhandene Reforged-Ports in den Referenzordnern.
+2.x hat keinen 3.x-Renderer-Injector. Der gepinnte Braffolk-Commit
+enthält dafür ein eigenes 2.4-Source-Set.
+
+Bliss 2.1.2 nutzt Material-Standardtexel, neue Weltwerte und
+Farbsnapshots für Geometrie-Feedback. Die CPU-Vorbereitung ist in
+Overworld, Nether und End durchgelaufen. Die Stage-IO-Zuordnung in
+VulkanProgramCompiler löst die voneinander abweichenden
+Deklarationsreihenfolgen. Overworld mit DH 3.3.3 ist bei 1440p anhand
+von Bild, Final-Pixeln und DH-Zählern geprüft. Bliss-DH-Schatten,
+andere Dimensionen im Spiel und PBR-Resourcepack-Atlanten stehen aus.
+Photon 1.4 braucht den Compute-Pass deferred4_a. Prüfe Storage-Image-
+Layout, Synchronisierung mit derselben colortex4-Textur und den
+persistenten Verlauf pro Frame. Shaderpacks, DH-JARs und dekompilierte
+Referenzen bleiben privat unter build/reference.
+
+Der 1440p-Benchmark nutzt Reimagined r5.9.3 MEDIUM, DH 3.3.3,
+VSync aus, normale und simulierte Distanz 8, DH 128, eine feste Kamera
+und fertige LODs in einer isolierten Küstenwelt. Der Lauf liegt unter
+build/reference/release-client-025-fps. Nutze bei einer Wiederholung
+35 Sekunden Aufwärmen und drei 10-Sekunden-Proben. Keine parallelen
+Spielinstanzen während der Messung.
+
+## Historischer Stand 0.24
 
 ## Breite Kompatibilität
 

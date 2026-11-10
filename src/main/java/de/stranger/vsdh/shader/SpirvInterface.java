@@ -2,14 +2,103 @@ package de.stranger.vsdh.shader;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Map;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
-/** Read descriptor bindings from optimized SPIR-V instead of guessing which GLSL declarations survived. */
+/** Read active interfaces from optimized SPIR-V. */
 public final class SpirvInterface {
     private SpirvInterface() {}
+
+    static final int INPUT = 1;
+    static final int OUTPUT = 3;
+    private static final int HEADER_BYTES = 20;
+    private static final int OP_NAME = 5;
+    private static final int OP_VARIABLE = 59;
+    private static final int OP_DECORATE = 71;
+    private static final int LOCATION = 30;
+    private static final Pattern INPUT_LAYOUT = Pattern.compile(
+            "\\blayout\\s*\\(([^)]*)\\)\\s*(?:(?:flat|smooth|noperspective|centroid|sample|patch|invariant)\\s+)*"
+                    + "in\\s+(?:(?:lowp|mediump|highp)\\s+)?\\w+\\s+([^;{}]+);");
+    private static final Pattern LOCATION_KEY = Pattern.compile("\\blocation\\s*=");
+    private static final Pattern IDENTIFIER = Pattern.compile("\\s*(\\w+)");
+
+    /** Legacy GLSL matches implicit varyings by name. Vulkan matches numeric locations. */
+    static void linkGraphics(byte[] vertex, byte[] fragment, String fragmentSource) {
+        Set<String> explicit = new HashSet<>();
+        var declaration = INPUT_LAYOUT.matcher(fragmentSource);
+        while (declaration.find()) {
+            if (!LOCATION_KEY.matcher(declaration.group(1)).find()) continue;
+            for (String variable : declaration.group(2).split(",")) {
+                var identifier = IDENTIFIER.matcher(variable);
+                if (identifier.lookingAt()) explicit.add(identifier.group(1));
+            }
+        }
+        var outputs = stageLocations(vertex, OUTPUT);
+        var words = ByteBuffer.wrap(fragment).order(ByteOrder.LITTLE_ENDIAN);
+        stageLocations(fragment, INPUT).forEach((name, input) -> {
+            var output = outputs.get(name);
+            if (output != null && !explicit.contains(name))
+                words.putInt(input.offset(), output.value());
+        });
+    }
+
+    record StageLocation(int offset, int value) {}
+
+    static Map<String, StageLocation> stageLocations(byte[] spirv, int storageClass) {
+        bindings(spirv); // validate the instruction stream before walking it
+        ByteBuffer words = ByteBuffer.wrap(spirv).order(ByteOrder.LITTLE_ENDIAN);
+        Map<Integer, String> names = new HashMap<>();
+        Map<Integer, StageLocation> locations = new HashMap<>();
+        Set<Integer> variables = new HashSet<>();
+        for (int cursor = HEADER_BYTES; cursor < words.limit();) {
+            int instruction = words.getInt(cursor);
+            int count = instruction >>> 16;
+            int opcode = instruction & 0xffff;
+            int next = cursor + count * 4;
+            if (opcode == OP_NAME && count >= 3) {
+                int start = cursor + 8;
+                int end = start;
+                while (end < next && spirv[end] != 0) end++;
+                names.put(words.getInt(cursor + 4), new String(spirv, start, end - start, StandardCharsets.UTF_8));
+            }
+            if (opcode == OP_DECORATE && count >= 4 && words.getInt(cursor + 8) == LOCATION) {
+                int offset = cursor + 12;
+                locations.put(words.getInt(cursor + 4), new StageLocation(offset, words.getInt(offset)));
+            }
+            if (opcode == OP_VARIABLE && count >= 4 && words.getInt(cursor + 12) == storageClass)
+                variables.add(words.getInt(cursor + 8));
+            cursor = next;
+        }
+        Map<String, StageLocation> result = new HashMap<>();
+        for (int id : variables) {
+            if (names.containsKey(id) && locations.containsKey(id)) result.put(names.get(id), locations.get(id));
+        }
+        return result;
+    }
+
+    /** shaderc's debug flag retains names, but the expanded GLSL is already stored separately. */
+    static byte[] withoutDebugSource(byte[] spirv) {
+        ByteBuffer words = ByteBuffer.wrap(spirv).order(ByteOrder.LITTLE_ENDIAN);
+        byte[] result = new byte[spirv.length];
+        System.arraycopy(spirv, 0, result, 0, HEADER_BYTES);
+        int written = HEADER_BYTES;
+        for (int cursor = HEADER_BYTES; cursor < spirv.length;) {
+            int instruction = words.getInt(cursor);
+            int bytes = (instruction >>> 16) * 4;
+            int opcode = instruction & 0xffff;
+            if (opcode != 2 && opcode != 3) { // OpSourceContinued and OpSource
+                System.arraycopy(spirv, cursor, result, written, bytes);
+                written += bytes;
+            }
+            cursor += bytes;
+        }
+        return Arrays.copyOf(result, written);
+    }
 
     /** Active vertex input locations. Names may be stripped by production optimisation. */
     public static Set<Integer> inputLocations(byte[] spirv) {

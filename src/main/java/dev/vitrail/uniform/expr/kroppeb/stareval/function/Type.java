@@ -17,7 +17,8 @@ public abstract class Type {
 
 	/** The block shape a value of this type takes, or null when nothing here can carry it. */
 	public static UniformShape convert(Type type) {
-		if (type == Type.Int || type == Type.Boolean) return UniformShape.INT;
+		if (type == Type.Int) return UniformShape.INT;
+		else if (type == Type.Boolean) return UniformShape.BOOL;
 		else if (type == Type.Float) return UniformShape.FLOAT;
 		else if (type == VectorType.VEC2) return UniformShape.VEC2;
 		else if (type == VectorType.VEC3) return UniformShape.VEC3;
@@ -35,6 +36,7 @@ public abstract class Type {
 		return switch (shape) {
 			case FLOAT -> Type.Float;
 			case INT -> Type.Int;
+			case BOOL -> Type.Boolean;
 			case VEC2 -> VectorType.VEC2;
 			case VEC3 -> VectorType.VEC3;
 			case VEC4 -> VectorType.VEC4;

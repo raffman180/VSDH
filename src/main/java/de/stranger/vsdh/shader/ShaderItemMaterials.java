@@ -20,7 +20,7 @@ public final class ShaderItemMaterials {
             for(String token:match.group(2).split("\\s+")) {
                 if(token.isEmpty())continue;
                 String id=token.contains(":")?token:"minecraft:"+token;
-                if(!ID.matcher(id).matches())throw new IllegalArgumentException("Invalid item material entry: "+token);
+                if(!ID.matcher(id).matches())continue;
                 result.putIfAbsent(id,material);
             }
         });

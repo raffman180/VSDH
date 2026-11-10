@@ -4,12 +4,15 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.LightningBolt;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.material.FogType;
 import net.vulkanmod.gl.GlTexture;
@@ -25,18 +28,37 @@ public final class BuiltinWorldValues {
     public static final Set<String> NAMES=Set.of("atlasSize","blindness","darknessFactor","nightVision","isEyeInWater",
             "eyeBrightness","eyePosition","relativeEyePosition","playerLookVector","cameraPositionInt","cameraPositionFract",
             "previousCameraPositionInt","previousCameraPositionFract","cloudHeight","moonPhase","sunAngle","screenBrightness","of_Fog",
-            "bedrockLevel", "heightLimit", "sunPosition", "isRightHanded");
+            "bedrockLevel", "heightLimit", "sunPosition", "upPosition", "isRightHanded", "is_hurt", "thunderStrength", "currentPlayerHealth", "maxPlayerHealth",
+            "lightningBoltPosition");
     private final int[] cameraInt=new int[3],previousInt=new int[3],eyeLight=new int[2],pair=new int[2],oneInt=new int[1];
     private final float[] cameraFract=new float[3],previousFract=new float[3],eye=new float[3],relativeEye=new float[3],look=new float[3],one=new float[1];
     private float blindness,darkness,nightVision,cloudHeight,sunAngle,gamma,waterDensity;
     private int moonPhase,eyeMedium,bedrockLevel,heightLimit;
-    private boolean rightHanded;
+    private boolean rightHanded, hurt;
+    private float health, maxHealth, thunder;
+    private ClientLevel level, lightningLevel;
+    private Vec3 cameraPosition;
+    private long lightningTick = Long.MIN_VALUE;
+    private LightningBolt lightning;
+    private float tickDelta;
+    private final float[] lightningPosition = new float[4];
+    private boolean lightningCaptured;
     private final Matrix4f celestialView = new Matrix4f();
     private final Vector3f sun = new Vector3f();
-    private final float[] sunPosition = new float[3];
+    private final float[] sunPosition = new float[3], upPosition = new float[3];
 
     public void capture(Camera camera,WorldMatrices matrices,float partialTick,float sunPathRotation) {
-        var mc=Minecraft.getInstance();var level=mc.level;var entity=camera.getEntity();var position=camera.getPosition();
+        var mc=Minecraft.getInstance();var entity=camera.getEntity();var position=camera.getPosition();
+        level=mc.level;
+        cameraPosition=position;
+        tickDelta=partialTick;
+        lightningCaptured=false;
+        thunder=Math.clamp(level.getThunderLevel(partialTick),0f,1f);
+        var localPlayer=mc.player;
+        boolean survival=localPlayer!=null && mc.gameMode!=null && mc.gameMode.getPlayerMode().isSurvival();
+        maxHealth=survival?localPlayer.getMaxHealth():-1;
+        health=maxHealth>0?localPlayer.getHealth()/maxHealth:-1;
+        hurt=localPlayer!=null && localPlayer.hurtTime>0;
         CameraCoordinates.split(position.x,position.y,position.z,cameraInt,cameraFract);
         CameraCoordinates.split(matrices.previousX(),matrices.previousY(),matrices.previousZ(),previousInt,previousFract);
         var eyes=entity.getEyePosition(partialTick);eye[0]=(float)eyes.x;eye[1]=(float)eyes.y;eye[2]=(float)eyes.z;
@@ -67,6 +89,11 @@ public final class BuiltinWorldValues {
         sunPosition[0] = sun.x;
         sunPosition[1] = sun.y;
         sunPosition[2] = sun.z;
+        // The fixed sky Y rotation leaves the up axis unchanged.
+        matrices.view.transformDirection(sun.set(0, 100, 0));
+        upPosition[0] = sun.x;
+        upPosition[1] = sun.y;
+        upPosition[2] = sun.z;
         bedrockLevel = level.dimensionType().minY();
         heightLimit = level.dimensionType().height();
         rightHanded = mc.options.mainHand().get() == HumanoidArm.RIGHT;
@@ -79,6 +106,33 @@ public final class BuiltinWorldValues {
                 if(level.getBiome(player.blockPosition()).is(BiomeTags.HAS_CLOSER_WATER_FOG))waterDensity+=.005f;
             }
         }
+    }
+
+    private float[] lightningPosition() {
+        if (lightningCaptured) return lightningPosition;
+        lightningCaptured = true;
+        long tick = level.getGameTime();
+        if (lightningLevel != level || lightningTick != tick) {
+            lightningLevel = level;
+            lightningTick = tick;
+            lightning = null;
+            for (var entity : level.entitiesForRendering()) {
+                if (entity instanceof LightningBolt bolt) {
+                    lightning = bolt;
+                    break;
+                }
+            }
+        }
+        if (lightning == null) {
+            java.util.Arrays.fill(lightningPosition, 0f);
+        } else {
+            var position = lightning.getPosition(tickDelta);
+            lightningPosition[0] = (float) (position.x - cameraPosition.x);
+            lightningPosition[1] = (float) (position.y - cameraPosition.y);
+            lightningPosition[2] = (float) (position.z - cameraPosition.z);
+            lightningPosition[3] = 1f;
+        }
+        return lightningPosition;
     }
 
     public boolean read(String name,Val out) {
@@ -99,6 +153,15 @@ public final class BuiltinWorldValues {
             case "heightLimit" -> out.set(heightLimit);
             case "isRightHanded" -> out.set(rightHanded);
             case "sunPosition" -> out.set(sunPosition[0], sunPosition[1], sunPosition[2]);
+            case "upPosition" -> out.set(upPosition[0], upPosition[1], upPosition[2]);
+            case "currentPlayerHealth" -> out.set(health);
+            case "maxPlayerHealth" -> out.set(maxHealth);
+            case "thunderStrength" -> out.set(thunder);
+            case "is_hurt" -> out.set(hurt);
+            case "lightningBoltPosition" -> {
+                var position = lightningPosition();
+                out.set(position[0], position[1], position[2], position[3]);
+            }
             default->{return false;}
         }
         return true;
@@ -116,8 +179,10 @@ public final class BuiltinWorldValues {
             case "playerLookVector"->layout.putFloats(destination,name,0,look);
             case "eyeBrightness"->layout.putInts(destination,name,0,eyeLight);
             case "sunPosition" -> layout.putFloats(destination, name, 0, sunPosition);
-            case "isRightHanded" -> {
-                oneInt[0] = rightHanded ? 1 : 0;
+            case "upPosition" -> layout.putFloats(destination, name, 0, upPosition);
+            case "lightningBoltPosition" -> layout.putFloats(destination, name, 0, lightningPosition());
+            case "isRightHanded", "is_hurt" -> {
+                oneInt[0] = (name.equals("isRightHanded") ? rightHanded : hurt) ? 1 : 0;
                 layout.putInts(destination, name, 0, oneInt);
             }
             case "bedrockLevel", "heightLimit" -> {
@@ -140,7 +205,8 @@ public final class BuiltinWorldValues {
             }
             default->{
                 one[0]=switch(name){case "blindness"->blindness;case "darknessFactor"->darkness;case "nightVision"->nightVision;
-                    case "cloudHeight"->cloudHeight;case "sunAngle"->sunAngle;case "screenBrightness"->gamma;default->throw new AssertionError(name);};
+                    case "cloudHeight"->cloudHeight;case "sunAngle"->sunAngle;case "screenBrightness"->gamma;
+                    case "currentPlayerHealth" -> health; case "maxPlayerHealth" -> maxHealth; case "thunderStrength" -> thunder; default->throw new AssertionError(name);};
                 layout.putFloats(destination,name,0,one);
             }
         }
