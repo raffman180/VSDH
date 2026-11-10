@@ -1,9 +1,9 @@
 # VSDH — Entwicklungsstand 0.23.0-dev
 
-VSDH enthält einen eigenen **VulkanMod-Reforged-Fork** und eine native Anbindung
-für Distant Horizons. Die Durchlaufkette für Shader-Farbpuffer, HDR/Mipmaps, gespeicherte Werte zwischen
-Frames und getrennte Tiefenkopien ist hinzugekommen. **Der vollständige Complementary-Renderer
-ist noch nicht fertig.** Iris und Sodium können nicht zusätzlich geladen werden.
+VSDH enthält einen **VulkanMod-Reforged-Fork**, eine native Anbindung für
+Distant Horizons und einen Vulkan-Renderer für ausgewählte Iris-Shaderpacks.
+Der aktuelle Entwicklungsstand zielt auf Complementary r5.9.3. Verwende
+für dieses Profil die VSDH-JAR als Renderer.
 
 | Bestandteil | Gebundene Version |
 |---|---|
@@ -18,15 +18,16 @@ ist noch nicht fertig.** Iris und Sodium können nicht zusätzlich geladen werde
 
 1. Ein separates Profil für Minecraft 1.21.1 / NeoForge 21.1.264 anlegen.
 2. Die VSDH-0.23.0-dev-JAR und eine der oben genannten DH-Versionen in dessen `mods`-Ordner legen.
-3. Die originale Reforged-JAR sowie alte VSDH-0.1-JARs entfernen: Ab 0.2 ersetzt
-   diese eine JAR den Renderer und das bisherige Addon.
+3. Aus diesem Profil die originale Reforged-JAR und frühere VSDH-JARs entfernen.
+   Die VSDH-JAR enthält den Renderer und die Anbindung für Distant Horizons.
 4. Iris, Sodium und andere Renderer-Ersatzmods aus diesem Profil herauslassen.
 5. Eine neue Testwelt ohne Shader starten und die LOD-Erstellung abwarten.
 
 ## Shader aktivieren
 
-Die Aktivierung ist experimentell. Die erste geprüfte Kombination verwendet
-Complementary Reimagined r5.9.3 MEDIUM und DH 3.3.3.
+Das Installationsbeispiel verwendet Complementary Reimagined r5.9.3 mit
+Profil MEDIUM. Die genauen Spieltests jeder Ausgabe stehen in
+`dist/0.23.0-dev/verification.json`.
 
 1. Die Originaldatei `ComplementaryReimagined_r5.9.3.zip` in den Ordner
    `shaderpacks` des Testprofils legen.
@@ -175,19 +176,19 @@ Wasser an negativen Koordinaten und mit Statuseffekten. Technischer Stand:
 
 ## Grenzen
 
-Die Integration der echten Weltgeometrie mit Materialdaten, Schatten, Himmel,
-Entitäten, Transparenz und shaderseitigen DH-Ausgaben ist noch zu vervollständigen.
-Die neue Kette ist mit einem eigenen Diagnosepack auf echten Chunks geprüft;
-alle neun Vollbild-Pipelines des echten Complementary-Packs wurden auf der GPU
-angelegt. Das aktiviert noch keinen vollständigen Shader-Modus. Erfolgreich übersetzte
-Programme allein bedeuten keine vollständige Pack-Unterstützung. Es gibt keine
-Freigabe für beliebige Shaderpacks, DH-Versionen oder Grafikkarten.
+Terrain, Wasser, Himmel, Wetter, Partikel, Hand, Entitäten und DH-Land und
+-Wasser haben native Shaderpfade. Der Umfang der geprüften Szenen steht im
+Prüfbericht. Andere Shaderpacks können weitere Shaderstufen, Texturformate
+oder Spezialgeometrie benötigen. Weitere DH-Versionen und GPUs benötigen
+eigene Spieltests.
 
 Texturierte DH-LODs, DH-Antialiasing, DH-Drahtgitter und benutzerdefinierte DH-API-
 Geometrie sind noch nicht implementiert. Diese DH-Optionen werden nur für die
 Sitzung abgeschaltet; gespeicherte Benutzerwerte werden nicht überschrieben.
-Vanilla-/Reforged-Wolken bleiben aktiv. Wasser-/Wolken-/LOD-Übergänge benötigen
-weitere Sichtprüfungen. Bisheriges Referenzgerät: RTX 4070, Windows. Keine FPS-Zusage.
+Der Renderer verwendet die jeweils unterstützten Pack-Programme für Wolken.
+Wasser-, Wolken- und LOD-Übergänge in weiteren Welten benötigen Sichtprüfungen.
+Die bisherigen Spieltests liefen auf einer RTX 4070 unter Windows. Ein
+reproduzierbarer FPS-Vergleich steht aus.
 
 ## Bauen und prüfen
 
