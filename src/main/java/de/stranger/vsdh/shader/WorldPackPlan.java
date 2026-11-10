@@ -47,7 +47,7 @@ public record WorldPackPlan(ShaderChainPlan chain, Map<String, PackProgramSource
         var skyPrograms=SkyPackPlan.prepare(pack,prefix,chain);
         var particles=ParticlePackPlan.prepare(pack,prefix,chain);
         var expressions=PackExpressions.read(pack);
-        var entities=EntityPackPlan.prepare(pack,prefix,chain,expressions.resolvedNames(),shadow!=null,
+        var entities=EntityPackPlan.prepare(pack,prefix,chain,expressions.resolvedNames(),shadow!=null,dh!=null,
                 message->org.slf4j.LoggerFactory.getLogger("VSDH").warn(message));
         PackTexturePlan textures;
         try {

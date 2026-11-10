@@ -1,6 +1,30 @@
-# Fortsetzungs-Prompt — VSDH 0.19
+# Fortsetzungs-Prompt — VSDH 0.20
 
 ## Aktuelle Arbeit
+
+0.20 bindet transparente Mob-Schichten an gbuffers_entities_translucent.
+Die beiden normalen Minecraft-RenderTypes verwenden das schon gepufferte
+NEW_ENTITY-Mesh einschließlich sortierter Indizes. Der Shader erhält
+die DH-Sichtweite über WorldUniforms. Bei separateEntityDraws=true hält
+WorldShaderEntityLayerMixin nur diese Meshes bis nach Deferred im selben
+Frame. ByteBufferBuilder.Result verwaltet Offsets und hält die Daten bis
+close gültig. Die Warteschlange wird beim Graph-Wechsel geschlossen.
+Keine Resultate in spätere Frames verschieben. Der normale Pfad zeichnet
+vor Deferred. Der Partikelstandard wird bei getrennten Entitäten MIXED,
+wenn das Pack keine ausdrückliche andere Reihenfolge vorgibt.
+
+verify-0.20-original-translucent-2.log prüft das unveränderte Originalpack.
+verify-0.20-late-translucent.log prüft eine private Kopie mit ausdrücklich
+getrennter Entitätsphase. Beide verwenden einen Schleim in isolierten
+Welten. Die private Kopie bleibt unter build/reference und gehört in
+keine JAR. Prüfe die abschließenden Testlogs und den Paketbericht, bevor
+du 0.20 als getestete Version ausgibst. Der geprüfte 0.19-Stand bleibt
+unter dist/0.19.0-dev verfügbar.
+
+Offen sind die Hand, transparente Blockentitäten, Sonderprogramme
+wie emissive Schichten und Entitätsschatten. Die exakte Reihenfolge
+für die Hand steht weiter unten. Beginne mit einem isolierten Test
+für opake Handgeometrie und getrennte Tiefekopien.
 
 0.19 zeichnet opake Blockentitäten über gbuffers_block. Der
 BlockEntityRenderDispatcher liefert den Kontext, und ShaderBlockMaterials
@@ -38,8 +62,7 @@ Zwischenstand vor der Main-Branch-Integration und gehört zu keiner JAR.
 Die früheren Entwicklungsstände unter dist/0.17.0-dev und dist/0.16.0-dev
 sind verifiziert und bleiben verfügbar.
 
-Als Nächstes transparente Entitätsschichten und die Hand in getrennten
-Zeichenphasen ergänzen. Die Hand und gehaltene Items brauchen einen
+Als Nächstes die Hand in getrennten Zeichenphasen ergänzen. Die Hand und gehaltene Items brauchen einen
 Materialkontext. Die Iris-Referenz liefert die Reihenfolge.
 IrisRenderingPipeline.beginHand kopiert depthtex2 vor der Hand.
 HandRenderer.renderSolid zeichnet vor Deferred mit Z-Skalierung 0.125.

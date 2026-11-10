@@ -77,10 +77,13 @@ public final class WorldUniforms implements ExpressionFrame {
         if(program.translated().inputs()==dev.vitrail.glsl.VertexInputs.SKY)missing.remove("of_PassColour");
         return Set.copyOf(missing);
     }
-    public static Set<String> missing(PackProgramSource.Prepared program,WorldPackPlan plan) {
-        var missing=new java.util.TreeSet<>(missing(program,plan.expressions().resolvedNames()));
-        if(plan.distant()!=null)missing.removeAll(DISTANT);
+    static Set<String> missing(PackProgramSource.Prepared program, Set<String> customNames, boolean distant) {
+        var missing = new java.util.TreeSet<>(missing(program, customNames));
+        if (distant) missing.removeAll(DISTANT);
         return Set.copyOf(missing);
+    }
+    public static Set<String> missing(PackProgramSource.Prepared program,WorldPackPlan plan) {
+        return missing(program, plan.expressions().resolvedNames(), plan.distant() != null);
     }
     public static void validate(WorldPackPlan plan) {
         var missing=new java.util.TreeSet<String>();

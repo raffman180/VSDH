@@ -135,6 +135,7 @@
     "shader.WorldShaderLevelMixin",
     "shader.ShaderEntityMeshMixin",
     "shader.WorldShaderBlockEntityMixin",
+    "shader.WorldShaderEntityLayerMixin",
     "shader.WorldShaderSkyMixin",
     "shader.WorldShaderParticleMixin",
     "shader.WorldShaderGameMixin",

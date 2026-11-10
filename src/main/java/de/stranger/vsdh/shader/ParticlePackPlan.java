@@ -26,7 +26,8 @@ public record ParticlePackPlan(Map<Pass, PackProgramSource.Prepared> programs, O
         var defines = pack.settings().globalDefines(pack.options());
         var weather = pack.properties().weather(defines);
         var alphas = pack.properties().alphaTests(defines);
-        var defaultOrder = chain.stages().get(ShaderChainPlan.Stage.DEFERRED).isEmpty() ? Order.MIXED : Order.AFTER;
+        var defaultOrder = pack.properties().separateEntityDraws(defines) || chain.stages().get(ShaderChainPlan.Stage.DEFERRED).isEmpty()
+                ? Order.MIXED : Order.AFTER;
         var order = switch (pack.properties().particleOrdering(defines).orElse("")) {
             case "before" -> Order.BEFORE;
             case "mixed" -> Order.MIXED;

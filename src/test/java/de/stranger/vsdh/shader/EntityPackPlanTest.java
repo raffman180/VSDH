@@ -22,7 +22,7 @@ class EntityPackPlanTest {
                 """);
         try (var pack = OpenedPack.open(root, Map.of(), "")) {
             var chain = ShaderChainPlan.prepare(pack, "");
-            var plan = EntityPackPlan.prepare(pack, "", chain, Set.of(), false, message -> fail(message));
+            var plan = EntityPackPlan.prepare(pack, "", chain, Set.of(), false, false, message -> fail(message));
             assertNotNull(plan);
             assertEquals(Map.of("minecraft:iron_golem", 50012, "example:chicken", 50084), plan.materials());
             assertFalse(plan.solid().compiled().bindings().containsKey("DynamicTransforms"));
@@ -41,9 +41,29 @@ class EntityPackPlanTest {
         try (var pack = OpenedPack.open(root, Map.of(), "")) {
             var chain = ShaderChainPlan.prepare(pack, "");
             var warnings = new java.util.ArrayList<String>();
-            assertNull(EntityPackPlan.prepare(pack, "", chain, Set.of(), false, warnings::add));
+            assertNull(EntityPackPlan.prepare(pack, "", chain, Set.of(), false, false, warnings::add));
             assertEquals(1, warnings.size());
             assertTrue(warnings.getFirst().contains("gbuffers_entities"));
+        }
+    }
+
+    @Test
+    void selectsTranslucentProgramAndItsPackPhase(@TempDir Path root) throws Exception {
+        writePack(root, """
+                #version 130
+                void main() { gl_FragColor = vec4(.5); }
+                """);
+        var shaders = root.resolve("shaders");
+        Files.writeString(shaders.resolve("shaders.properties"), "separateEntityDraws=true\n");
+        Files.copy(shaders.resolve("gbuffers_entities.vsh"), shaders.resolve("gbuffers_entities_translucent.vsh"));
+        Files.copy(shaders.resolve("gbuffers_entities.fsh"), shaders.resolve("gbuffers_entities_translucent.fsh"));
+        try (var pack = OpenedPack.open(root, Map.of(), "")) {
+            var chain = ShaderChainPlan.prepare(pack, "");
+            var plan = EntityPackPlan.prepare(pack, "", chain, Set.of(), false, false, message -> fail(message));
+            assertNotNull(plan);
+            assertTrue(plan.lateTransparency());
+            assertNotNull(plan.translucent());
+            assertEquals("gbuffers_entities_translucent", plan.translucent().path());
         }
     }
 

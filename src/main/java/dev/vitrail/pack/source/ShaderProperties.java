@@ -122,6 +122,7 @@ public final class ShaderProperties {
 	// Whether the terrain's ambient occlusion is kept out of the vertex colour. Read on the live
 	// lines like every other directive of this file, and the note on RAIN_DEPTH says why that is
 	// what the reference does too.
+	private static final Pattern SEPARATE_ENTITY_DRAWS = Pattern.compile("^\\s*separateEntityDraws\\s*=\\s*(.*)$");
 	private static final Pattern SEPARATE_AO = Pattern.compile("^\\s*separateAo\\s*=\\s*(.*)$");
 	// Whether the pack declares that anisotropy breaks the way it reads the block atlas. Read on the
 	// live lines and on separateAo's rule in every respect, and answered the same way.
@@ -419,7 +420,7 @@ public final class ShaderProperties {
 		// whether the word is one or not. Left among the keys nothing reads, it would tell its
 		// author that nothing looks at a line which had just overruled the one before it.
 		Matcher separateAo = SEPARATE_AO.matcher(line);
-		if (separateAo.matches()) {
+		if (separateAo.matches() || SEPARATE_ENTITY_DRAWS.matcher(line).matches()) {
 			return;
 		}
 
@@ -1443,6 +1444,15 @@ public final class ShaderProperties {
 			asked = truth(line.group(1).trim());
 		}
 
+		return Boolean.TRUE.equals(asked);
+	}
+
+	/** Whether translucent entities draw after the pack's deferred passes. */
+	public boolean separateEntityDraws(Map<String, String> defines) {
+		Boolean asked = null;
+		for (Matcher line : live(SEPARATE_ENTITY_DRAWS, defines)) {
+			asked = truth(line.group(1).trim());
+		}
 		return Boolean.TRUE.equals(asked);
 	}
 

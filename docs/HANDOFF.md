@@ -6,7 +6,16 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.19 — Opake Blockentitäten
+## Aktuell 0.20 — Transparente Mob-Schichten
+
+EntityPackPlan prüft `gbuffers_entities_translucent` einschließlich der
+DH-Werte. Bei `separateEntityDraws=true` übernimmt WorldShaderEntityLayerMixin
+die sortierten Meshes für dieselbe Frame-Warteschlange. runDeferred zeichnet
+sie nach der opaken Tiefenkopie und vor der Welttransparenz. Die normalen
+Material-IDs stammen weiter aus dem Meshaufbau. Nicht unterstützte Schichten
+benutzen den Standardpfad.
+
+## Stand 0.19 — Opake Blockentitäten
 
 WorldShaderBlockEntityMixin erfasst die Blockzustands-ID aus derselben
 Materialtabelle wie das Terrain. Homogene NEW_ENTITY-Batches mit

@@ -79,7 +79,10 @@ public final class SmokeScene {
         if (worldNumber == 1) {
             if (Boolean.getBoolean("vsdh.smoke.livePack")) {
                 if (ticks == 70) {
-                    mc.getConnection().sendCommand("setblock -4 98 4 minecraft:chest");
+                    mc.getConnection().sendCommand("gamerule doMobSpawning false");
+                    mc.getConnection().sendCommand("difficulty normal");
+                    mc.getConnection().sendCommand("setblock -5 98 2 minecraft:chest");
+                    mc.getConnection().sendCommand("summon minecraft:slime -3 97.5 5.5 {Size:1,NoAI:1b,NoGravity:1b,Silent:1b,PersistenceRequired:1b}");
                     mc.getConnection().sendCommand("summon minecraft:iron_golem -2.5 97.5 3.5 {NoAI:1b,NoGravity:1b,Silent:1b}");
                     mc.getConnection().sendCommand("summon minecraft:chicken -1.5 98 4.5 {NoAI:1b,NoGravity:1b,Silent:1b}");
                 }
@@ -91,6 +94,11 @@ public final class SmokeScene {
                             session.entityDraws(), session.mappedEntityDraws());
                     if (session.mappedBlockEntityDraws()==0) throw new AssertionError("No mapped chest shader draw");
                     LOGGER.info("BLOCK ENTITY LIVE WORLD PASS: mapped chest draws={}",session.mappedBlockEntityDraws());
+                    boolean late = Boolean.getBoolean("vsdh.smoke.lateEntities");
+                    long transparent = session.transparentEntityDraws(late);
+                    if (transparent == 0 || session.transparentEntityDraws(!late) != 0)
+                        throw new AssertionError("Translucent slime did not draw in expected entity phase, late=" + late);
+                    LOGGER.info("TRANSLUCENT ENTITY WORLD PASS: draws={}, afterDeferred={}", transparent, late);
                 }
             }
             if (!Boolean.getBoolean("vsdh.smoke.livePack")) {

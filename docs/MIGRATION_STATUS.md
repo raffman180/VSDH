@@ -1,6 +1,14 @@
-# VSDH — Prüfstand 0.19.0-dev, 10.11.2026
+# VSDH — Prüfstand 0.20.0-dev, 10.11.2026
 
-## Aktuell 0.19
+## Aktuell 0.20
+
+Die beiden normalen transparenten Entitäts-Zeichenarten nutzen den
+Packpass `gbuffers_entities_translucent`. Die optionale späte Phase
+behält das sortierte Mesh bis nach Deferred. Material-ID, Texturen und
+Pack-Mischregeln gelten in beiden Phasen. Der Spieltest benutzt einen
+Schleim und prüft, in welcher Phase der native Pass ausgeführt wird.
+
+## Stand 0.19
 
 Der Blockentitätspass nutzt die vorhandene Materialtabelle der Welt und
 einen eigenen ID-Kanal im Mesh. Truhen sind die erste getestete Szene.

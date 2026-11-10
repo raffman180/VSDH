@@ -17,11 +17,13 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
-/** Optional opaque entity pass. Other layer types retain the game's rendering. */
+/** Prepared programs for supported entity mesh layers. */
 public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource.Prepared cutout,
-                             Map<String, Integer> materials, BlockPrograms blocks) {
+                             Map<String, Integer> materials, BlockPrograms blocks,
+                             PackProgramSource.Prepared translucent, boolean lateTransparency) {
     private static final String NAME = "gbuffers_entities";
     private static final String BLOCK = "gbuffers_block";
+    private static final String TRANSLUCENT = "gbuffers_entities_translucent";
     private static final Pattern ENTRY = Pattern.compile("^\\s*entity\\.(-?\\d+)\\s*=\\s*(.*?)\\s*$");
     private static final Pattern RESOURCE_ID = Pattern.compile("[a-z0-9_.-]+:[a-z0-9_./-]+");
     private static final Set<String> DRAW_IMAGES = Set.of("tex", "texture", "gtexture", "lightmap", "ofOverlay", "noisetex");
@@ -33,7 +35,7 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
     public record BlockPrograms(PackProgramSource.Prepared solid, PackProgramSource.Prepared cutout) {}
 
     static EntityPackPlan prepare(OpenedPack pack, String prefix, ShaderChainPlan chain,
-                                  Set<String> customUniforms, boolean shadows, Consumer<String> warning) {
+                                  Set<String> customUniforms, boolean shadows, boolean distant, Consumer<String> warning) {
         if (chain.targets().schedule().step(NAME).isEmpty()
                 || pack.source().file(prefix + NAME + ".vsh").isEmpty()
                 || pack.source().file(prefix + NAME + ".fsh").isEmpty()) return null;
@@ -47,7 +49,7 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
                     alphas.getOrDefault(NAME, AlphaTest.ONE_TENTH));
             var textures = PackTextures.read(pack.properties(), defines, pack.source());
             for (var source : List.of(solid, cutout)) {
-                validate(source, customUniforms, shadows, textures);
+                validate(source, customUniforms, shadows, distant, textures);
             }
             var ids = new HashMap<String, Integer>();
             PropertiesFile.read(pack.source(), "entity.properties").walk(defines, line -> {
@@ -69,14 +71,27 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
                             alphas.getOrDefault(BLOCK, AlphaTest.OFF));
                     var blockCutout = PackProgramSource.prepare(pack, prefix + BLOCK, inputs, inputs.elements(),
                             alphas.getOrDefault(BLOCK, AlphaTest.ONE_TENTH));
-                    validate(blockSolid, customUniforms, shadows, textures);
-                    validate(blockCutout, customUniforms, shadows, textures);
+                    validate(blockSolid, customUniforms, shadows, distant, textures);
+                    validate(blockCutout, customUniforms, shadows, distant, textures);
                     blocks = new BlockPrograms(blockSolid, blockCutout);
                 } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
                     warning.accept("Keeping standard block entity rendering for " + prefix + BLOCK + ": " + failure.getMessage());
                 }
             }
-            return new EntityPackPlan(solid, cutout, ids, blocks);
+            PackProgramSource.Prepared translucent = null;
+            if (chain.targets().schedule().step(TRANSLUCENT).isPresent()
+                    && pack.source().file(prefix + TRANSLUCENT + ".vsh").isPresent()
+                    && pack.source().file(prefix + TRANSLUCENT + ".fsh").isPresent()) {
+                try {
+                    var source = PackProgramSource.prepare(pack, prefix + TRANSLUCENT, inputs, inputs.elements(),
+                            alphas.getOrDefault(TRANSLUCENT, AlphaTest.NON_ZERO));
+                    validate(source, customUniforms, shadows, distant, textures);
+                    translucent = source;
+                } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
+                    warning.accept("Keeping standard translucent entity rendering for " + prefix + TRANSLUCENT + ": " + failure.getMessage());
+                }
+            }
+            return new EntityPackPlan(solid, cutout, ids, blocks, translucent, pack.properties().separateEntityDraws(defines));
         } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
             warning.accept("Keeping standard opaque entity rendering for " + prefix + NAME + ": " + failure.getMessage());
             return null;
@@ -84,11 +99,11 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
     }
 
     private static void validate(PackProgramSource.Prepared source, Set<String> customUniforms, boolean shadows,
-                                 PackTextures textures) {
+                                 boolean distant, PackTextures textures) {
         if (!source.compiled().stages().keySet().equals(Set.of(ProgramStage.VERTEX, ProgramStage.FRAGMENT))
                 || source.translated().stages().values().stream().anyMatch(stage -> !stage.notes().storageBlocks().isEmpty()))
             throw new IllegalArgumentException("Unsupported entity shader stages or storage");
-        var missing = WorldUniforms.missing(source, customUniforms);
+        var missing = WorldUniforms.missing(source, customUniforms, distant);
         if (!missing.isEmpty()) throw new IllegalArgumentException("Missing entity uniforms: " + missing);
         var active = new HashSet<Integer>();
         source.compiled().stages().values().forEach(bytes -> active.addAll(SpirvInterface.bindings(bytes)));
@@ -103,11 +118,17 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
             };
             if (!supported || sampler.declaration().contains("[")
                     || textures.resolve(TextureStage.GBUFFERS, name).isPresent())
-                throw new IllegalArgumentException("Unsupported opaque entity texture: " + sampler.declaration());
+                throw new IllegalArgumentException("Unsupported entity texture: " + sampler.declaration());
         }
     }
 
     List<PackProgramSource.Prepared> programs() {
-        return blocks == null ? List.of(solid, cutout) : List.of(solid, cutout, blocks.solid(), blocks.cutout());
+        var programs = new java.util.ArrayList<>(List.of(solid, cutout));
+        if (blocks != null) {
+            programs.add(blocks.solid());
+            programs.add(blocks.cutout());
+        }
+        if (translucent != null) programs.add(translucent);
+        return List.copyOf(programs);
     }
 }
