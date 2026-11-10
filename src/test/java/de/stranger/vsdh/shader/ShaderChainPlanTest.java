@@ -4,7 +4,10 @@ import dev.vitrail.pack.source.OpenedPack;
 import dev.vitrail.pack.source.ShaderProperties.FlipDirective;
 import dev.vitrail.pack.target.TargetSchedule;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -29,11 +32,11 @@ class ShaderChainPlanTest {
     @Test void budgetIncludesBothHalvesAndEveryMipBeforeAnyGpuAllocation() throws Exception {
         var chain = fixture();
         var layout = ShaderTargetLayout.of(chain.targets(), 17, 11, 16384, 1 << 20);
-        assertEquals(5, layout.targets().size());
+        assertEquals(6, layout.targets().size());
         // colortex0: 17*11+8*5+4*2+2*1+1 = 238 texels, two RGBA16F halves.
         // colortex1: 8*5+4*2+2*1+1 = 51; 2/4 each 17*11, also doubled.
-        // colortex10: 8*5 texels, two RGBA8UI halves.
-        assertEquals((238 + 51 + 187 + 187) * 8L * 2 + 40 * 4L * 2, layout.bytes());
+        // colortex10/11: 8*5 texels each, two RGBA8UI/RGBA8I halves per target.
+        assertEquals((238 + 51 + 187 + 187) * 8L * 2 + (40 + 40) * 4L * 2, layout.bytes());
         assertThrows(IllegalArgumentException.class, () -> ShaderTargetLayout.of(chain.targets(), 17, 11, 16384, layout.bytes() - 1));
         assertThrows(IllegalArgumentException.class, () -> ShaderTargetLayout.of(chain.targets(), 17, 11, 16, 1 << 20));
         assertThrows(IllegalArgumentException.class, () -> ShaderTargetLayout.of(chain.targets(), 0, 11, 16384, 1 << 20));
@@ -60,6 +63,26 @@ class ShaderChainPlanTest {
             assertEquals(1, program.compiled().bindings().get("unusedShadow"));
             assertEquals(2, program.compiled().bindings().get("colortex1"));
             assertEquals(Set.of(0, 2), active);
+        }
+    }
+
+    @Test void mismatchedIntegerSamplerIsRejectedDuringPackPreparation(@TempDir Path packRoot) throws Exception {
+        var shaders = Files.createDirectory(packRoot.resolve("shaders"));
+        Files.writeString(shaders.resolve("final.vsh"), """
+                #version 130
+                void main() { gl_Position = ftransform(); }
+                """);
+        Files.writeString(shaders.resolve("final.fsh"), """
+                #version 130
+                uniform usampler2D colortex0;
+                /*
+                const int colortex0Format = RGBA8I;
+                */
+                void main() { gl_FragColor = vec4(texelFetch(colortex0, ivec2(0), 0)); }
+                """);
+        try (var pack = OpenedPack.open(packRoot, Map.of(), "")) {
+            var error = assertThrows(IOException.class, () -> ShaderChainPlan.prepare(pack, ""));
+            assertEquals("Incompatible shader input final/colortex0: usampler2D cannot sample RGBA8_SINT", error.getMessage());
         }
     }
 

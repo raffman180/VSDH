@@ -10,8 +10,19 @@ import static org.lwjgl.vulkan.VK10.*;
 public final class VulkanTargetFormat {
     private static final java.util.Set<Integer> INTEGER_FORMATS = java.util.Arrays.stream(TargetFormat.values())
             .filter(TargetFormat::integer).map(VulkanTargetFormat::of).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    private static final java.util.Set<Integer> SIGNED_INTEGER_FORMATS = java.util.Arrays.stream(TargetFormat.values())
+            .filter(format -> format.integer() && format.name().endsWith("_SINT"))
+            .map(VulkanTargetFormat::of).collect(java.util.stream.Collectors.toUnmodifiableSet());
     private VulkanTargetFormat() {}
     public static boolean isInteger(int format) { return INTEGER_FORMATS.contains(format); }
+    static boolean acceptsSampler(int format, String type) {
+        return switch (type) {
+            case "isampler2D" -> SIGNED_INTEGER_FORMATS.contains(format);
+            case "usampler2D" -> isInteger(format) && !SIGNED_INTEGER_FORMATS.contains(format);
+            case "sampler2DShadow" -> false; // Comparison images have depth, never a color format.
+            default -> !isInteger(format);
+        };
+    }
 
     public static int of(TargetFormat format) {
         return switch (format) {

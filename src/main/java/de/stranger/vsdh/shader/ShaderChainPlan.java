@@ -70,7 +70,15 @@ public record ShaderChainPlan(TargetPlan targets, Map<Stage, List<Pass>> stages,
                 if (input.kind() == SamplerPlan.Kind.UNBINDABLE || input.kind() == SamplerPlan.Kind.UNSERVED
                         || input.kind() == SamplerPlan.Kind.CUSTOM_IMAGE || input.kind() == SamplerPlan.Kind.COLOUR_IMAGE)
                     throw new IOException("Unimplemented shader input " + name + "/" + input.sampler() + ": " + input.kind());
-                if (input.kind() != SamplerPlan.Kind.COLORTEX) external.add(input.sampler());
+                if (input.kind() == SamplerPlan.Kind.COLORTEX) {
+                    var format = targets.directives().format(input.index()).used();
+                    String type = types.get(input.sampler());
+                    if (!VulkanTargetFormat.acceptsSampler(VulkanTargetFormat.of(format), type))
+                        throw new IOException("Incompatible shader input " + name + "/" + input.sampler() + ": "
+                                + type + " cannot sample " + format);
+                } else {
+                    external.add(input.sampler());
+                }
             }
             Set<Integer> mipmaps = targets.directives().mipmapRequests().getOrDefault(name, Set.of());
             stages.get(stage).add(new Pass(name, program, outputs, samplers.bindings(), mipmaps));

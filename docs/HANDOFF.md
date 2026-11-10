@@ -6,7 +6,16 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.16 — Terrain-Lichtkoordinaten und Vollbildmischung
+## Aktuell 0.17 — Ganzzahlige Shader-Farbpuffer lesen
+
+NativeGraphicsProgram bindet `isampler2D` und `usampler2D` an passende
+Farbbilder. NativeColorTargets liefert dafür bereits Nearest-Filter.
+ShaderChainPlan lehnt im CPU-Lauf falsche Paare aus Farbformat und
+Sampler ab. ChainGpuCheck prüft das Lesen signierter und unsignierter
+Werte aus Prepare in Deferred. Die konkreten Spielläufe und das
+Quellarchiv stehen unter dist/0.17.0-dev.
+
+## Stand 0.16 — Terrain-Lichtkoordinaten und Vollbildmischung
 
 VulkanTerrainVertex aliasiert `gl_MultiTexCoord2` auf die Lichtkoordinaten
 von `gl_MultiTexCoord1`. NativeShaderChain übernimmt programmweite

@@ -38,7 +38,7 @@ public abstract class NativeGraphicsProgram implements AutoCloseable {
     private final java.util.List<Std140Layout.Member> activeUniforms;
     private final ByteBuffer uniforms;
     private final Map<String, VulkanImage> images = new HashMap<>();
-    private final Map<String, Boolean> samplers = new HashMap<>();
+    private final Map<String, String> samplers = new HashMap<>();
     private final java.util.Set<String> samplerNames;
     private boolean closed;
 
@@ -61,11 +61,13 @@ public abstract class NativeGraphicsProgram implements AutoCloseable {
             throw new IllegalArgumentException("Shader uniform block exceeds device limit: " + name);
         for (var sampler : translated.samplers()) {
             if (!active.contains(compiled.bindings().get(sampler.name()))) continue;
-            if (!sampler.type().equals("sampler2D") && !sampler.type().equals("sampler2DShadow"))
-                throw new IllegalArgumentException("Unsupported native graphics sampler: " + sampler.declaration());
+            switch (sampler.type()) {
+                case "sampler2D", "sampler2DShadow", "isampler2D", "usampler2D" -> {}
+                default -> throw new IllegalArgumentException("Unsupported native graphics sampler: " + sampler.declaration());
+            }
             if (sampler.declaration().contains("["))
                 throw new IllegalArgumentException("Native sampler arrays are not implemented: " + sampler.declaration());
-            samplers.put(sampler.name(), sampler.type().equals("sampler2DShadow"));
+            samplers.put(sampler.name(), sampler.type());
         }
         if (samplers.size() > DeviceManager.deviceProperties.limits().maxPerStageDescriptorSamplers())
             throw new IllegalArgumentException("Shader sampler count exceeds device limit: " + name);
@@ -97,7 +99,7 @@ public abstract class NativeGraphicsProgram implements AutoCloseable {
                     @Override public VulkanImage getImage() { return images.get(this.name); }
                     @Override public boolean usesVanillaTextureBinding() { return false; }
                     @Override public long getSampler(VulkanImage image) {
-                        if (!samplers.get(this.name)) return image.getSampler();
+                        if (!qualifier.equals("sampler2DShadow")) return image.getSampler();
                         // GL_LINEAR, CLAMP_TO_EDGE, COMPARE_REF_TO_TEXTURE, LEQUAL; cache owned by renderer.
                         return SamplerManager.getTextureSampler(new SamplerManager.SamplerKey(9729, 9729,
                                 33071, 33071, 33071, 0, 0, 0, 34894, 515));
@@ -133,10 +135,13 @@ public abstract class NativeGraphicsProgram implements AutoCloseable {
     }
     public void bindImage(String name, VulkanImage image) {
         requireOpen();
-        if (!samplers.containsKey(name)) throw new IllegalArgumentException("Program does not sample " + name);
+        String type = samplers.get(name);
+        if (type == null) throw new IllegalArgumentException("Program does not sample " + name);
         if (image == null) throw new IllegalArgumentException("Null image " + name);
-        if (samplers.get(name) && !VulkanImage.isDepthFormat(image.format))
-            throw new IllegalArgumentException("Comparison sampler requires depth image: " + name);
+        boolean compatible = type.equals("sampler2DShadow") ? VulkanImage.isDepthFormat(image.format)
+                : VulkanTargetFormat.acceptsSampler(image.format, type);
+        if (!compatible)
+            throw new IllegalArgumentException("Incompatible shader image " + name + ": " + type + " cannot sample VkFormat " + image.format);
         images.put(name, image);
     }
 

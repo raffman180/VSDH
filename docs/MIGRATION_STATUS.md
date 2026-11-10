@@ -1,6 +1,13 @@
-# VSDH — Prüfstand 0.16.0-dev, 10.11.2026
+# VSDH — Prüfstand 0.17.0-dev, 10.11.2026
 
-## Aktuell 0.16
+## Aktuell 0.17
+
+Die GPU liest beide Arten ganzzahliger Farbpuffer im nächsten Renderpass.
+Die Vulkan-Probe schreibt (7, 19, 33, 250) und (-120, 60, -8, 127) und
+prüft die Werte im Deferred-Shader. Der CPU-Test prüft die Meldung eines
+falschen Samplertyps bei der Packvorbereitung.
+
+## Stand 0.16
 
 Die GPU-Tests bestätigen identische Lichtkoordinaten über beide alten
 GLSL-Namen sowie die Farbmischung in Vollbild-Durchläufen. Ein gemeinsamer

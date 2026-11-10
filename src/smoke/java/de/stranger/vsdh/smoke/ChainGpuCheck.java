@@ -71,7 +71,7 @@ final class ChainGpuCheck {
         check(prepared.normal, 13, 9, org.lwjgl.vulkan.VK10.VK_FORMAT_D32_SFLOAT_S8_UINT);
         check(prepared.noFinal, 13, 9, org.lwjgl.vulkan.VK10.VK_FORMAT_D32_SFLOAT);
         if (prepared.complementary != null) prepareComplementary(prepared.complementary);
-        LoggerFactory.getLogger("VSDH-Smoke").info("CHAIN GPU PASS: stages, fullscreen blending, scaled HDR/mips, four-frame history, rebuild/no-final, D32/D24S8/D32S8 snapshots and stencil copies");
+        LoggerFactory.getLogger("VSDH-Smoke").info("CHAIN GPU PASS: stages, fullscreen blending, signed/unsigned sampling, scaled HDR/mips, four-frame history, rebuild/no-final, D32/D24S8/D32S8 snapshots and stencil copies");
     }
 
     private static void check(ShaderChainPlan plan, int width, int height, int depthFormat) {

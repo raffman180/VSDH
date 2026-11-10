@@ -1,6 +1,13 @@
-# Fortsetzungs-Prompt — VSDH 0.16
+# Fortsetzungs-Prompt — VSDH 0.17
 
 ## Aktuelle Arbeit
+
+0.17 liest native Ganzzahl-Farbpuffer über `isampler2D` und `usampler2D`.
+ShaderChainPlan prüft bekannte Farbpufferformate schon beim Laden des Packs.
+ChainGpuCheck liest in Deferred echte negative und vorzeichenlose Werte,
+die Prepare gemeinsam mit einem Float-Ziel geschrieben hat. Prüfläufe,
+Quellarchiv und geprüfte JAR stehen in dist/0.17.0-dev. Der letzte
+Dimensionslauf steht in verify-0.16-complementary-client.log.
 
 0.16 liefert `gl_MultiTexCoord1` und `gl_MultiTexCoord2` als dieselbe
 Lichtmap-Eingabe im Vulkan-Terrainformat. NativeShaderChain unterstützt
