@@ -60,25 +60,28 @@ public final class EntityContractGpuCheck {
             writeQuad(builder, 0, 0xFFFA80C0, .375f, .875f);
             short[] ids = {601, 601, 601, 601, -1, -1, -1, -1};
             try (var vanilla = builder.buildOrThrow()) {
-                var vertices = extended.extend(vanilla, ids);
                 var state = new MeshData.DrawState(NativeEntityMesh.FORMAT, 8, 12,
                         VertexFormat.Mode.QUADS, VertexFormat.IndexType.SHORT);
                 program.layout().putFloats(program.uniforms(), "of_ModelViewProjectionMatrix", 0, new Matrix4f().get(new float[16]));
                 program.layout().putFloats(program.uniforms(), "of_DepthConv", 0, .5f, .5f, 1, 0);
-                program.render(framebuffer, renderPass, vertices, state);
-            }
-            ImageUtil.downloadTexture(framebuffer.getColorAttachment(), MemoryUtil.memAddress(pixels));
-            for (int pixel = 0; pixel < 24; pixel++) for (int channel = 0; channel < 4; channel++) {
-                short value = pixels.getShort(pixel * 8 + channel * 2);
-                if (value != 0x3C00) throw new AssertionError("Entity mesh conversion: pixel " + pixel
-                        + ", channel " + channel + ", half-float bits " + Integer.toHexString(Short.toUnsignedInt(value)));
+                for (int type = 0; type < 2; type++) {
+                    var vertices = extended.extend(vanilla, ids, type == 1);
+                    program.layout().putInts(program.uniforms(), "testBlockEntities", 0, type);
+                    program.render(framebuffer, renderPass, vertices, state);
+                    ImageUtil.downloadTexture(framebuffer.getColorAttachment(), MemoryUtil.memAddress(pixels));
+                    for (int pixel = 0; pixel < 24; pixel++) for (int channel = 0; channel < 4; channel++) {
+                        short value = pixels.getShort(pixel * 8 + channel * 2);
+                        if (value != 0x3C00) throw new AssertionError("Entity mesh conversion: type " + type + ", pixel " + pixel
+                                + ", channel " + channel + ", half-float bits " + Integer.toHexString(Short.toUnsignedInt(value)));
+                    }
+                }
             }
         } finally {
             MemoryUtil.memFree(pixels);
             renderPass.cleanUp();
             framebuffer.cleanUp();
         }
-        LoggerFactory.getLogger("VSDH-Smoke").info("ENTITY CONTRACT GPU PASS: two IDs in one batch, both UV orientations, light and tangent frame");
+        LoggerFactory.getLogger("VSDH-Smoke").info("ENTITY CONTRACT GPU PASS: mob and block entity IDs use separate lanes, both UV orientations, light and tangent frame");
     }
 
     private static void writeQuad(BufferBuilder builder, float x, int color, float bottomV, float topV) {

@@ -2,6 +2,7 @@
 uniform int entityId;
 uniform int blockEntityId;
 uniform int currentRenderedItemId;
+uniform int testBlockEntities;
 varying vec4 lightAndMid;
 varying vec4 normalAndSign;
 varying vec2 spriteUV;
@@ -11,7 +12,10 @@ bool nearValue(vec4 actual, vec4 expected) {
 }
 void main() {
     bool mirrored = color.r < .5;
-    bool ids = entityId == (mirrored ? 601 : 65535) && blockEntityId == 0 && currentRenderedItemId == 0;
+    int expected = mirrored ? 601 : 65535;
+    bool ids = currentRenderedItemId == 0 && (testBlockEntities != 0
+            ? blockEntityId == expected && entityId == 0
+            : entityId == expected && blockEntityId == 0);
     bool geometry = nearValue(normalAndSign, vec4(0, 1, 1, mirrored ? -1 : 1));
     bool light = nearValue(lightAndMid, vec4(128.0 / 255.0, 240.0 / 255.0, .375, .625));
     bool sprite = all(greaterThan(spriteUV, vec2(.24, .37))) && all(lessThan(spriteUV, vec2(.51, .88)))

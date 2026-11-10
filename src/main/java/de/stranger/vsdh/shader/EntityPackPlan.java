@@ -19,8 +19,9 @@ import java.util.regex.Pattern;
 
 /** Optional opaque entity pass. Other layer types retain the game's rendering. */
 public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource.Prepared cutout,
-                             Map<String, Integer> materials) {
+                             Map<String, Integer> materials, BlockPrograms blocks) {
     private static final String NAME = "gbuffers_entities";
+    private static final String BLOCK = "gbuffers_block";
     private static final Pattern ENTRY = Pattern.compile("^\\s*entity\\.(-?\\d+)\\s*=\\s*(.*?)\\s*$");
     private static final Pattern RESOURCE_ID = Pattern.compile("[a-z0-9_.-]+:[a-z0-9_./-]+");
     private static final Set<String> DRAW_IMAGES = Set.of("tex", "texture", "gtexture", "lightmap", "ofOverlay", "noisetex");
@@ -28,6 +29,8 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
     private static final Set<String> SHADOW_COLOR = Set.of("shadowcolor", "shadowcolor0", "shadowcolor1");
 
     public EntityPackPlan { materials = Map.copyOf(materials); }
+
+    public record BlockPrograms(PackProgramSource.Prepared solid, PackProgramSource.Prepared cutout) {}
 
     static EntityPackPlan prepare(OpenedPack pack, String prefix, ShaderChainPlan chain,
                                   Set<String> customUniforms, boolean shadows, Consumer<String> warning) {
@@ -57,7 +60,23 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
                     if (RESOURCE_ID.matcher(name).matches()) ids.putIfAbsent(name, id);
                 }
             });
-            return new EntityPackPlan(solid, cutout, ids);
+            BlockPrograms blocks = null;
+            if (chain.targets().schedule().step(BLOCK).isPresent()
+                    && pack.source().file(prefix + BLOCK + ".vsh").isPresent()
+                    && pack.source().file(prefix + BLOCK + ".fsh").isPresent()) {
+                try {
+                    var blockSolid = PackProgramSource.prepare(pack, prefix + BLOCK, inputs, inputs.elements(),
+                            alphas.getOrDefault(BLOCK, AlphaTest.OFF));
+                    var blockCutout = PackProgramSource.prepare(pack, prefix + BLOCK, inputs, inputs.elements(),
+                            alphas.getOrDefault(BLOCK, AlphaTest.ONE_TENTH));
+                    validate(blockSolid, customUniforms, shadows, textures);
+                    validate(blockCutout, customUniforms, shadows, textures);
+                    blocks = new BlockPrograms(blockSolid, blockCutout);
+                } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
+                    warning.accept("Keeping standard block entity rendering for " + prefix + BLOCK + ": " + failure.getMessage());
+                }
+            }
+            return new EntityPackPlan(solid, cutout, ids, blocks);
         } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
             warning.accept("Keeping standard opaque entity rendering for " + prefix + NAME + ": " + failure.getMessage());
             return null;
@@ -88,5 +107,7 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
         }
     }
 
-    List<PackProgramSource.Prepared> programs() { return List.of(solid, cutout); }
+    List<PackProgramSource.Prepared> programs() {
+        return blocks == null ? List.of(solid, cutout) : List.of(solid, cutout, blocks.solid(), blocks.cutout());
+    }
 }

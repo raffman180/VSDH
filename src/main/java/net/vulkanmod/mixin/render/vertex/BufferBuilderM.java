@@ -27,7 +27,7 @@ public abstract class BufferBuilderM
     @Shadow private int vertices;
 
     @Unique private short[] vsdh$ids;
-    @Unique private boolean vsdh$mixedMesh;
+    @Unique private boolean vsdh$mixedMesh, vsdh$blocks;
 
     @Inject(method = "beginVertex", at = @At("RETURN"))
     private void vsdh$rememberEntityId(CallbackInfoReturnable<Long> ci) {
@@ -37,12 +37,17 @@ public abstract class BufferBuilderM
             if (vsdh$ids != null) vsdh$mixedMesh = true;
             return;
         }
+        boolean blocks = (id & WorldShaderSession.BLOCK_ENTITY_CAPTURE) != 0;
         if (vsdh$ids == null) {
             if (vertices != 1) {
                 vsdh$mixedMesh = true;
                 return;
             }
             vsdh$ids = new short[64];
+            vsdh$blocks = blocks;
+        } else if (blocks != vsdh$blocks) {
+            vsdh$mixedMesh = true;
+            return;
         } else if (vertices > vsdh$ids.length) {
             vsdh$ids = Arrays.copyOf(vsdh$ids, vsdh$ids.length * 2);
         }
@@ -53,7 +58,7 @@ public abstract class BufferBuilderM
     private void vsdh$attachEntityIds(CallbackInfoReturnable<MeshData> ci) {
         var mesh = ci.getReturnValue();
         if (mesh != null && !vsdh$mixedMesh && vsdh$ids != null)
-            ((NativeEntityMesh.EntityIds) (Object) mesh).vsdh$setEntityIds(vsdh$ids);
+            ((NativeEntityMesh.EntityIds) (Object) mesh).vsdh$setEntityIds(new NativeEntityMesh.Batch(vsdh$ids, vsdh$blocks));
     }
 
     @Shadow protected abstract long beginVertex();

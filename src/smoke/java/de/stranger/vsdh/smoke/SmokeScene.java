@@ -79,6 +79,7 @@ public final class SmokeScene {
         if (worldNumber == 1) {
             if (Boolean.getBoolean("vsdh.smoke.livePack")) {
                 if (ticks == 70) {
+                    mc.getConnection().sendCommand("setblock -4 98 4 minecraft:chest");
                     mc.getConnection().sendCommand("summon minecraft:iron_golem -2.5 97.5 3.5 {NoAI:1b,NoGravity:1b,Silent:1b}");
                     mc.getConnection().sendCommand("summon minecraft:chicken -1.5 98 4.5 {NoAI:1b,NoGravity:1b,Silent:1b}");
                 }
@@ -88,6 +89,8 @@ public final class SmokeScene {
                         throw new AssertionError("No live entity draws with mapped IDs: " + session.entityDraws());
                     LOGGER.info("ENTITY LIVE WORLD PASS: original pack, opaque draws={}, mapped batches={}",
                             session.entityDraws(), session.mappedEntityDraws());
+                    if (session.mappedBlockEntityDraws()==0) throw new AssertionError("No mapped chest shader draw");
+                    LOGGER.info("BLOCK ENTITY LIVE WORLD PASS: mapped chest draws={}",session.mappedBlockEntityDraws());
                 }
             }
             if (!Boolean.getBoolean("vsdh.smoke.livePack")) {

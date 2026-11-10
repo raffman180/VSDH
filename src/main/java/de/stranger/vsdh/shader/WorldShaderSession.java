@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -39,9 +40,11 @@ import java.util.function.Predicate;
 public final class WorldShaderSession implements MainPass {
     private static WorldShaderSession current;
     public static final int NO_ENTITY_CAPTURE = Integer.MIN_VALUE;
+    public static final int BLOCK_ENTITY_CAPTURE = 1 << 16;
     private static final java.util.Set<String> DEPTH_NAMES=java.util.Set.of("depthtex0","depthtex1","depthtex2","gdepthtex");
     private final MainPass delegate;
     private final WorldPackSet plans;
+    private final ShaderBlockMaterials blockMaterials;
     private WorldPackPlan plan;
     private WorldUniforms uniforms;
     private final Map<TerrainRenderType,NativeTerrainPass> terrain=new EnumMap<>(TerrainRenderType.class);
@@ -54,9 +57,9 @@ public final class WorldShaderSession implements MainPass {
     private RenderStage geometryStage;
     private final NativeEntityMesh entityMesh = new NativeEntityMesh();
     private final Map<ResourceLocation, Integer> entityMaterials = new HashMap<>();
-    private NativeGeometryPass entitySolid, entityCutout;
+    private NativeGeometryPass entitySolid, entityCutout, blockSolid, blockCutout;
     private int entityMaterial = NO_ENTITY_CAPTURE;
-    private long entityDraws, mappedEntityDraws;
+    private long entityDraws, mappedEntityDraws, mappedBlockEntityDraws;
     private final Map<Long,Integer> aliases=new HashMap<>();
     private NativeShaderChain chain;
     private NativeWorldDepth depth;
@@ -70,9 +73,10 @@ public final class WorldShaderSession implements MainPass {
     private long skippedFrames;
     private Consumer<WorldShaderSession> frameObserver;
 
-    private WorldShaderSession(MainPass delegate, WorldPackSet plans) {
+    private WorldShaderSession(MainPass delegate, WorldPackSet plans, ShaderBlockMaterials blockMaterials) {
         this.delegate=delegate;
         this.plans=plans;
+        this.blockMaterials=blockMaterials;
         selectPlan(plans.overworld());
     }
 
@@ -213,10 +217,18 @@ public final class WorldShaderSession implements MainPass {
         int previous = entityMaterial;
         if (active && !deferred && plan.entities() != null) {
             var key = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
-            entityMaterial = entityMaterials.getOrDefault(key, -1);
+            entityMaterial = entityMaterials.getOrDefault(key, -1) & 0xffff;
         } else {
             entityMaterial = NO_ENTITY_CAPTURE;
         }
+        return previous;
+    }
+
+    public int beginBlockEntity(BlockEntity entity) {
+        int previous = entityMaterial;
+        entityMaterial = active && !deferred && blockSolid != null
+                ? BLOCK_ENTITY_CAPTURE | (blockMaterials.applyAsInt(entity.getBlockState()) & 0xffff)
+                : NO_ENTITY_CAPTURE;
         return previous;
     }
 
@@ -229,6 +241,7 @@ public final class WorldShaderSession implements MainPass {
 
     public long entityDraws() { return entityDraws; }
     public long mappedEntityDraws() { return mappedEntityDraws; }
+    public long mappedBlockEntityDraws() { return mappedBlockEntityDraws; }
 
     public boolean renderOpaqueEntities(MeshData mesh) {
         if (!active || deferred || entitySolid == null
@@ -236,8 +249,8 @@ public final class WorldShaderSession implements MainPass {
         var state = mesh.drawState();
         if (state.format() != DefaultVertexFormat.NEW_ENTITY || state.mode() != VertexFormat.Mode.QUADS
                 || state.vertexCount() < 4 || state.vertexCount() % 4 != 0) return false;
-        short[] ids = ((NativeEntityMesh.EntityIds) (Object) mesh).vsdh$getEntityIds();
-        if (ids == null) return false;
+        var batch = ((NativeEntityMesh.EntityIds) (Object) mesh).vsdh$getEntityIds();
+        if (batch == null || (batch.blocks() && blockSolid == null)) return false;
 
         ShaderInstance shader = RenderSystem.getShader();
         if (shader == null) return false;
@@ -245,20 +258,29 @@ public final class WorldShaderSession implements MainPass {
         if (!solid && shader != GameRenderer.getRendertypeEntityCutoutShader()
                 && shader != GameRenderer.getRendertypeEntityCutoutNoCullShader()
                 && shader != GameRenderer.getRendertypeEntityCutoutNoCullZOffsetShader()) return false;
-        var program = solid ? entitySolid : entityCutout;
-        var source = solid ? plan.entities().solid() : plan.entities().cutout();
+        NativeGeometryPass program;
+        PackProgramSource.Prepared source;
+        if (batch.blocks()) {
+            var blocks = plan.entities().blocks();
+            program = solid ? blockSolid : blockCutout;
+            source = solid ? blocks.solid() : blocks.cutout();
+        } else {
+            program = solid ? entitySolid : entityCutout;
+            source = solid ? plan.entities().solid() : plan.entities().cutout();
+        }
         try (mesh) {
-            drawEntityBatch(mesh, ids, state, program, source);
+            drawEntityBatch(mesh, batch, state, program, source);
         }
         return true;
     }
 
-    private void drawEntityBatch(MeshData mesh, short[] ids, MeshData.DrawState state,
+    private void drawEntityBatch(MeshData mesh, NativeEntityMesh.Batch batch, MeshData.DrawState state,
                                  NativeGeometryPass program, PackProgramSource.Prepared source) {
-        var vertices = entityMesh.extend(mesh, ids);
+        var vertices = entityMesh.extend(mesh, batch.ids(), batch.blocks());
         var nativeState = new MeshData.DrawState(NativeEntityMesh.FORMAT, state.vertexCount(), state.indexCount(),
                 state.mode(), state.indexType());
-        uniforms.writeDraw(program, RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix(), RenderStage.ENTITIES);
+        uniforms.writeDraw(program, RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix(),
+                batch.blocks() ? RenderStage.BLOCK_ENTITIES : RenderStage.ENTITIES);
         bindGeometry(program, source, false, false);
         int topology = VRenderSystem.topology;
         try (var scope = Renderer.getInstance().temporaryRenderTarget()) {
@@ -267,10 +289,11 @@ public final class WorldShaderSession implements MainPass {
         } finally {
             VRenderSystem.topology = topology;
         }
-        entityDraws++;
+        if (!batch.blocks()) entityDraws++;
         for (int i = 0; i < state.vertexCount(); i++) {
-            if (ids[i] != (short) -1) {
-                mappedEntityDraws++;
+            if (batch.ids()[i] != (short) -1) {
+                if (batch.blocks()) mappedBlockEntityDraws++;
+                else mappedEntityDraws++;
                 break;
             }
         }
@@ -290,8 +313,9 @@ public final class WorldShaderSession implements MainPass {
         var unique=new java.util.LinkedHashSet<>(plans.dimensions().values());
         unique.add(plans.overworld());
         unique.forEach(WorldShaderSession::validatePlan);
-        var session=new WorldShaderSession(Renderer.getInstance().getMainPass(),plans);
-        PipelineManager.configureShaderTerrain(ShaderBlockMaterials.resolve(plans.overworld().materials()));
+        var materials=ShaderBlockMaterials.resolve(plans.overworld().materials());
+        var session=new WorldShaderSession(Renderer.getInstance().getMainPass(),plans,materials);
+        PipelineManager.configureShaderTerrain(materials);
         Renderer.getInstance().setMainPass(session);
         current=session;
         return session;
@@ -379,12 +403,12 @@ public final class WorldShaderSession implements MainPass {
                     particles.put(entry.getKey(),new NativeGeometryPass(source,DefaultVertexFormat.PARTICLE,target,blend));
                 }
                 if (plan.entities() != null) {
-                    var source = plan.entities().solid();
-                    String name = bare(source.path());
-                    var target = chain.geometry(name, false, worldDepth);
-                    var blend = NativeBlend.forProgram(plan.chain().targets(), name, target.framebuffer().getColorAttachmentCount());
-                    entitySolid = new NativeGeometryPass(source, NativeEntityMesh.FORMAT, target, blend);
-                    entityCutout = new NativeGeometryPass(plan.entities().cutout(), NativeEntityMesh.FORMAT, target, blend);
+                    entitySolid = entityPass(plan.entities().solid(), worldDepth);
+                    entityCutout = entityPass(plan.entities().cutout(), worldDepth);
+                    if (plan.entities().blocks() != null) {
+                        blockSolid = entityPass(plan.entities().blocks().solid(), worldDepth);
+                        blockCutout = entityPass(plan.entities().blocks().cutout(), worldDepth);
+                    }
                 }
                 chain.prepareOutput(output);
             } catch (Throwable failure) {releaseGraph();throw failure;}
@@ -514,6 +538,13 @@ public final class WorldShaderSession implements MainPass {
     private static boolean shadowName(String s) {return s.equals("shadow")||s.equals("watershadow")||s.matches("shadowtex[01](?:HW)?|shadowcolor[0-7]?");}
     private static String bare(String path) {return path.substring(path.lastIndexOf('/')+1);}
 
+    private NativeGeometryPass entityPass(PackProgramSource.Prepared source, VulkanImage worldDepth) {
+        String name = bare(source.path());
+        var target = chain.geometry(name, false, worldDepth);
+        var blend = NativeBlend.forProgram(plan.chain().targets(), name, target.framebuffer().getColorAttachmentCount());
+        return new NativeGeometryPass(source, NativeEntityMesh.FORMAT, target, blend);
+    }
+
     private void releaseGraph() {
         active=false;scene=null;uniforms.reset();
         for (int id:aliases.values()) {GlTexture.setVulkanImage(id,null);GlTexture.glDeleteTextures(id);}
@@ -526,6 +557,10 @@ public final class WorldShaderSession implements MainPass {
         entitySolid = null;
         if (entityCutout != null) entityCutout.close();
         entityCutout = null;
+        if (blockSolid != null) blockSolid.close();
+        blockSolid = null;
+        if (blockCutout != null) blockCutout.close();
+        blockCutout = null;
         entityMesh.close();
         if (chain!=null) chain.close();chain=null;
         if(distant!=null)distant.close();distant=null;

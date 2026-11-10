@@ -1,6 +1,12 @@
-# VSDH — Prüfstand 0.18.0-dev, 10.11.2026
+# VSDH — Prüfstand 0.19.0-dev, 10.11.2026
 
-## Aktuell 0.18
+## Aktuell 0.19
+
+Der Blockentitätspass nutzt die vorhandene Materialtabelle der Welt und
+einen eigenen ID-Kanal im Mesh. Truhen sind die erste getestete Szene.
+Die GPU-Probe vergleicht die Mob- und Blockentitäts-ID getrennt.
+
+## Stand 0.18
 
 Der native Pfad für opake Entitäten verwendet die Minecraft-1.21.1-Matrizen,
 das Overlay und die pro Vertex erfasste Material-ID. Ein gepufferter

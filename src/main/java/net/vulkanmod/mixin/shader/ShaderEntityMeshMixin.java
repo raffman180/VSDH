@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(MeshData.class)
 public class ShaderEntityMeshMixin implements NativeEntityMesh.EntityIds {
-    @Unique private short[] vsdh$entityIds;
-    @Override public void vsdh$setEntityIds(short[] ids) { this.vsdh$entityIds = ids; }
-    @Override public short[] vsdh$getEntityIds() { return this.vsdh$entityIds; }
+    @Unique private NativeEntityMesh.Batch vsdh$entityIds;
+    @Override public void vsdh$setEntityIds(NativeEntityMesh.Batch ids) { this.vsdh$entityIds = ids; }
+    @Override public NativeEntityMesh.Batch vsdh$getEntityIds() { return this.vsdh$entityIds; }
 }

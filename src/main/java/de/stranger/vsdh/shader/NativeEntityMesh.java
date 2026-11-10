@@ -29,9 +29,11 @@ public final class NativeEntityMesh implements AutoCloseable {
                     VertexFormatElement.Usage.NORMAL, 4))
             .build();
 
+    public record Batch(short[] ids, boolean blocks) {}
+
     public interface EntityIds {
-        void vsdh$setEntityIds(short[] ids);
-        short[] vsdh$getEntityIds();
+        void vsdh$setEntityIds(Batch batch);
+        Batch vsdh$getEntityIds();
     }
 
     private final Vector3f tangent = new Vector3f();
@@ -41,7 +43,7 @@ public final class NativeEntityMesh implements AutoCloseable {
     private final Vector3f edge2 = new Vector3f();
     private ByteBuffer data;
 
-    ByteBuffer extend(MeshData mesh, short[] ids) {
+    ByteBuffer extend(MeshData mesh, short[] ids, boolean blocks) {
         var state = mesh.drawState();
         if (state.format() != DefaultVertexFormat.NEW_ENTITY || state.format().getVertexSize() != BASE
                 || state.vertexCount() % 4 != 0 || state.vertexCount() > ids.length)
@@ -64,7 +66,8 @@ public final class NativeEntityMesh implements AutoCloseable {
             for (int corner = 0; corner < 4; corner++) {
                 int index = vertex + corner, offset = index * stride;
                 MemoryUtil.memCopy(input + index * BASE, output + offset, BASE);
-                data.putShort(offset + 36, ids[index]).putShort(offset + 38, (short)0);
+                data.putShort(offset + 36, blocks ? (short) 0 : ids[index]);
+                data.putShort(offset + 38, blocks ? ids[index] : (short) 0);
                 data.putInt(offset + 40, 0);
                 data.putFloat(offset + 44, midU).putFloat(offset + 48, midV);
                 data.putInt(offset + 52, packedTangent);

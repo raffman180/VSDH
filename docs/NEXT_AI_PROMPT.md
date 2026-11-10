@@ -1,6 +1,18 @@
-# Fortsetzungs-Prompt — VSDH 0.18
+# Fortsetzungs-Prompt — VSDH 0.19
 
 ## Aktuelle Arbeit
+
+0.19 zeichnet opake Blockentitäten über gbuffers_block. Der
+BlockEntityRenderDispatcher liefert den Kontext, und ShaderBlockMaterials
+liefert dieselbe ID wie das Terrain. Bei Truhen in Complementary ist es
+5008. NativeEntityMesh.Batch trägt eine Kontextart pro Batch.
+NativeEntityMesh schreibt Mob-ID in Spur 0 und Block-ID in Spur 1,
+während die jeweils andere Spur 0 bleibt. Gemischte Batches bleiben im
+Standardpfad. Der erste Live-Test ist die Truhe in der isolierten
+Oberwelt. verify-0.19-block-entities-client.log und der Prüfbericht unter
+dist/0.19.0-dev enthalten den Stand der GPU- und Paketprüfungen.
+Der frühere Paketstand mit Mob-Tests in allen drei Dimensionen bleibt
+unter dist/0.18.0-dev verfügbar.
 
 0.18 bindet opake und Cutout-Mobs an das tatsächliche
 gbuffers_entities-Programm. Der native VULKAN_ENTITY-Übersetzer nutzt die
@@ -26,10 +38,9 @@ Zwischenstand vor der Main-Branch-Integration und gehört zu keiner JAR.
 Die früheren Entwicklungsstände unter dist/0.17.0-dev und dist/0.16.0-dev
 sind verifiziert und bleiben verfügbar.
 
-Als Nächstes die transparenten Entitätsschichten und Blockentitäten
-in getrennten Zeichenphasen ergänzen. Blockentitäten brauchen ihren
-eigenen Materialkontext, ebenso die Hand und gehaltene Items.
-Die festgelegte Iris-Referenz trennt die Phasen so:
+Als Nächstes transparente Entitätsschichten und die Hand in getrennten
+Zeichenphasen ergänzen. Die Hand und gehaltene Items brauchen einen
+Materialkontext. Die Iris-Referenz liefert die Reihenfolge.
 IrisRenderingPipeline.beginHand kopiert depthtex2 vor der Hand.
 HandRenderer.renderSolid zeichnet vor Deferred mit Z-Skalierung 0.125.
 beginTranslucents kopiert danach depthtex1 und startet Deferred.

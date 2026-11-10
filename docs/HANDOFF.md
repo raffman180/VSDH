@@ -6,7 +6,15 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.18 — Opake Entitäten
+## Aktuell 0.19 — Opake Blockentitäten
+
+WorldShaderBlockEntityMixin erfasst die Blockzustands-ID aus derselben
+Materialtabelle wie das Terrain. Homogene NEW_ENTITY-Batches mit
+Blockkontext verwenden den Originalpass `gbuffers_block` vor Deferred.
+NativeEntityMesh schreibt die ID in die zweite U16-Spur. Bei einem
+Batch mit verschiedenen Kontextarten greift der Standardpfad.
+
+## Stand 0.18 — Opake Entitäten
 
 EntityPackPlan bereitet den tatsächlichen Entitätspass und die
 Materialtabelle vor. WorldShaderLevelMixin setzt den Kontext bei

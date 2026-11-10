@@ -1,4 +1,4 @@
-# VSDH — Entwicklungsstand 0.18.0-dev
+# VSDH — Entwicklungsstand 0.19.0-dev
 
 VSDH enthält einen eigenen **VulkanMod-Reforged-Fork** und eine native Anbindung
 für Distant Horizons. Die Durchlaufkette für Shader-Farbpuffer, HDR/Mipmaps, gespeicherte Werte zwischen
@@ -17,7 +17,7 @@ ist noch nicht fertig.** Iris und Sodium können nicht zusätzlich geladen werde
 ## Testinstallation
 
 1. Ein separates Profil für Minecraft 1.21.1 / NeoForge 21.1.264 anlegen.
-2. Die VSDH-0.18.0-dev-JAR und DH 3.3.3 in dessen `mods`-Ordner legen.
+2. Die VSDH-0.19.0-dev-JAR und DH 3.3.3 in dessen `mods`-Ordner legen.
 3. Die originale Reforged-JAR sowie alte VSDH-0.1-JARs entfernen: Ab 0.2 ersetzt
    diese eine JAR den Renderer und das bisherige Addon.
 4. Iris, Sodium und andere Renderer-Ersatzmods aus diesem Profil herauslassen.
@@ -52,12 +52,18 @@ VSDH wird ausschließlich auf dem Client installiert. Bestehende DH-Speicherung
 und Multiplayer-Protokolle bleiben bei DH. Keine eigenen Änderungen an Inventaren
 oder Weltdaten; dedizierte Server und große Modpacks sind noch ungetestet.
 
-## Aktuell 0.18
+## Aktuell 0.19
+
+Opake Blockentitäten wie Truhen können den eigenen Blockentitätspass von
+Complementary verwenden. Die Material-ID des Blocks bleibt getrennt von
+der Material-ID eines Mobs. Die Hand und transparente Schichten stehen aus.
+
+## Stand 0.18
 
 Opake und ausgeschnittene Mob-Meshes können den eigenen Entitätspass von
 Complementary verwenden. Die Material-ID bleibt erhalten, wenn Minecraft
-mehrere Meshes gemeinsam zeichnet. Hand, Blockentitäten, transparente
-Entitätsschichten und Entitätsschatten stehen noch aus.
+mehrere Meshes gemeinsam zeichnet. In diesem Stand standen Hand, Blockentitäten, transparente
+Entitätsschichten und Entitätsschatten noch aus.
 
 ## Stand 0.17
 
