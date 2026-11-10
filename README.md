@@ -12,7 +12,7 @@ für dieses Profil die VSDH-JAR als Renderer.
 | NeoForge | 21.1.264 |
 | Java | 21 |
 | Vulkan-Renderer | in dieser VSDH-JAR enthalten; Reforged-Basis 0618965 |
-| Distant Horizons | 3.3.0 bis 3.3.3 für 1.21.1, Fabric/NeoForge-JAR |
+| Distant Horizons | 3.3.1 bis 3.3.3 für 1.21.1, Fabric/NeoForge-JAR |
 | Erstes Shader-Ziel | Complementary Reimagined r5.9.3, Profil MEDIUM |
 
 ## Testinstallation

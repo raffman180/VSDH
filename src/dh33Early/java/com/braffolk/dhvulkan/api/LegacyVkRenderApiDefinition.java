@@ -4,7 +4,7 @@ import com.braffolk.dhvulkan.core.VulkanBackend;
 import com.seibel.distanthorizons.core.render.EDhDepthRange;
 import com.seibel.distanthorizons.core.render.EDhRenderDepth;
 
-/** DH 3.3.0 and 3.3.1 used internal types for the Vulkan depth convention. */
+/** DH 3.3.1 used internal types for the Vulkan depth convention. */
 public final class LegacyVkRenderApiDefinition extends VkRenderApiDefinition {
     public LegacyVkRenderApiDefinition(VulkanBackend backend) {
         super(backend);

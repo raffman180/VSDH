@@ -5,12 +5,15 @@
 Der Nutzer möchte alle für Minecraft 1.21.1 / NeoForge 21.1.264 geeigneten
 DH-Ausgaben und möglichst alle Iris-/OptiFine-Shaderpacks verwenden.
 Siehe `dist/0.24.0-dev/verification.json` für echte Spieltests. Die vier
-stabilen DH-Ausgaben reichen von 3.3.0 bis 3.3.3. Auf Modrinth sind 22 weitere
+stabilen DH-Ausgaben reichen von 3.3.0 bis 3.3.3. 0.24 prüft 3.3.1 bis 3.3.3.
+3.3.0 hat im NeoForge-Build getrennte `_neoforge`-Typen samt SingletonInjector.
+Der erste Live-Lauf hat deshalb einen leeren NeoForge-Renderer-Injector.
+Auf Modrinth sind 22 weitere
 Alpha- und Beta-Ausgaben für dieselbe Zielplattform gelistet. Die lokale
 Liste und geprüfte Binärvergleiche liegen unter `build/reference/dh-matrix`.
 2.x braucht einen anderen Renderer-Einstieg. Bei 3.0–3.2 sind unter anderem
-Render-API, Buffer-Verträge und Datenbank-Mixins versionsabhängig. Nächster
-DH-Kandidat ist 3.2.0-b. Prüfe jede Familie im eigenen Spielprofil.
+Render-API, Buffer-Verträge und Datenbank-Mixins versionsabhängig. Nächste
+DH-Kandidaten sind 3.3.0 und 3.2.0-b. Prüfe jede Familie im eigenen Spielprofil.
 
 Die 0.24-Adapter liegen in `src/dh33Early` und `src/main`. Der Build prüft
 beide DH-Referenz-JARs. In der Laufzeit nur eine DH-JAR laden. Bei der alten

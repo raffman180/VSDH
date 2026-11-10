@@ -36,7 +36,7 @@ public class ApiDhIntegration implements DhIntegration {
                 return Class.forName("com.braffolk.dhvulkan.api.LegacyVkRenderApiDefinition", true, loader)
                         .asSubclass(VkRenderApiDefinition.class).getConstructor(VulkanBackend.class).newInstance(backend);
             } catch (ReflectiveOperationException failure) {
-                throw new IllegalStateException("Cannot initialize VSDH for the DH 3.3.0–3.3.1 renderer API", failure);
+                throw new IllegalStateException("Cannot initialize VSDH for the DH 3.3.1 renderer API", failure);
             }
         }
         return new ModernVkRenderApiDefinition(backend);
