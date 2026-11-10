@@ -1,6 +1,14 @@
-# VSDH — Prüfstand 0.20.0-dev, 10.11.2026
+# VSDH — Prüfstand 0.23.0-dev, 10.11.2026
 
-## Aktuell 0.20
+## Aktuell 0.23
+
+Native Handpässe, Verzauberungsglanz, transparente Blockentitäten,
+leuchtende Mob-Schichten und dynamische Modellschatten sind eingebunden.
+Der GPU-Test prüft die Hand-Tiefekopien, Glanzpixel und den zusätzlichen
+Tiefeninhalt in der Schattenkarte. MEDIUM bleibt im Originalprofil.
+`shaderOptions` kann die Pack-Einstellung für Modellschatten aktivieren.
+
+## Stand 0.20
 
 Die beiden normalen transparenten Entitäts-Zeichenarten nutzen den
 Packpass `gbuffers_entities_translucent`. Die optionale späte Phase

@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
 /** Prepared programs for supported entity mesh layers. */
 public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource.Prepared cutout,
                              Map<String, Integer> materials, BlockPrograms blocks,
-                             PackProgramSource.Prepared translucent, boolean lateTransparency, HandPrograms hand) {
+                             PackProgramSource.Prepared translucent, boolean lateTransparency, HandPrograms hand, EyesPrograms eyes, PackProgramSource.Prepared glint) {
     private static final String NAME = "gbuffers_entities";
     private static final String BLOCK = "gbuffers_block";
     private static final String TRANSLUCENT = "gbuffers_entities_translucent";
@@ -32,7 +32,9 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
 
     public EntityPackPlan { materials = Map.copyOf(materials); }
 
-    public record BlockPrograms(PackProgramSource.Prepared solid, PackProgramSource.Prepared cutout) {}
+    public record BlockPrograms(PackProgramSource.Prepared solid, PackProgramSource.Prepared cutout,
+                                PackProgramSource.Prepared translucent) {}
+    public record EyesPrograms(PackProgramSource.Prepared additive, PackProgramSource.Prepared emissive) {}
     public record HandPrograms(PackProgramSource.Prepared solid, PackProgramSource.Prepared translucent) {}
 
     static EntityPackPlan prepare(OpenedPack pack, String prefix, ShaderChainPlan chain,
@@ -49,6 +51,7 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
             var cutout = PackProgramSource.prepare(pack, prefix + NAME, inputs, inputs.elements(),
                     alphas.getOrDefault(NAME, AlphaTest.ONE_TENTH));
             var textures = PackTextures.read(pack.properties(), defines, pack.source());
+            var optional = new OptionalPrograms(pack, prefix, chain, alphas, customUniforms, shadows, distant, textures, warning);
             for (var source : List.of(solid, cutout)) {
                 validate(source, customUniforms, shadows, distant, textures);
             }
@@ -74,7 +77,8 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
                             alphas.getOrDefault(BLOCK, AlphaTest.ONE_TENTH));
                     validate(blockSolid, customUniforms, shadows, distant, textures);
                     validate(blockCutout, customUniforms, shadows, distant, textures);
-                    blocks = new BlockPrograms(blockSolid, blockCutout);
+                    blocks = new BlockPrograms(blockSolid, blockCutout,
+                            optional.prepare("gbuffers_block_translucent", inputs, AlphaTest.ONE_TENTH));
                 } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
                     warning.accept("Keeping standard block entity rendering for " + prefix + BLOCK + ": " + failure.getMessage());
                 }
@@ -85,7 +89,7 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
                     && pack.source().file(prefix + TRANSLUCENT + ".fsh").isPresent()) {
                 try {
                     var source = PackProgramSource.prepare(pack, prefix + TRANSLUCENT, inputs, inputs.elements(),
-                            alphas.getOrDefault(TRANSLUCENT, AlphaTest.NON_ZERO));
+                            alphas.getOrDefault(TRANSLUCENT, AlphaTest.ONE_TENTH));
                     validate(source, customUniforms, shadows, distant, textures);
                     translucent = source;
                 } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
@@ -108,10 +112,31 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
                     warning.accept("Keeping standard hand rendering for " + prefix + handSolid + ": " + failure.getMessage());
                 }
             }
-            return new EntityPackPlan(solid, cutout, ids, blocks, translucent, pack.properties().separateEntityDraws(defines), hand);
+            var eyesInput = VertexInputs.VULKAN_ENTITY_FULLBRIGHT;
+            var additive = optional.prepare("gbuffers_spidereyes", eyesInput, AlphaTest.NON_ZERO);
+            var emissive = optional.prepare("gbuffers_spidereyes", eyesInput, AlphaTest.ONE_TENTH);
+            var eyes = additive == null && emissive == null ? null : new EyesPrograms(additive, emissive);
+            var glint = optional.prepare("gbuffers_armor_glint", VertexInputs.VULKAN_GLINT, AlphaTest.NON_ZERO);
+            return new EntityPackPlan(solid, cutout, ids, blocks, translucent, pack.properties().separateEntityDraws(defines), hand, eyes, glint);
         } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
             warning.accept("Keeping standard opaque entity rendering for " + prefix + NAME + ": " + failure.getMessage());
             return null;
+        }
+    }
+
+    private record OptionalPrograms(OpenedPack pack, String prefix, ShaderChainPlan chain, Map<String, AlphaTest> alphas,
+                                    Set<String> uniforms, boolean shadows, boolean distant, PackTextures textures,
+                                    Consumer<String> warning) {
+        PackProgramSource.Prepared prepare(String name, VertexInputs inputs, AlphaTest alpha) {
+            if (!hasProgram(pack, prefix, chain, name)) return null;
+            try {
+                var source = PackProgramSource.prepare(pack, prefix + name, inputs, inputs.elements(), alphas.getOrDefault(name, alpha));
+                validate(source, uniforms, shadows, distant, textures);
+                return source;
+            } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
+                warning.accept("Keeping standard geometry for " + prefix + name + ": " + failure.getMessage());
+                return null;
+            }
         }
     }
 
@@ -150,12 +175,18 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
         if (blocks != null) {
             programs.add(blocks.solid());
             programs.add(blocks.cutout());
+            if (blocks.translucent() != null) programs.add(blocks.translucent());
         }
         if (translucent != null) programs.add(translucent);
         if (hand != null) {
             programs.add(hand.solid());
             programs.add(hand.translucent());
         }
+        if (eyes != null) {
+            if (eyes.additive() != null) programs.add(eyes.additive());
+            if (eyes.emissive() != null) programs.add(eyes.emissive());
+        }
+        if (glint != null) programs.add(glint);
         return List.copyOf(programs);
     }
 }

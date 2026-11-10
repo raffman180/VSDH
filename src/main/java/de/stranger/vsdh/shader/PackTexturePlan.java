@@ -34,15 +34,19 @@ public record PackTexturePlan(Map<String,Asset> bindings) {
         var defines=pack.settings().globalDefines(pack.options());
         var textures=PackTextures.read(pack.properties(),defines,pack.source());
         var bindings=new LinkedHashMap<String,Asset>();var decoded=new HashMap<String,Asset>();
-        var programs=new LinkedHashMap<String,PackProgramSource.Prepared>();
-        terrain.values().forEach(p->programs.put(p.path(),p));
-        if(distant!=null)distant.programs().forEach(p->programs.put(p.path(),p));
-        sky.programs().values().forEach(p->programs.put(p.path(),p));
-        particles.programs().values().forEach(p->programs.put(p.path(),p));
-        if(entities!=null)entities.programs().forEach(p->programs.put(p.path(),p));
-        if(shadow!=null)shadow.programs().values().forEach(p->programs.put(p.path(),p));
-        chain.stages().values().forEach(passes->passes.forEach(p->programs.put(p.program().path(),p.program())));
-        for(var source:programs.values()) {
+        var programs=new LinkedHashSet<PackProgramSource.Prepared>();
+        terrain.values().forEach(programs::add);
+        if(distant!=null)distant.programs().forEach(programs::add);
+        sky.programs().values().forEach(programs::add);
+        particles.programs().values().forEach(programs::add);
+        if(entities!=null)entities.programs().forEach(programs::add);
+        if(shadow!=null) {
+            programs.addAll(shadow.programs().values());
+            if(shadow.entities()!=null)programs.add(shadow.entities());
+            if(shadow.blocks()!=null)programs.add(shadow.blocks());
+        }
+        chain.stages().values().forEach(passes->passes.forEach(p->programs.add(p.program())));
+        for(var source:programs) {
             String name=source.path().substring(source.path().lastIndexOf('/')+1);
             var stage=TextureStage.of(name).orElse(TextureStage.GBUFFERS);
             var active=new HashSet<Integer>();source.compiled().stages().values().forEach(s->active.addAll(SpirvInterface.bindings(s)));

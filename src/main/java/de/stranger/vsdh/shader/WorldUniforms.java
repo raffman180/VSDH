@@ -15,7 +15,7 @@ public final class WorldUniforms implements ExpressionFrame {
     private enum DrawSpace { WORLD, FULLSCREEN, SHADOW, DISTANT, DRAW }
 
     private static final Set<String> KNOWN=Set.of("of_ModelViewMatrix","of_ProjectionMatrix","of_ModelViewProjectionMatrix",
-            "of_NormalMatrix","of_TextureMatrix","of_DepthConv","gbufferModelView","gbufferModelViewInverse",
+            "of_NormalMatrix","of_TextureMatrix","of_DepthConv","of_GlintAlpha","gbufferModelView","gbufferModelViewInverse",
             "gbufferProjection","gbufferProjectionInverse","gbufferPreviousModelView","gbufferPreviousProjection",
             "cameraPosition","previousCameraPosition","fogColor","skyColor","viewWidth","viewHeight","aspectRatio",
             "near","far","frameCounter","frameTime","frameTimeCounter","worldTime","worldDay","rainStrength","eyeAltitude",
@@ -40,6 +40,7 @@ public final class WorldUniforms implements ExpressionFrame {
     private final Matrix4f scratch=new Matrix4f(); private final Matrix3f normalScratch=new Matrix3f();
     private final Matrix4f legacyCameraProjection=new Matrix4f();
     private final Matrix4f localProjection=new Matrix4f();
+    private final float[] localTextureMatrix = new float[16];
     private final float[] localView=new float[16],localProjectionValues=new float[16],localMvp=new float[16],
             localNormal=new float[9],passColour=new float[4];
     private final BuiltinWorldValues builtins=new BuiltinWorldValues();
@@ -143,6 +144,10 @@ public final class WorldUniforms implements ExpressionFrame {
         write(pass,fullscreen?DrawSpace.FULLSCREEN:DrawSpace.WORLD,renderStage,alphaRef);
     }
     public void writeShadow(NativeGraphicsProgram pass) {write(pass,DrawSpace.SHADOW,0,.1f);}
+    void writeShadowCaster(NativeGraphicsProgram pass, boolean blocks) {
+        write(pass, DrawSpace.SHADOW, (blocks ? dev.vitrail.pack.model.RenderStage.BLOCK_ENTITIES
+                : dev.vitrail.pack.model.RenderStage.ENTITIES).ordinal(), .1f);
+    }
     public void writeDistant(NativeGraphicsProgram pass, boolean water) {
         write(pass,DrawSpace.DISTANT,water?17:8,0);
     }
@@ -177,6 +182,7 @@ public final class WorldUniforms implements ExpressionFrame {
         localProjection.m01(-localProjection.m01()).m11(-localProjection.m11())
                 .m21(-localProjection.m21()).m31(-localProjection.m31());
         modelView.get(localView);
+        RenderSystem.getTextureMatrix().get(localTextureMatrix);
         localProjection.get(localProjectionValues);
         scratch.set(localProjection).mul(modelView).get(localMvp);
         modelView.normal(normalScratch).get(localNormal);
@@ -219,7 +225,7 @@ public final class WorldUniforms implements ExpressionFrame {
             };
             if (matrix!=null) { layout.putFloats(buffer,name,0,matrix); continue; }
             if (name.equals("of_TextureMatrix")) {
-                for (int i=0;i<member.arrayLength();i++) layout.putFloats(buffer,name,i,i==1?LIGHT:IDENTITY);
+                for (int i=0;i<member.arrayLength();i++) layout.putFloats(buffer,name,i,i==1?LIGHT:i==0&&space==DrawSpace.DRAW?localTextureMatrix:IDENTITY);
                 continue;
             }
             if (member.type().equals("int")) {
@@ -230,6 +236,7 @@ public final class WorldUniforms implements ExpressionFrame {
             }
             scalar[0]=switch(name) {
                 case "viewWidth"->width;case "viewHeight"->height;case "aspectRatio"->(float)width/height;
+                case "of_GlintAlpha"->RenderSystem.getShaderGlintAlpha();
                 case "near"->.05f;case "far"->far;case "frameTime"->frameTime;case "frameTimeCounter"->elapsed;
                 case "rainStrength"->rain;case "eyeAltitude"->camera[1];case "alphaTestRef"->alphaRef;case "dhNearPlane"->dhNear;case "dhFarPlane"->dhFar;
                 default->throw new IllegalArgumentException("Unknown world uniform "+name);

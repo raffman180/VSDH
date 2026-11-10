@@ -1,7 +1,6 @@
 package de.stranger.vsdh.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
@@ -25,8 +24,8 @@ public final class NativeHandRenderer implements AutoCloseable {
     private final ShaderBlockMaterials blocks;
     private final Map<String, Integer> items;
     private final Matrix4f view = new Matrix4f();
-    private final ByteBufferBuilder storage = new ByteBufferBuilder(4096);
-    private final MultiBufferSource.BufferSource buffers = MultiBufferSource.immediate(storage);
+    private final NativeModelBuffers storage = new NativeModelBuffers(4096);
+    private final MultiBufferSource.BufferSource buffers = storage.source;
     private Camera camera;
     private float partialTick;
     private boolean drawing, late, replaced, needsLate;

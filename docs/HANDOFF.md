@@ -6,7 +6,19 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.20 — Transparente Mob-Schichten
+## Aktuell 0.23 — Hand, Glanz und Modellschatten
+
+NativeHandRenderer ruft die Minecraft-Hand mit eigener Matrix und
+eigenen Puffern auf. Die opake Hand liegt zwischen depthtex2 und
+depthtex1. Die transparente Hand liegt vor Composite. Die normale
+Egoansicht führt ihre Bildschirmeffekte weiter aus. ItemRenderer
+grenzt Item-IDs über eigene Batches ab.
+NativeModelBuffers hält getrennte Vertexpuffer für Glanz und Grundmodell.
+NativeWorldShadows zeichnet die Modelle in derselben Schattenkarte vor
+der opaken Schattenkopie. shaderOptions überschreibt deklarierte
+Pack-Einstellungen beim Start. Prüfstände stehen im Paketbericht.
+
+## Stand 0.20 — Transparente Mob-Schichten
 
 EntityPackPlan prüft `gbuffers_entities_translucent` einschließlich der
 DH-Werte. Bei `separateEntityDraws=true` übernimmt WorldShaderEntityLayerMixin

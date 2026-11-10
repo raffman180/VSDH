@@ -60,7 +60,10 @@ public final class WorldShaderSession implements MainPass {
     private final NativeEntityMesh entityMesh = new NativeEntityMesh();
     private final Map<ResourceLocation, Integer> entityMaterials = new HashMap<>();
     private NativeGeometryPass entitySolid, entityCutout, blockSolid, blockCutout, entityTranslucent;
-    private NativeGeometryPass handSolid, handLate;
+    private NativeGeometryPass handSolid, handLate, blockTranslucent, eyesAdditive, eyesEmissive;
+    private long transparentBlockDraws, emissiveDraws, glintDraws;
+    private NativeGeometryPass glintEarly, glintLate;
+    private java.util.function.BiConsumer<VulkanImage, Boolean> glintObserver;
     private NativeHandRenderer hand;
     private final long[] handDraws = new long[2];
     private record PendingEntity(RenderType type, MeshData mesh) {}
@@ -72,6 +75,8 @@ public final class WorldShaderSession implements MainPass {
     private NativeShaderChain chain;
     private NativeWorldDepth depth;
     private NativeWorldShadows shadows;
+    private NativeShadowCasters shadowCasters;
+    private boolean renderingShadowCasters;
     private NativeWorldTextures textures;
     private NativeDistantTerrain distant;
     private VulkanImage borrowedDepth;
@@ -223,7 +228,7 @@ public final class WorldShaderSession implements MainPass {
 
     public int beginEntity(Entity entity) {
         int previous = entityMaterial;
-        if (active && !deferred && plan.entities() != null) {
+        if (renderingShadowCasters || active && !deferred && plan.entities() != null) {
             var key = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
             entityMaterial = entityMaterials.getOrDefault(key, -1) & 0xffff;
         } else {
@@ -234,7 +239,7 @@ public final class WorldShaderSession implements MainPass {
 
     public int beginBlockEntity(BlockEntity entity) {
         int previous = entityMaterial;
-        entityMaterial = active && !deferred && blockSolid != null
+        entityMaterial = (renderingShadowCasters || active && !deferred && blockSolid != null)
                 ? BLOCK_ENTITY_CAPTURE | (blockMaterials.applyAsInt(entity.getBlockState()) & 0xffff)
                 : NO_ENTITY_CAPTURE;
         return previous;
@@ -253,13 +258,23 @@ public final class WorldShaderSession implements MainPass {
 
     public long transparentEntityDraws(boolean late) { return transparentEntityDraws[late ? 1 : 0]; }
 
+    public long transparentBlockDraws() { return transparentBlockDraws; }
+    public long emissiveDraws() { return emissiveDraws; }
+
     public boolean queueTransparentEntity(RenderType type, MeshData mesh) {
-        if (!active || deferred || entityTranslucent == null || !plan.entities().lateTransparency()
+        if (!active || deferred || plan.entities() == null || !plan.entities().lateTransparency()
                 || !RenderSystem.isOnRenderThread()
                 || net.vulkanmod.compat.sable.render.SublevelRenderScope.current().isPresent()) return false;
-        if (!type.name.equals("entity_translucent") && !type.name.equals("entity_translucent_cull")) return false;
         var batch = ((NativeEntityMesh.EntityIds) (Object) mesh).vsdh$getEntityIds();
-        if (batch == null || batch.blocks()) return false;
+        if (batch == null) return false;
+        var program = switch (type.name) {
+            case "entity_translucent", "entity_translucent_cull", "item_entity_translucent_cull" ->
+                    batch.blocks() ? blockTranslucent : entityTranslucent;
+            case "eyes" -> batch.blocks() ? null : eyesAdditive;
+            case "entity_translucent_emissive" -> batch.blocks() ? null : eyesEmissive;
+            default -> null;
+        };
+        if (program == null) return false;
         pendingEntities.addLast(new PendingEntity(type, mesh));
         return true;
     }
@@ -268,10 +283,18 @@ public final class WorldShaderSession implements MainPass {
     public long handDraws(boolean late) { return handDraws[late ? 1 : 0]; }
     public VulkanImage worldDepth(String sampler) { return depth.image(sampler); }
 
+    public long glintDraws() { return glintDraws; }
+    public void glintObserver(java.util.function.BiConsumer<VulkanImage, Boolean> observer) { glintObserver = observer; }
+
     public boolean renderEntityGeometry(MeshData mesh) {
+        if (renderingShadowCasters) {
+            try (mesh) { drawShadowCasterBatch(mesh); }
+            return true;
+        }
         if (!active || entitySolid == null
                 || net.vulkanmod.compat.sable.render.SublevelRenderScope.current().isPresent()) return false;
         var state = mesh.drawState();
+        if (state.format() == DefaultVertexFormat.POSITION_TEX && glintEarly != null) return renderGlint(mesh, state);
         if (state.format() != DefaultVertexFormat.NEW_ENTITY || state.mode() != VertexFormat.Mode.QUADS
                 || state.vertexCount() < 4 || state.vertexCount() % 4 != 0) return false;
         if (hand != null && hand.drawing()) {
@@ -284,19 +307,39 @@ public final class WorldShaderSession implements MainPass {
         ShaderInstance shader = RenderSystem.getShader();
         if (shader == null) return false;
         boolean transparent = shader == GameRenderer.getRendertypeEntityTranslucentShader()
-                || shader == GameRenderer.getRendertypeEntityTranslucentCullShader();
-        if (transparent) {
-            if (batch.blocks() || entityTranslucent == null || deferred != plan.entities().lateTransparency()) return false;
-            try (mesh) {
-                drawEntityBatch(mesh, batch, state, entityTranslucent, plan.entities().translucent(), true);
+                || shader == GameRenderer.getRendertypeEntityTranslucentCullShader()
+                || shader == GameRenderer.getRendertypeItemEntityTranslucentCullShader();
+        boolean eyes = shader == GameRenderer.getRendertypeEyesShader();
+        boolean emissive = shader == GameRenderer.getRendertypeEntityTranslucentEmissiveShader();
+        if (transparent || eyes || emissive) {
+            if (deferred != plan.entities().lateTransparency()) return false;
+            NativeGeometryPass program;
+            PackProgramSource.Prepared source;
+            if (eyes || emissive) {
+                if (batch.blocks() || plan.entities().eyes() == null) return false;
+                program = eyes ? eyesAdditive : eyesEmissive;
+                source = eyes ? plan.entities().eyes().additive() : plan.entities().eyes().emissive();
+            } else if (batch.blocks()) {
+                program = blockTranslucent;
+                source = plan.entities().blocks().translucent();
+            } else {
+                program = entityTranslucent;
+                source = plan.entities().translucent();
             }
+            if (program == null) return false;
+            try (mesh) { drawEntityBatch(mesh, batch, state, program, source, true); }
+            if (eyes || emissive) emissiveDraws++;
+            else if (batch.blocks()) transparentBlockDraws++;
+            else transparentEntityDraws[deferred ? 1 : 0]++;
             return true;
         }
         if (deferred) return false;
         boolean solid = shader == GameRenderer.getRendertypeEntitySolidShader();
         if (!solid && shader != GameRenderer.getRendertypeEntityCutoutShader()
                 && shader != GameRenderer.getRendertypeEntityCutoutNoCullShader()
-                && shader != GameRenderer.getRendertypeEntityCutoutNoCullZOffsetShader()) return false;
+                && shader != GameRenderer.getRendertypeEntityCutoutNoCullZOffsetShader()
+                && shader != GameRenderer.getRendertypeEntitySmoothCutoutShader()
+                && shader != GameRenderer.getRendertypeArmorCutoutNoCullShader()) return false;
         NativeGeometryPass program;
         PackProgramSource.Prepared source;
         if (batch.blocks()) {
@@ -311,6 +354,53 @@ public final class WorldShaderSession implements MainPass {
             drawEntityBatch(mesh, batch, state, program, source, false);
         }
         return true;
+    }
+
+    private boolean renderGlint(MeshData mesh, MeshData.DrawState state) {
+        var shader = RenderSystem.getShader();
+        if (shader == null || shader != GameRenderer.getRendertypeArmorGlintShader()
+                && shader != GameRenderer.getRendertypeArmorEntityGlintShader()
+                && shader != GameRenderer.getRendertypeGlintShader()
+                && shader != GameRenderer.getRendertypeGlintDirectShader()
+                && shader != GameRenderer.getRendertypeGlintTranslucentShader()
+                && shader != GameRenderer.getRendertypeEntityGlintShader()
+                && shader != GameRenderer.getRendertypeEntityGlintDirectShader()) return false;
+        var program = deferred ? glintLate : glintEarly;
+        var stage = hand == null || !hand.drawing() ? RenderStage.ENTITIES
+                : hand.late() ? RenderStage.HAND_TRANSLUCENT : RenderStage.HAND_SOLID;
+        try (mesh; var scope = Renderer.getInstance().temporaryRenderTarget()) {
+            uniforms.writeDraw(program, RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix(), stage);
+            bindGeometry(program, plan.entities().glint(), deferred, false);
+            int topology = VRenderSystem.topology;
+            try {
+                VRenderSystem.setPrimitiveTopology(state.mode());
+                if (glintObserver != null) glintObserver.accept(program.colorAttachment(), false);
+                program.render(pipeline -> Renderer.getDrawer().draw(mesh.vertexBuffer(), state, mesh.indexBuffer()));
+                glintDraws++;
+                if (glintObserver != null) glintObserver.accept(program.colorAttachment(), true);
+            } finally {
+                VRenderSystem.topology = topology;
+            }
+        }
+        return true;
+    }
+
+    private void drawShadowCasterBatch(MeshData mesh) {
+        var state = mesh.drawState();
+        if (state.format() != DefaultVertexFormat.NEW_ENTITY || state.mode() != VertexFormat.Mode.QUADS
+                || state.vertexCount() < 4 || state.vertexCount() % 4 != 0) return;
+        var batch = ((NativeEntityMesh.EntityIds) (Object) mesh).vsdh$getEntityIds();
+        if (batch == null) return;
+        var vertices = entityMesh.extend(mesh, batch.ids(), batch.blocks());
+        var nativeState = new MeshData.DrawState(NativeEntityMesh.FORMAT, state.vertexCount(), state.indexCount(), state.mode(), state.indexType());
+        int topology = VRenderSystem.topology;
+        try {
+            VRenderSystem.setPrimitiveTopology(state.mode());
+            shadows.drawCaster(batch.blocks(), uniforms, textures,
+                    pipeline -> Renderer.getDrawer().draw(vertices, nativeState, mesh.indexBuffer()));
+        } finally {
+            VRenderSystem.topology = topology;
+        }
     }
 
     private void drawHandBatch(MeshData mesh, MeshData.DrawState state) {
@@ -354,10 +444,7 @@ public final class WorldShaderSession implements MainPass {
         } finally {
             VRenderSystem.topology = topology;
         }
-        if (transparent) {
-            transparentEntityDraws[deferred ? 1 : 0]++;
-            return;
-        }
+        if (transparent) return;
         if (!batch.blocks()) entityDraws++;
         for (int i = 0; i < state.vertexCount(); i++) {
             if (batch.ids()[i] != (short) -1) {
@@ -410,7 +497,7 @@ public final class WorldShaderSession implements MainPass {
             source.compiled().stages().values().forEach(bytes->activeBindings.addAll(SpirvInterface.bindings(bytes)));
             for (var sampler:source.translated().samplers()) if (activeBindings.contains(source.compiled().bindings().get(sampler.name()))
                     && !java.util.Set.of("gtexture","texture","tex","lightmap").contains(sampler.name())
-                    && !(source.translated().inputs()==VertexInputs.VULKAN_ENTITY && sampler.name().equals("ofOverlay"))
+                    && !(source.translated().inputs().vulkanEntity() && sampler.name().equals("ofOverlay"))
                     && !(shadowName(sampler.name())&&plan.shadow()!=null)&&!depthName(sampler.name())
                     && !(distantDepth(sampler.name())&&plan.distant()!=null)
                     && plan.textures().resolve(source.path(),sampler.name())==null
@@ -449,7 +536,10 @@ public final class WorldShaderSession implements MainPass {
                 chain=new NativeShaderChain(plan.chain(),worldDepth.width,worldDepth.height,512L*1024*1024);
                 textures=new NativeWorldTextures(plan.textures());
                 if(plan.distant()!=null)distant=new NativeDistantTerrain(plan,worldDepth.width,worldDepth.height);
-                if(plan.shadow()!=null)shadows=new NativeWorldShadows(plan);
+                if(plan.shadow()!=null) {
+                    shadows=new NativeWorldShadows(plan);
+                    if (plan.shadow().entities() != null || plan.shadow().blocks() != null) shadowCasters = new NativeShadowCasters();
+                }
                 for (TerrainRenderType type:TerrainRenderType.values()) {
                     var source=sources.get(type);
                     var pipeline=new NativeTerrainPass(source.path(),source.translated(),source.compiled());
@@ -482,12 +572,23 @@ public final class WorldShaderSession implements MainPass {
                     if (plan.entities().blocks() != null) {
                         blockSolid = entityPass(plan.entities().blocks().solid(), worldDepth, false);
                         blockCutout = entityPass(plan.entities().blocks().cutout(), worldDepth, false);
+                        if (plan.entities().blocks().translucent() != null)
+                            blockTranslucent = entityPass(plan.entities().blocks().translucent(), worldDepth, plan.entities().lateTransparency());
                     }
+                }
+                if (plan.entities() != null && plan.entities().eyes() != null) {
+                    var eyes = plan.entities().eyes();
+                    if (eyes.additive() != null) eyesAdditive = entityPass(eyes.additive(), worldDepth, plan.entities().lateTransparency());
+                    if (eyes.emissive() != null) eyesEmissive = entityPass(eyes.emissive(), worldDepth, plan.entities().lateTransparency());
                 }
                 if (plan.entities() != null && plan.entities().hand() != null) {
                     handSolid = entityPass(plan.entities().hand().solid(), worldDepth, false);
                     handLate = entityPass(plan.entities().hand().translucent(), worldDepth, true);
                     hand = new NativeHandRenderer(blockMaterials, plan.items());
+                }
+                if (plan.entities() != null && plan.entities().glint() != null) {
+                    glintEarly = geometryPass(plan.entities().glint(), DefaultVertexFormat.POSITION_TEX, worldDepth, false);
+                    glintLate = geometryPass(plan.entities().glint(), DefaultVertexFormat.POSITION_TEX, worldDepth, true);
                 }
                 chain.prepareOutput(output);
             } catch (Throwable failure) {releaseGraph();throw failure;}
@@ -500,7 +601,16 @@ public final class WorldShaderSession implements MainPass {
             depth.beginFrame();
             if(distant!=null)distant.beginFrame();
             chain.render(ShaderChainPlan.Stage.BEGIN,null,this::writeFullscreen,this::external);
-            if(shadows!=null)shadows.render(camera,uniforms,textures);
+            if(shadows!=null)shadows.render(camera,uniforms,textures,() -> {
+                if (shadowCasters == null) return;
+                renderingShadowCasters = true;
+                try {
+                    shadowCasters.draw(plan.shadow(), camera, uniforms.shadowCamera, partialTick, handPartialTick,
+                            plan.directives().shadowDistance());
+                } finally {
+                    renderingShadowCasters = false;
+                }
+            });
             chain.render(ShaderChainPlan.Stage.PREPARE,null,this::writeFullscreen,this::external);
         }
         deferred=false;
@@ -537,7 +647,7 @@ public final class WorldShaderSession implements MainPass {
                               boolean afterDeferred,boolean untextured) {
         var inputs=source.translated().inputs();
         boolean dh=inputs==VertexInputs.DISTANT;
-        boolean fullLight=inputs==VertexInputs.SKY;
+        boolean fullLight=inputs==VertexInputs.SKY || inputs.fullbright();
         for (String sampler:pipeline.requiredSamplers()) {
             var supplied=textures.image(source.path(),sampler);
             if(supplied!=null){pipeline.bindImage(sampler,supplied);continue;}
@@ -632,10 +742,14 @@ public final class WorldShaderSession implements MainPass {
     private static String bare(String path) {return path.substring(path.lastIndexOf('/')+1);}
 
     private NativeGeometryPass entityPass(PackProgramSource.Prepared source, VulkanImage worldDepth, boolean late) {
+        return geometryPass(source, NativeEntityMesh.FORMAT, worldDepth, late);
+    }
+
+    private NativeGeometryPass geometryPass(PackProgramSource.Prepared source, VertexFormat format, VulkanImage worldDepth, boolean late) {
         String name = bare(source.path());
         var target = chain.geometry(name, late, worldDepth);
         var blend = NativeBlend.forProgram(plan.chain().targets(), name, target.framebuffer().getColorAttachmentCount());
-        return new NativeGeometryPass(source, NativeEntityMesh.FORMAT, target, blend);
+        return new NativeGeometryPass(source, format, target, blend);
     }
 
     private void releaseGraph() {
@@ -657,10 +771,20 @@ public final class WorldShaderSession implements MainPass {
         if (entityTranslucent != null) entityTranslucent.close();
         entityTranslucent = null;
         while (!pendingEntities.isEmpty()) pendingEntities.removeFirst().mesh().close();
+        if (blockTranslucent != null) blockTranslucent.close();
+        blockTranslucent = null;
+        if (eyesAdditive != null) eyesAdditive.close();
+        eyesAdditive = null;
+        if (eyesEmissive != null) eyesEmissive.close();
+        eyesEmissive = null;
         if (handSolid != null) handSolid.close();
         handSolid = null;
         if (handLate != null) handLate.close();
         handLate = null;
+        if (glintEarly != null) glintEarly.close();
+        glintEarly = null;
+        if (glintLate != null) glintLate.close();
+        glintLate = null;
         if (hand != null) hand.close();
         hand = null;
         entityMesh.close();
@@ -668,6 +792,7 @@ public final class WorldShaderSession implements MainPass {
         if(distant!=null)distant.close();distant=null;
         if (depth!=null) depth.close();depth=null;borrowedDepth=null;
         if(shadows!=null)shadows.close();shadows=null;
+        if(shadowCasters!=null)shadowCasters.close();shadowCasters=null;
         if(textures!=null)textures.close();textures=null;
     }
 

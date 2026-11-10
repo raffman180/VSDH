@@ -1,6 +1,34 @@
-# Fortsetzungs-Prompt — VSDH 0.20
+# Fortsetzungs-Prompt — VSDH 0.23
 
 ## Aktuelle Arbeit
+
+0.21–0.23 ergänzt die Hand, Blocktransparenz, volle Beleuchtung für
+leuchtende Mob-Schichten, Glanz und dynamische Schatten. Die frühe
+Minecraft-Hand wird mit einer frischen ModelView-Basis aufgerufen,
+weil der Welt-Stack während Deferred bereits die Kameramatrix trägt.
+Der Eingriff liegt vor RenderType.setupRenderState des Wassers.
+depthtex2 wird vor der opaken Hand kopiert, depthtex1 danach.
+Die späte Hand zeichnet vor Composite. Die Vanilla-Bildschirmeffekte
+laufen einmal wie gewohnt. Separate Glanzpuffer sind wegen Minecrafts
+parallelem VertexMultiConsumer erforderlich. Der Glanz behält den
+normalen EQUAL-Tiefenvergleich und die animierte Texturmatrix.
+
+NativeShadowCasters verwendet die Modelle der geladenen Welt und den
+Lichtfrustum. Mob- und Blockgeometrie liegen vor der opaken
+Schattenkopie. Das MEDIUM-Profil deaktiviert diese Familien.
+config/vsdh.json kann mit "shaderOptions": { "ENTITY_SHADOW": "2" }
+das Profil überschreiben. Die Shader-ZIP bleibt unverändert.
+ShadowCasterWorldProbe prüft echte zusätzliche Schatten-Tiefenpixel.
+GlintWorldProbe wartet die Ausrüstungsanimation ab und vergleicht
+Farbdaten vor und nach dem tatsächlichen Glanzaufruf.
+TransparentBlockWorldProbe nutzt die Truhe mit transparentem RenderType
+in der isolierten Spielszene. Alle Proben bleiben im Smoke-Source-Set.
+
+Prüfe dist/0.23.0-dev und den Prüfbericht auf die getesteten Pack- und
+DH-Kombinationen. 3.3.2 und 3.3.3 haben gleiche Signaturen für die
+geprüften 45 DH-Klassen. Die ältere Version im eigenen Testprofil
+ausführen. Weitere GPUs, Performance und andere Packs jeweils messen.
+Die Entwicklungsstände 0.21 und 0.22 waren Zwischenprüfungen.
 
 0.20 bindet transparente Mob-Schichten an gbuffers_entities_translucent.
 Die beiden normalen Minecraft-RenderTypes verwenden das schon gepufferte
@@ -21,8 +49,8 @@ keine JAR. Prüfe die abschließenden Testlogs und den Paketbericht, bevor
 du 0.20 als getestete Version ausgibst. Der geprüfte 0.19-Stand bleibt
 unter dist/0.19.0-dev verfügbar.
 
-Offen sind die Hand, transparente Blockentitäten, Sonderprogramme
-wie emissive Schichten und Entitätsschatten. Die exakte Reihenfolge
+In 0.20 waren Hand, transparente Blockentitäten, leuchtende Schichten
+und Entitätsschatten noch offen. Die exakte Reihenfolge
 für die Hand steht weiter unten. Beginne mit einem isolierten Test
 für opake Handgeometrie und getrennte Tiefekopien.
 
@@ -62,8 +90,7 @@ Zwischenstand vor der Main-Branch-Integration und gehört zu keiner JAR.
 Die früheren Entwicklungsstände unter dist/0.17.0-dev und dist/0.16.0-dev
 sind verifiziert und bleiben verfügbar.
 
-Als Nächstes die Hand in getrennten Zeichenphasen ergänzen. Die Hand und gehaltene Items brauchen einen
-Materialkontext. Die Iris-Referenz liefert die Reihenfolge.
+Für die Hand und gehaltene Items liefert die Iris-Referenz die Reihenfolge.
 IrisRenderingPipeline.beginHand kopiert depthtex2 vor der Hand.
 HandRenderer.renderSolid zeichnet vor Deferred mit Z-Skalierung 0.125.
 beginTranslucents kopiert danach depthtex1 und startet Deferred.

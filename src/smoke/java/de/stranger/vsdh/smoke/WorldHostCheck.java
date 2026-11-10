@@ -24,7 +24,9 @@ final class WorldHostCheck {
             try {
                 boolean real=Boolean.getBoolean("vsdh.smoke.livePack");
                 var path=real?Path.of(System.getProperty("vsdh.smoke.pack")):Path.of(WorldHostCheck.class.getResource("/shaderpacks/vsdh-world").toURI());
-                try(var pack=OpenedPack.open(path,Map.of(),real?"MEDIUM":"")) {
+                Map<String,dev.vitrail.pack.option.OptionValue> options=Boolean.getBoolean("vsdh.smoke.entityShadows")
+                        ? Map.of("ENTITY_SHADOW",dev.vitrail.pack.option.OptionValue.of("2")) : Map.of();
+                try(var pack=OpenedPack.open(path,options,real?"MEDIUM":"")) {
                     boolean distant=Boolean.getBoolean("vsdh.smoke.distantPack");
                     var prepared=DimensionWorldProbe.enabled()
                             ?WorldPackSet.prepare(pack,distant)

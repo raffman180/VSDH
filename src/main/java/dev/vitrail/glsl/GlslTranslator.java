@@ -1248,7 +1248,7 @@ public final class GlslTranslator {
 		// gbuffers_textured serves a glint under this constant and a sky pass under another. Each
 		// stage adds what it names and the union hands both to both, the block being the program's
 		// rather than the stage's.
-		if (this.inputs == VertexInputs.GLINT && this.used.contains("of_Color")) {
+		if ((this.inputs == VertexInputs.GLINT || this.inputs == VertexInputs.VULKAN_GLINT) && this.used.contains("of_Color")) {
 			block.add(TranslatedUnit.Uniform.of(LegacyGlsl.GLINT_ALPHA,
 					"float " + LegacyGlsl.GLINT_ALPHA));
 		}
@@ -2408,7 +2408,7 @@ public final class GlslTranslator {
 				continue;
 			}
 
-			if (name.equals("gl_TextureMatrix") && this.inputs != VertexInputs.VULKAN_ENTITY
+			if (name.equals("gl_TextureMatrix") && !this.inputs.nativeDrawTransforms()
                     && LegacyGlsl.bindsGameTransforms(this.program)
 					&& rewriteGameTextureMatrix(index)) {
 				continue;
@@ -2419,7 +2419,7 @@ public final class GlslTranslator {
 				continue;
 			}
 
-			if (this.inputs != VertexInputs.VULKAN_ENTITY && LegacyGlsl.readsDrawModelView(this.program)
+			if (!this.inputs.nativeDrawTransforms() && LegacyGlsl.readsDrawModelView(this.program)
                     && rewriteGameModelView(index, name)) {
 				continue;
 			}
@@ -2978,7 +2978,7 @@ public final class GlslTranslator {
 		// A pass drawn from the camera takes the draw's model view here too, and it has to: this is
 		// the spelling the corpus really uses for a glint, and a pack writing ftransform() would
 		// otherwise get the pass's matrix back through the door rewriteGameModelView closed.
-		if (this.inputs != VertexInputs.VULKAN_ENTITY && LegacyGlsl.readsDrawModelView(this.program)) {
+		if (!this.inputs.nativeDrawTransforms() && LegacyGlsl.readsDrawModelView(this.program)) {
 			this.tokens.inject(index, "(of_ProjectionMatrix * " + DRAW_MODEL_VIEW + " * of_Vertex)");
 			this.injectedNames.add("of_ProjectionMatrix");
 			this.injectedNames.add(LegacyGlsl.CAMERA_BOB);

@@ -42,11 +42,12 @@ public record WorldPackPlan(ShaderChainPlan chain, Map<String, PackProgramSource
         }
         var parsed=BlockIds.read(pack.source(),defines);
         if (!parsed.problems().isEmpty()) throw new IOException("Invalid material table: "+parsed.problems());
-        var shadow=ShadowPackPlan.prepare(pack,prefix,chain.targets().shadowCeiling());
+        var expressions=PackExpressions.read(pack);
+        var shadow=ShadowPackPlan.prepare(pack,prefix,chain.targets().shadowCeiling(),expressions.resolvedNames(),distant,
+                message->org.slf4j.LoggerFactory.getLogger("VSDH").warn(message));
         var dh=distant?DistantPackPlan.prepare(pack,prefix):null;
         var skyPrograms=SkyPackPlan.prepare(pack,prefix,chain);
         var particles=ParticlePackPlan.prepare(pack,prefix,chain);
-        var expressions=PackExpressions.read(pack);
         var entities=EntityPackPlan.prepare(pack,prefix,chain,expressions.resolvedNames(),shadow!=null,dh!=null,
                 message->org.slf4j.LoggerFactory.getLogger("VSDH").warn(message));
         PackTexturePlan textures;

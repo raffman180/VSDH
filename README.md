@@ -1,4 +1,4 @@
-# VSDH — Entwicklungsstand 0.20.0-dev
+# VSDH — Entwicklungsstand 0.23.0-dev
 
 VSDH enthält einen eigenen **VulkanMod-Reforged-Fork** und eine native Anbindung
 für Distant Horizons. Die Durchlaufkette für Shader-Farbpuffer, HDR/Mipmaps, gespeicherte Werte zwischen
@@ -11,13 +11,13 @@ ist noch nicht fertig.** Iris und Sodium können nicht zusätzlich geladen werde
 | NeoForge | 21.1.264 |
 | Java | 21 |
 | Vulkan-Renderer | in dieser VSDH-JAR enthalten; Reforged-Basis 0618965 |
-| Distant Horizons | 3.3.3 für 1.21.1, Fabric/NeoForge-JAR |
+| Distant Horizons | 3.3.2 oder 3.3.3 für 1.21.1, Fabric/NeoForge-JAR |
 | Erstes Shader-Ziel | Complementary Reimagined r5.9.3, Profil MEDIUM |
 
 ## Testinstallation
 
 1. Ein separates Profil für Minecraft 1.21.1 / NeoForge 21.1.264 anlegen.
-2. Die VSDH-0.20.0-dev-JAR und DH 3.3.3 in dessen `mods`-Ordner legen.
+2. Die VSDH-0.23.0-dev-JAR und eine der oben genannten DH-Versionen in dessen `mods`-Ordner legen.
 3. Die originale Reforged-JAR sowie alte VSDH-0.1-JARs entfernen: Ab 0.2 ersetzt
    diese eine JAR den Renderer und das bisherige Addon.
 4. Iris, Sodium und andere Renderer-Ersatzmods aus diesem Profil herauslassen.
@@ -52,7 +52,19 @@ VSDH wird ausschließlich auf dem Client installiert. Bestehende DH-Speicherung
 und Multiplayer-Protokolle bleiben bei DH. Keine eigenen Änderungen an Inventaren
 oder Weltdaten; dedizierte Server und große Modpacks sind noch ungetestet.
 
-## Aktuell 0.20
+## Aktuell 0.23
+
+Die Hand verwendet getrennte Pack-Durchläufe für opake und transparente
+Gegenstände. Verzauberungsglanz verwendet die animierte Textur und die
+bereits gezeichnete Tiefe. Normale transparente Blockentitäten und
+leuchtende Mob-Schichten haben eigene Programme. Modellschatten folgen
+den Einstellungen des Shaderpacks.
+
+Für Mob- und Blockentitätsschatten mit Complementary MEDIUM kannst du in
+`config/vsdh.json` zusätzlich `"shaderOptions": { "ENTITY_SHADOW": "2" }`
+eintragen. Die Option überschreibt das Profil beim nächsten Start.
+
+## Stand 0.20
 
 Transparente Mob-Schichten wie die Außenhaut von Schleimen können
 `gbuffers_entities_translucent` verwenden. VSDH zeichnet sie vor Deferred

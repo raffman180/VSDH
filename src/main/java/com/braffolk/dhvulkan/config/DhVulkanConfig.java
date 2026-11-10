@@ -19,6 +19,7 @@ public final class DhVulkanConfig {
     public int vulkanRenderMode = 0;
     public String shaderPack = "";
     public String shaderProfile = "MEDIUM";
+    public java.util.Map<String,String> shaderOptions = java.util.Map.of();
     public boolean shaderDistantHorizons = true;
 
     public static synchronized DhVulkanConfig get() {

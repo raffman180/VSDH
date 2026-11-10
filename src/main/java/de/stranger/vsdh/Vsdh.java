@@ -25,7 +25,7 @@ public final class Vsdh {
         integration.initialize(new VulkanRenderEngine());
         NeoForge.EVENT_BUS.addListener(this::onLogout);
         if(!Boolean.getBoolean("vsdh.smoke") || Boolean.getBoolean("vsdh.smoke.configuredPack"))
-            ShaderPackStartup.start(config.shaderPack,config.shaderProfile,config.shaderDistantHorizons);
+            ShaderPackStartup.start(config.shaderPack,config.shaderProfile,config.shaderOptions,config.shaderDistantHorizons);
         LOGGER.info("VSDH native renderer initialized; complete shaderpack and DH-pack integration remain in development.");
     }
 

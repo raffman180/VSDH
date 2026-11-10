@@ -27,6 +27,8 @@ final class NativeGeometryPass extends NativeGraphicsProgram {
         };
     }
 
+    net.vulkanmod.vulkan.texture.VulkanImage colorAttachment() { return target.framebuffer().getColorAttachment(); }
+
     void render(Consumer<GraphicsPipeline> geometry) {
         var state = blend.apply(PipelineState.getCurrentPipelineState(target.pass()));
         renderDraw(target.framebuffer(), target.pass(), state, command -> geometry.accept(pipeline));

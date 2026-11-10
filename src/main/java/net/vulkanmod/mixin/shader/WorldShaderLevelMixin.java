@@ -16,12 +16,18 @@ import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.gen.Invoker;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LevelRenderer.class)
-public class WorldShaderLevelMixin {
+public abstract class WorldShaderLevelMixin implements de.stranger.vsdh.shader.NativeShadowCasters.LevelAccess {
+    @Override
+    @Invoker("renderEntity")
+    public abstract void vsdh$renderShadowEntity(Entity entity, double x, double y, double z, float partial,
+                                                  PoseStack pose, MultiBufferSource buffers);
+
     @WrapMethod(method = "renderEntity")
     private void vsdh$captureEntityMaterial(Entity entity, double x, double y, double z, float delta,
                                             PoseStack pose, MultiBufferSource buffers, Operation<Void> draw) {

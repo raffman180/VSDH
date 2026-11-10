@@ -36,7 +36,11 @@ public final class SmokeScene {
 
     @SubscribeEvent
     public static void render(RenderLevelStageEvent event) {
-        if (!Boolean.getBoolean("vsdh.smoke") || event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) return;
+        if (!Boolean.getBoolean("vsdh.smoke")) return;
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES
+                && worldNumber == 1 && ticks >= 90 && ticks < 360 && Boolean.getBoolean("vsdh.smoke.livePack"))
+            TransparentBlockWorldProbe.draw();
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) return;
         int check = (worldNumber - 1) * 2 + (ticks >= 950 ? 2 : 1);
         WorldHostCheck.verifyIfReady(ticks);
         if (worldNumber == 1 && ticks >= 455 && ticks < 480 && !handVerified && Boolean.getBoolean("vsdh.smoke.livePack")) {
@@ -87,20 +91,29 @@ public final class SmokeScene {
                     mc.getConnection().sendCommand("gamerule doMobSpawning false");
                     mc.getConnection().sendCommand("difficulty normal");
                     mc.getConnection().sendCommand("setblock -5 98 2 minecraft:chest");
+                    mc.getConnection().sendCommand("summon minecraft:spider -5 97.5 4.5 {NoAI:1b,NoGravity:1b,Silent:1b,PersistenceRequired:1b}");
                     mc.getConnection().sendCommand("summon minecraft:slime -3 97.5 5.5 {Size:1,NoAI:1b,NoGravity:1b,Silent:1b,PersistenceRequired:1b}");
                     mc.getConnection().sendCommand("summon minecraft:iron_golem -2.5 97.5 3.5 {NoAI:1b,NoGravity:1b,Silent:1b}");
                     mc.getConnection().sendCommand("summon minecraft:chicken -1.5 98 4.5 {NoAI:1b,NoGravity:1b,Silent:1b}");
                 }
+                if (ticks == 220 && Boolean.getBoolean("vsdh.smoke.entityShadows"))
+                    ShadowCasterWorldProbe.arm(de.stranger.vsdh.shader.WorldShaderSession.current().shadows());
                 if (ticks == 385) {
                     mc.getConnection().sendCommand("gamemode creative");
                     mc.getConnection().sendCommand("item replace entity @s weapon.mainhand with minecraft:torch");
                     mc.getConnection().sendCommand("item replace entity @s weapon.offhand with minecraft:blue_stained_glass");
                 }
-                if (ticks == 480) {
+                if (ticks == 462) {
+                    mc.getConnection().sendCommand("item replace entity @s weapon.mainhand with minecraft:diamond_sword[minecraft:enchantment_glint_override=true]");
+                    GlintWorldProbe.arm(de.stranger.vsdh.shader.WorldShaderSession.current());
+                }
+                if (ticks == 490) {
+                    GlintWorldProbe.requireVerified();
                     if (!handVerified) throw new AssertionError("Native hand probe did not run");
                     mc.getConnection().sendCommand("gamemode spectator");
                 }
                 if (ticks == 360) {
+                    if (Boolean.getBoolean("vsdh.smoke.entityShadows")) ShadowCasterWorldProbe.requireVerified();
                     var session = de.stranger.vsdh.shader.WorldShaderSession.current();
                     if (session.entityDraws() == 0 || session.mappedEntityDraws() == 0)
                         throw new AssertionError("No live entity draws with mapped IDs: " + session.entityDraws());
@@ -113,6 +126,11 @@ public final class SmokeScene {
                     if (transparent == 0 || session.transparentEntityDraws(!late) != 0)
                         throw new AssertionError("Translucent slime did not draw in expected entity phase, late=" + late);
                     LOGGER.info("TRANSLUCENT ENTITY WORLD PASS: draws={}, afterDeferred={}", transparent, late);
+                    if (session.transparentBlockDraws() == 0 || session.emissiveDraws() == 0)
+                        throw new AssertionError("Missing transparent block or emissive geometry: " + session.transparentBlockDraws()
+                                + "/" + session.emissiveDraws());
+                    LOGGER.info("SPECIAL ENTITY WORLD PASS: transparent blocks={}, emissive={}",
+                            session.transparentBlockDraws(), session.emissiveDraws());
                 }
             }
             if (!Boolean.getBoolean("vsdh.smoke.livePack")) {
