@@ -8,7 +8,7 @@ out vec4 testTangent;
 out vec4 testColor;
 out vec4 testMaterialUv;
 out vec4 testMidBlock;
-out vec2 testLight;
+out vec4 testLight;
 flat out int testLowByte;
 void main() {
     gl_Position = vec4(gl_Vertex.xy * 2.0 - 1.0, 0.0, 1.0);
@@ -18,5 +18,5 @@ void main() {
     testMaterialUv = vec4(vec2(mc_Entity.xy), mc_midTexCoord);
     testLowByte = mc_Entity.x & 255;
     testMidBlock = at_midBlock;
-    testLight = gl_MultiTexCoord1.xy;
+    testLight = vec4(gl_MultiTexCoord1.xy, gl_MultiTexCoord2.xy);
 }

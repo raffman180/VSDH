@@ -57,7 +57,12 @@ public final class NativeShaderChain implements AutoCloseable {
                 stages.put(stage, runtime);
                 for (var source : plan.stages().get(stage)) {
                     View view = source.outputs().isEmpty() ? null : view(source.outputs(), null);
-                    var pipeline = new NativeFullscreenPass(source.program().path(), source.program().translated(), source.program().compiled());
+                    // Iris presents FINAL with blending disabled. Earlier passes can blend into
+                    // their scheduled destination, whose existing contents are loaded by the pass.
+                    int blend = stage == ShaderChainPlan.Stage.FINAL ? 0
+                            : plan.targets().blend(source.name()).map(NativeBlend::encode).orElse(0);
+                    var pipeline = new NativeFullscreenPass(source.program().path(), source.program().translated(),
+                            source.program().compiled(), blend);
                     runtime.add(new RuntimePass(source, pipeline, view));
                     if (view != null) pipeline.prepare(view.pass());
                     for (var input : source.inputs())

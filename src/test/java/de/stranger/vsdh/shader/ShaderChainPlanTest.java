@@ -29,10 +29,11 @@ class ShaderChainPlanTest {
     @Test void budgetIncludesBothHalvesAndEveryMipBeforeAnyGpuAllocation() throws Exception {
         var chain = fixture();
         var layout = ShaderTargetLayout.of(chain.targets(), 17, 11, 16384, 1 << 20);
-        assertEquals(4, layout.targets().size());
+        assertEquals(5, layout.targets().size());
         // colortex0: 17*11+8*5+4*2+2*1+1 = 238 texels, two RGBA16F halves.
         // colortex1: 8*5+4*2+2*1+1 = 51; 2/4 each 17*11, also doubled.
-        assertEquals((238 + 51 + 187 + 187) * 8L * 2, layout.bytes());
+        // colortex10: 8*5 texels, two RGBA8UI halves.
+        assertEquals((238 + 51 + 187 + 187) * 8L * 2 + 40 * 4L * 2, layout.bytes());
         assertThrows(IllegalArgumentException.class, () -> ShaderTargetLayout.of(chain.targets(), 17, 11, 16384, layout.bytes() - 1));
         assertThrows(IllegalArgumentException.class, () -> ShaderTargetLayout.of(chain.targets(), 17, 11, 16, 1 << 20));
         assertThrows(IllegalArgumentException.class, () -> ShaderTargetLayout.of(chain.targets(), 0, 11, 16384, 1 << 20));

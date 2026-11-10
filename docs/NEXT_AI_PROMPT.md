@@ -1,6 +1,15 @@
-# Fortsetzungs-Prompt — VSDH 0.15
+# Fortsetzungs-Prompt — VSDH 0.16
 
 ## Aktuelle Arbeit
+
+0.16 liefert `gl_MultiTexCoord1` und `gl_MultiTexCoord2` als dieselbe
+Lichtmap-Eingabe im Vulkan-Terrainformat. NativeShaderChain unterstützt
+programmweite Blend-Direktiven in den Vollbildphasen vor Final. Der
+Diagnoselauf verify-0.16-compat-diagnostic-4.log prüft beide Lichtwerte
+in vier Terrainvarianten, additive Mischung mit dem vorhandenen Puffer
+und eine ungemischte RGBA8UI-Ausgabe im selben Pass wie ein Float-Ziel.
+Den Spieltest der gebauten JAR und den Archiv-Neuaufbau im Bericht unter
+dist/0.16.0-dev prüfen. Der frühere Stand liegt weiter unter dist/0.15.0-dev.
 
 0.15 korrigiert die sichtbar falsche Nahwasser-Normale. Die
 Originalpack-Vergleiche in packaged-water-pbuffer.log und
@@ -20,8 +29,8 @@ Flächennormalen der Testszene. Weitere Spielbelege im Prüfbericht.
 Testpack-Kopie und Diagnose-Mixins unter build/reference bleiben lokal.
 
 
-0.14.0-dev ist der zuletzt verifizierte Entwicklungsstand. Quell-Commit
-284960f. dist/0.14.0-dev enthält die exakt im isolierten Profil getestete
+0.14.0-dev war der erste Entwicklungsstand mit normalem Shaderstart.
+Quell-Commit 284960f. dist/0.14.0-dev enthält die exakt im isolierten Profil getestete
 JAR, Quellarchiv, Prüfsummen, Prüfbericht und Testlogs. 60 CPU-Tests,
 build, verifyBundledLwjgl und Neuaufbau aus entpacktem Quellarchiv
 bestehen. Die gebaute JAR wurde im getrennten NeoForge-Profil bei
@@ -44,7 +53,7 @@ enthalten Wasserproben vor Composite, die in beiden Renderern denselben
 Bildbereich aus colortex0 und colortex3 lesen. Prüfe die aktuellen Logs
 packaged-water-pbuffer.log und iris-water-pbuffer.log auf die Befunde.
 
-Für Entitäten liefert verify-entity-contract.log den SPIR-V-Audit von
+Für Entitäten liefert verify-entity-contract-2.log den SPIR-V-Audit von
 Complementary MEDIUM. Aktive Eingaben enthalten echte EntityIds und
 MidTexCoord. Tangenten sind im geprüften MEDIUM-Programm optimiert, können
 bei anderen Einstellungen aktiv sein. Das übernommene ENTITY-Profil bindet

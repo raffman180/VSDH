@@ -1,6 +1,13 @@
-# VSDH — Prüfstand 0.15.0-dev, 09.11.2026
+# VSDH — Prüfstand 0.16.0-dev, 10.11.2026
 
-## Aktuell 0.15
+## Aktuell 0.16
+
+Die GPU-Tests bestätigen identische Lichtkoordinaten über beide alten
+GLSL-Namen sowie die Farbmischung in Vollbild-Durchläufen. Ein gemeinsamer
+Durchlauf prüft zusätzlich gemischte Float- und Ganzzahlziele. Der Floatpuffer
+folgt der Packregel, der Ganzzahlpuffer erhält die vier Shaderwerte direkt.
+
+## Stand 0.15
 
 Die Oberseite der Flüssigkeitsflächen wird mit ihrer richtigen Normalen
 gezeichnet, wenn Rückseitenausblendung aktiv ist. Das behebt die dunkle

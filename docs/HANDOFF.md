@@ -6,7 +6,16 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.15 — Beleuchtung des Nahwassers
+## Aktuell 0.16 — Terrain-Lichtkoordinaten und Vollbildmischung
+
+VulkanTerrainVertex aliasiert `gl_MultiTexCoord2` auf die Lichtkoordinaten
+von `gl_MultiTexCoord1`. NativeShaderChain übernimmt programmweite
+Mischregeln für die Vollbild-Durchläufe vor Final. NativeFullscreenPass
+überspringt die Mischung für ganzzahlige Ausgaben. ChainGpuCheck prüft
+sowohl die gemischten Farbwerte als auch eine unveränderte RGBA8UI-Ausgabe.
+TerrainGpuCheck liest beide GLSL-Eingaben in allen vier Terrainvarianten.
+
+## Stand 0.15 — Beleuchtung des Nahwassers
 
 Bei aktivem Shader und backFaceCulling bleibt die Minecraft-Cull-Einstellung
 für transparentes Terrain wirksam. Ein Vulkan-/Iris-A/B-Test isolierte die

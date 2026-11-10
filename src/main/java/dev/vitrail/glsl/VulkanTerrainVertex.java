@@ -24,7 +24,8 @@ public final class VulkanTerrainVertex {
         lines.add("layout(push_constant) uniform VsdhChunk { vec3 vs_ChunkOffset; };");
         lines.add("vec4 of_Vertex, of_Color, of_MultiTexCoord0, of_MultiTexCoord1;");
         lines.add("vec3 of_Normal;");
-        for (int unit = 2; unit <= 7; unit++)
+        lines.add("#define of_MultiTexCoord2 of_MultiTexCoord1");
+        for (int unit = 3; unit <= 7; unit++)
             lines.add("#define of_MultiTexCoord" + unit + (unit == 3
                     ? " vec4(vec2(vs_MidUV) / 32768.0, 0.0, 1.0)"
                     : " vec4(0.0, 0.0, 0.0, 1.0)"));

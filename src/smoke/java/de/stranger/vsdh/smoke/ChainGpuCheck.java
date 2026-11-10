@@ -71,7 +71,7 @@ final class ChainGpuCheck {
         check(prepared.normal, 13, 9, org.lwjgl.vulkan.VK10.VK_FORMAT_D32_SFLOAT_S8_UINT);
         check(prepared.noFinal, 13, 9, org.lwjgl.vulkan.VK10.VK_FORMAT_D32_SFLOAT);
         if (prepared.complementary != null) prepareComplementary(prepared.complementary);
-        LoggerFactory.getLogger("VSDH-Smoke").info("CHAIN GPU PASS: stages, scaled HDR/mips, four-frame history, rebuild/no-final, D32/D24S8/D32S8 snapshots and stencil copies");
+        LoggerFactory.getLogger("VSDH-Smoke").info("CHAIN GPU PASS: stages, fullscreen blending, scaled HDR/mips, four-frame history, rebuild/no-final, D32/D24S8/D32S8 snapshots and stencil copies");
     }
 
     private static void check(ShaderChainPlan plan, int width, int height, int depthFormat) {
@@ -107,7 +107,14 @@ final class ChainGpuCheck {
                     throw new AssertionError("Unexpected external input " + program + "/" + binding.sampler());
                 };
                 chain.render(ShaderChainPlan.Stage.BEGIN, null, writer, external);
+                hdr(chain.targets().image(0, Side.ALT), pixels, 0.28125f, fog.g(), fog.b());
                 chain.render(ShaderChainPlan.Stage.PREPARE, null, writer, external);
+                var integer = chain.targets().image(10, Side.ALT);
+                ImageUtil.downloadTextureRegion(integer, MemoryUtil.memAddress(pixels), 0, 0, 1, 1, integer.aspect, 4);
+                if (integer.format != org.lwjgl.vulkan.VK10.VK_FORMAT_R8G8B8A8_UINT
+                        || Byte.toUnsignedInt(pixels.get(0)) != 7 || Byte.toUnsignedInt(pixels.get(1)) != 19
+                        || Byte.toUnsignedInt(pixels.get(2)) != 33 || Byte.toUnsignedInt(pixels.get(3)) != 250)
+                    throw new AssertionError("Fullscreen blend must bypass integer outputs");
                 var geometry = chain.geometry("gbuffers_terrain", false, null);
                 if (geometry.framebuffer().getColorAttachment() != chain.targets().image(0, Side.ALT))
                     throw new AssertionError("Geometry writes to wrong half after prepare");

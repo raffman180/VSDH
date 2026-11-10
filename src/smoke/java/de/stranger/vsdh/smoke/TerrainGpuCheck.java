@@ -129,7 +129,7 @@ final class TerrainGpuCheck {
             case 0 -> mode == 0 ? new float[]{.5f, .5f-(float)Math.sqrt(.5)*.5f, .5f+(float)Math.sqrt(.5)*.5f, alpha}
                     : oldLighting && !separate ? new float[]{128f/255,64f/255,32f/255,alpha}
                     : new float[]{192f/255*tintScale,128f/255*tintScale,64f/255*tintScale,alpha};
-            case 1 -> mode == 0 ? new float[]{1,.5f,.5f,1} : new float[]{128f/255,240f/255,0,1};
+            case 1 -> mode == 0 ? new float[]{1,.5f,.5f,1} : new float[]{128f/255,240f/255,128f/255,240f/255};
             case 2 -> new float[]{mode == 0 ? 33554559f/67108864 : 127f/255,1,.5f,.5f};
             case 3 -> new float[]{.75f-x*.5f,.75f-y*.5f,.75f-y*.5f,1};
             default -> throw new AssertionError(attachment);
