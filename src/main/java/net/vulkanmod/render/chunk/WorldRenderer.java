@@ -326,8 +326,12 @@ public class WorldRenderer {
         TerrainRenderState.prepareWorldTerrainState();
         renderType.setupRenderState();
 
+        var shaders = de.stranger.vsdh.shader.WorldShaderSession.current();
+        boolean shaderFrame = shaders != null && shaders.active();
+        // Keep vanilla culling for translucent pack draws. The liquid mesh can
+        // contain both windings, with a different normal on each side.
         if (!Initializer.CONFIG.backFaceCulling
-                || terrainRenderType == TerrainRenderType.TRANSLUCENT) {
+                || (terrainRenderType == TerrainRenderType.TRANSLUCENT && !shaderFrame)) {
             RenderSystem.disableCull();
         }
 
@@ -339,8 +343,7 @@ public class WorldRenderer {
         VRenderSystem.applyMVP(modelView, projection);
         VRenderSystem.setPrimitiveTopologyGL(GL11.GL_TRIANGLES);
 
-        var shaders = de.stranger.vsdh.shader.WorldShaderSession.current();
-        if (shaders != null && shaders.active()) {
+        if (shaderFrame) {
             shaders.renderTerrain(terrainRenderType,
                     pipeline -> drawSectionBatches(pipeline, terrainRenderType, camX, camY, camZ, false));
         } else {

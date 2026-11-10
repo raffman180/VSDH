@@ -50,6 +50,24 @@ Für die Ursache sind Farbpuffer und Reflexionseingaben des Nahwasserpasses
 auf beiden Renderern zu vergleichen. Aufnahmen, Koordinaten und Profilbeleg
 liegen im Prüfarchiv von 0.12.
 
+## Nahwasser in 0.15
+
+Die Puffer vor Composite zeigten die Helligkeitsabweichung bereits in
+colortex0. colortex3 und die Fernwasserfarbe lagen bei beiden Renderern
+nah beieinander. Eine Diagnosekopie des Packs legte acht Zwischenwerte
+aus dem Wasserpass in getrennte Pixelspalten. Über der Wasserfläche war
+die verwendete Normale in VSDH nach unten gerichtet. Iris las dieselbe
+Fläche mit der nach oben gerichteten Normalen.
+
+Der Reforged-Zeichenpfad deaktivierte die Rückseitenausblendung für
+transparente Chunks. Die Flüssigkeitsmeshes können dieselbe Fläche mit
+beiden Umlaufrichtungen und je einer eigenen Normalen enthalten.
+Bei aktivem backFaceCulling übernimmt der Shaderpfad jetzt die
+Minecraft-Vorgabe für diese Geometrie. Im kontrollierten A/B-Lauf
+wechselte die Normalenkomponente nach oben. Der Grünkanal nach
+der Beleuchtung stieg von 0,256 auf 0,502. Iris ergab 0,505.
+Das ursprüngliche Reforged-Verhalten gilt im Standardmodus.
+
 Weitere Arbeiten betreffen Packprogramme für übrige Minecraft-Geometrie,
 DH-Schatten für Packs, die sie aktivieren, und allgemeine DH-Objekte. Complementary MEDIUM
 deaktiviert DH-Schatten in seiner eigenen Konfiguration.

@@ -62,6 +62,7 @@ final class WorldHostCheck {
         if(session==null || !armed || scaledVerified || (verified && net.vulkanmod.Initializer.CONFIG.renderScale!=50))return;
         ShadowWorldProbe.verify(session);
         NearWorldDepthProbe.verify(session);
+        WaterFaceProbe.verify(session);
         if(session.active() || session.framesCompleted()<100 || session.terrainCalls()==0)
             throw new AssertionError("World shader did not own the actual render frame");
         var image=session.chain().targets().image(1,Side.MAIN);

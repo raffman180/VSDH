@@ -90,3 +90,7 @@ dimensions. Test all three live, return to Overworld, then a standard world.
 0.14 adds opt-in startup selection. Read and compile the selected pack on a
 worker, then install it on the render thread only while no level is loaded.
 Keep invalid or blank settings on the standard renderer. Never bundle the pack.
+
+0.15 keeps vanilla culling for shader translucent terrain when backFaceCulling
+is enabled. Liquid meshes carry both face windings. Preserve the standard
+renderer and confirm upward water normals in the live GPU probe.

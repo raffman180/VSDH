@@ -6,13 +6,24 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.14 — Experimentelle Auswahl
+## Aktuell 0.15 — Beleuchtung des Nahwassers
+
+Bei aktivem Shader und backFaceCulling bleibt die Minecraft-Cull-Einstellung
+für transparentes Terrain wirksam. Ein Vulkan-/Iris-A/B-Test isolierte die
+nach unten gerichtete Normale der doppelt gezeichneten Wasseroberfläche.
+WaterFaceProbe prüft die sichtbare Normale im unveränderten Welt-Zeichenpfad.
+Details und verbleibende Aufgaben in DISTANT_PACK.md und NEXT_AI_PROMPT.md.
+
+## Stand 0.14 — Experimentelle Auswahl
 
 ShaderPackStartup liest die Auswahl aus config/vsdh.json. Die bereits
 geladene Clientkonfiguration wird unverändert verwendet. Das Pack und
 seine Dimensionspläne entstehen auf einem Worker. Die Installation erfolgt
 im Menü auf dem Renderthread. Testprofile befinden sich unter build/.
-Die tatsächlichen Resultate stehen in verify-0.14-Logs.
+Die verifizierte JAR, das Quellarchiv und der Prüfbericht liegen unter
+dist/0.14.0-dev. Das gebaute JAR wurde bei 2560×1440 im getrennten
+NeoForge-Profil geprüft. Der Dimensionslauf und die Ablehnung eines
+ungültigen Pfads sind in den 0.14-Logs belegt.
 
 ## Stand 0.13 — Dimensionspläne
 

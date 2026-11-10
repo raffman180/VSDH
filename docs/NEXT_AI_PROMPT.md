@@ -1,21 +1,59 @@
-# Fortsetzungs-Prompt — VSDH 0.14
+# Fortsetzungs-Prompt — VSDH 0.15
 
 ## Aktuelle Arbeit
 
-0.14 ergänzt die experimentelle Shader-Auswahl über config/vsdh.json.
-ShaderPackStartup liest das ZIP oder Verzeichnis asynchron und installiert
-WorldPackSet erst bei ungeladener Welt. Ein leerer Name behält den
-Standardrenderer. Kein Pack ist Bestandteil der JAR. Die beiden
-Entwicklungsprofile unter build/configured-smoke-valid und
-build/configured-smoke-invalid sind isoliert. Logs verify-0.14-rejected-pack-2
-und verify-0.14-configured-client prüfen Ablehnung und echte Aktivierung.
-Bestätige die Ergebnisse und prüfe git status, bevor du den Stand als
-Spieltest ausgibst.
+0.15 korrigiert die sichtbar falsche Nahwasser-Normale. Die
+Originalpack-Vergleiche in packaged-water-pbuffer.log und
+iris-water-pbuffer.log zeigten die Abweichung in colortex0 vor Composite.
+Die anschließende lokale Diagnosekopie las Materialfarbe, Beleuchtung,
+Reflexion und Normale separat. Bei VSDH war die Normale nach unten
+gerichtet, bei Iris nach oben. Der A/B-Test unter
+build/reference/release-client/packaged-water-trace-ccw.log belegt, dass
+die Rückseitenausblendung die sichtbare Normale korrigiert und die
+Beleuchtung dicht an die Iris-Referenz bringt.
 
-Nach Aktivierung fehlen weiterhin vollständige Entitäts-/Hand-Pässe,
-verifizierte Abdeckung weiterer Shaderpacks und DH-Versionen sowie
-die Ursache der dunkleren Nahwasser-Färbung. Nutze den MEDIUM-Vergleich
-und die Shaderzielpuffer für gezielte Messungen.
+WorldRenderer belässt jetzt bei aktivem Shaderpfad die normale
+Minecraft-Cull-Einstellung für das transparente Terrain. Das gilt
+bei eingeschalteter Rückseitenausblendung in den Vulkan-Einstellungen.
+WaterFaceProbe in verify-0.15-water-diagnostic.log liest tatsächliche
+Flächennormalen der Testszene. Weitere Spielbelege im Prüfbericht.
+Testpack-Kopie und Diagnose-Mixins unter build/reference bleiben lokal.
+
+
+0.14.0-dev ist der zuletzt verifizierte Entwicklungsstand. Quell-Commit
+284960f. dist/0.14.0-dev enthält die exakt im isolierten Profil getestete
+JAR, Quellarchiv, Prüfsummen, Prüfbericht und Testlogs. 60 CPU-Tests,
+build, verifyBundledLwjgl und Neuaufbau aus entpacktem Quellarchiv
+bestehen. Die gebaute JAR wurde im getrennten NeoForge-Profil bei
+2560×1440 mit aktiven Terrain-, Fernterrain- und Fernwasser-Draws geprüft.
+
+Die experimentelle Shader-Auswahl erfolgt über config/vsdh.json.
+ShaderPackStartup bereitet Pack und WorldPackSet asynchron vor und
+installiert im Menü auf dem Renderthread. Ein leerer Name wählt den
+Standardmodus. Die ZIP-Datei bleibt extern. verify-0.14-rejected-pack-2.log
+prüft die Pfadablehnung. verify-0.14-configured-client.log bestätigt
+Aktivierung, Oberwelt → Nether → Ende → Oberwelt, vorhandene Terrainpuffer,
+zwei Rendergrößen, Partikel und Wetter sowie eine anschließende Welt ohne
+Shader. Ein ungültiges Pack oder fehlende Daten immer aus dem Log klären.
+
+Offen bleiben vollständige Entitäts-/Hand-Pässe, weitere Shaderpacks und
+DH-Versionen. Die Nahwasser-Farbabweichung aus 0.14 ist oben eingegrenzt. Der Vergleich benutzt
+Iris 1.8.12, Sodium 0.6.13, DH 3.3.3 und in beiden Fällen MEDIUM. Die
+isolierten Projekte build/reference/iris-client und release-client
+enthalten Wasserproben vor Composite, die in beiden Renderern denselben
+Bildbereich aus colortex0 und colortex3 lesen. Prüfe die aktuellen Logs
+packaged-water-pbuffer.log und iris-water-pbuffer.log auf die Befunde.
+
+Für Entitäten liefert verify-entity-contract.log den SPIR-V-Audit von
+Complementary MEDIUM. Aktive Eingaben enthalten echte EntityIds und
+MidTexCoord. Tangenten sind im geprüften MEDIUM-Programm optimiert, können
+bei anderen Einstellungen aktiv sein. Das übernommene ENTITY-Profil bindet
+DynamicTransforms und of_CameraBob aus der 26.x-Vitrail-Umgebung.
+Für 1.21.1 die tatsächlichen Draw-Transformationen und Overlaytextur
+binden, feste Attributorte behalten und die IDs beim Meshaufbau erfassen,
+damit verzögerte Minecraft-Batches den Entitätskontext behalten. Kein
+Entitäts- oder Handprogramm als unterstützt ausgeben, bevor echte
+Geometrie, IDs und Materialwerte im Spiel geprüft sind.
 
 
 0.13 bereitet alle drei Vanilla-Dimensionen in WorldPackSet vor und tauscht

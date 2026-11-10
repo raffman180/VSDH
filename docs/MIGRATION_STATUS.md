@@ -1,11 +1,21 @@
-# VSDH — Prüfstand 0.14.0-dev, 09.11.2026
+# VSDH — Prüfstand 0.15.0-dev, 09.11.2026
 
-## Aktuell 0.14
+## Aktuell 0.15
+
+Die Oberseite der Flüssigkeitsflächen wird mit ihrer richtigen Normalen
+gezeichnet, wenn Rückseitenausblendung aktiv ist. Das behebt die dunkle
+Nahwasserbeleuchtung im Vergleich zu Iris. Die GPU-Probe las 28.800 von
+28.800 beziehungsweise 3.960 von 3.960 nach oben gerichtete Normalen.
+Die Standarddarstellung von Reforged behält ihre Behandlung transparenter
+Flächen. Die Zwischenwerte sind in DISTANT_PACK.md dokumentiert.
+
+## Stand 0.14
 
 Eine optional konfigurierte Packauswahl wird asynchron vorbereitet und im
 Menü installiert. Ungültige Dateinamen und Aufbereitungsfehler werden
-protokolliert. Die normale Shaderwahl steht in README.md. Der getestete
-Umfang und die verbleibenden Bildunterschiede stehen im Prüfbericht.
+protokolliert. Die normale Shaderwahl steht in README.md. 60 CPU-Tests, der Neubau aus dem Quellarchiv und ein Lauf mit der gebauten
+JAR bei 2560×1440 sind erfolgreich. Der Dimensionslauf und die Prüfung der
+beiden DH-Tiefen stehen im Prüfbericht unter dist/0.14.0-dev.
 
 ## Stand 0.13
 
