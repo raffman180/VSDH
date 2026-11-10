@@ -4,6 +4,7 @@ import dev.vitrail.pack.id.BlockIds;
 import dev.vitrail.pack.model.AlphaTest;
 import dev.vitrail.pack.source.OpenedPack;
 import dev.vitrail.pack.target.PackDirectives;
+import dev.vitrail.pack.texture.PackTextures;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -43,7 +44,8 @@ public record WorldPackPlan(ShaderChainPlan chain, Map<String, PackProgramSource
         var parsed=BlockIds.read(pack.source(),defines);
         if (!parsed.problems().isEmpty()) throw new IOException("Invalid material table: "+parsed.problems());
         var expressions=PackExpressions.read(pack);
-        var shadow=ShadowPackPlan.prepare(pack,prefix,chain.targets().shadowCeiling(),expressions.resolvedNames(),distant,
+        var packTextures=PackTextures.read(pack.properties(),defines,pack.source());
+        var shadow=ShadowPackPlan.prepare(pack,prefix,chain.targets().shadowCeiling(),expressions.resolvedNames(),distant,packTextures,
                 message->org.slf4j.LoggerFactory.getLogger("VSDH").warn(message));
         var dh=distant?DistantPackPlan.prepare(pack,prefix):null;
         var skyPrograms=SkyPackPlan.prepare(pack,prefix,chain);
@@ -52,10 +54,10 @@ public record WorldPackPlan(ShaderChainPlan chain, Map<String, PackProgramSource
                 message->org.slf4j.LoggerFactory.getLogger("VSDH").warn(message));
         PackTexturePlan textures;
         try {
-            textures=PackTexturePlan.read(pack,chain,terrain,shadow,dh,skyPrograms,particles,entities);
+            textures=PackTexturePlan.read(pack,chain,terrain,shadow,dh,skyPrograms,particles,entities,packTextures);
         } catch (IOException failure) {
             if (entities==null) throw failure;
-            textures=PackTexturePlan.read(pack,chain,terrain,shadow,dh,skyPrograms,particles,null);
+            textures=PackTexturePlan.read(pack,chain,terrain,shadow,dh,skyPrograms,particles,null,packTextures);
             org.slf4j.LoggerFactory.getLogger("VSDH").warn("Keeping standard opaque entity rendering in {}: {}",dimension,failure.getMessage());
             entities=null;
         }

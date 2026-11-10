@@ -23,11 +23,16 @@ GlintWorldProbe wartet die Ausrüstungsanimation ab und vergleicht
 Farbdaten vor und nach dem tatsächlichen Glanzaufruf.
 TransparentBlockWorldProbe nutzt die Truhe mit transparentem RenderType
 in der isolierten Spielszene. Alle Proben bleiben im Smoke-Source-Set.
+Schattenprogramme teilen sich die Pack-Texturzuordnung der Gbuffers.
+Unbound r5.9.3 liest dort gaux4 aus lib/textures/cloud-water.png.
+verify-0.23-unbound-client.log dokumentiert die ursprüngliche Ablehnung.
+Der korrigierte Lauf heißt verify-0.23-unbound-client-2.log.
 
 Prüfe dist/0.23.0-dev und den Prüfbericht auf die getesteten Pack- und
 DH-Kombinationen. 3.3.2 und 3.3.3 haben gleiche Signaturen für die
-geprüften 45 DH-Klassen. Die ältere Version im eigenen Testprofil
-ausführen. Weitere GPUs, Performance und andere Packs jeweils messen.
+geprüften 45 DH-Klassen. Die Paketprüfungen laufen mit jeder Version
+in ihrem eigenen NeoForge-Profil. Weitere GPUs, Performance und andere
+Packs jeweils messen.
 Die Entwicklungsstände 0.21 und 0.22 waren Zwischenprüfungen.
 
 0.20 bindet transparente Mob-Schichten an gbuffers_entities_translucent.

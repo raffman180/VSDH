@@ -28,11 +28,12 @@ public record PackTexturePlan(Map<String,Asset> bindings) {
     public Asset resolve(String program,String sampler) {return bindings.get(key(program,sampler));}
 
     public static PackTexturePlan read(OpenedPack pack,ShaderChainPlan chain,Map<String,PackProgramSource.Prepared> terrain,ShadowPackPlan shadow) throws IOException {
-        return read(pack,chain,terrain,shadow,null,SkyPackPlan.empty(),ParticlePackPlan.empty(),null);
-    }
-    public static PackTexturePlan read(OpenedPack pack,ShaderChainPlan chain,Map<String,PackProgramSource.Prepared> terrain,ShadowPackPlan shadow,DistantPackPlan distant,SkyPackPlan sky,ParticlePackPlan particles,EntityPackPlan entities) throws IOException {
         var defines=pack.settings().globalDefines(pack.options());
-        var textures=PackTextures.read(pack.properties(),defines,pack.source());
+        return read(pack,chain,terrain,shadow,null,SkyPackPlan.empty(),ParticlePackPlan.empty(),null,
+                PackTextures.read(pack.properties(),defines,pack.source()));
+    }
+    public static PackTexturePlan read(OpenedPack pack,ShaderChainPlan chain,Map<String,PackProgramSource.Prepared> terrain,ShadowPackPlan shadow,DistantPackPlan distant,SkyPackPlan sky,ParticlePackPlan particles,EntityPackPlan entities,PackTextures textures) throws IOException {
+        var defines=pack.settings().globalDefines(pack.options());
         var bindings=new LinkedHashMap<String,Asset>();var decoded=new HashMap<String,Asset>();
         var programs=new LinkedHashSet<PackProgramSource.Prepared>();
         terrain.values().forEach(programs::add);

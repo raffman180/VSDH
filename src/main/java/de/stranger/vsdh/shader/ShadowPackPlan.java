@@ -3,10 +3,12 @@ package de.stranger.vsdh.shader;
 import dev.vitrail.glsl.VertexInputs;
 import dev.vitrail.pack.model.AlphaTest;
 import dev.vitrail.pack.model.ProgramStage;
+import dev.vitrail.pack.model.TextureStage;
 import dev.vitrail.pack.source.ShadowCasters;
 import dev.vitrail.pack.source.IncludeExpander;
 import dev.vitrail.pack.source.OpenedPack;
 import dev.vitrail.pack.target.DrawBuffers;
+import dev.vitrail.pack.texture.PackTextures;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -21,7 +23,8 @@ public record ShadowPackPlan(Map<String, PackProgramSource.Prepared> programs, L
     public ShadowPackPlan { programs = Map.copyOf(programs); outputs = List.copyOf(outputs); }
 
     public static ShadowPackPlan prepare(OpenedPack pack, String prefix, int ceiling,
-                                         Set<String> customUniforms, boolean distant, Consumer<String> warning) throws IOException {
+                                         Set<String> customUniforms, boolean distant, PackTextures textures,
+                                         Consumer<String> warning) throws IOException {
         String path = prefix + "shadow";
         if (pack.source().file(path + ".vsh").isEmpty()) return null;
         var defines = pack.settings().globalDefines(pack.options());
@@ -33,9 +36,9 @@ public record ShadowPackPlan(Map<String, PackProgramSource.Prepared> programs, L
         var casters = pack.properties().shadowCasters(defines);
         PackProgramSource.Prepared entities = null, blocks = null;
         if (casters.entities() || casters.player())
-            entities = caster(pack, prefix, "shadow_entities", ceiling, outputs, customUniforms, distant, alpha, warning);
+            entities = caster(pack, prefix, "shadow_entities", ceiling, outputs, customUniforms, distant, alpha, textures, warning);
         if (casters.blockEntities() || casters.lightBlockEntities())
-            blocks = caster(pack, prefix, "shadow_block", ceiling, outputs, customUniforms, distant, alpha, warning);
+            blocks = caster(pack, prefix, "shadow_block", ceiling, outputs, customUniforms, distant, alpha, textures, warning);
         return new ShadowPackPlan(programs, outputs, entities, blocks, casters);
     }
 
@@ -45,7 +48,8 @@ public record ShadowPackPlan(Map<String, PackProgramSource.Prepared> programs, L
     }
 
     private static PackProgramSource.Prepared caster(OpenedPack pack, String prefix, String program, int ceiling,
-            List<Integer> sharedOutputs, Set<String> customUniforms, boolean distant, Map<String, AlphaTest> alpha, Consumer<String> warning) {
+            List<Integer> sharedOutputs, Set<String> customUniforms, boolean distant, Map<String, AlphaTest> alpha,
+            PackTextures textures, Consumer<String> warning) {
         String name = pack.source().file(prefix + program + ".vsh").isPresent() ? program : "shadow";
         String path = prefix + name;
         try {
@@ -62,8 +66,10 @@ public record ShadowPackPlan(Map<String, PackProgramSource.Prepared> programs, L
             source.compiled().stages().values().forEach(bytes -> active.addAll(SpirvInterface.bindings(bytes)));
             for (var sampler : source.translated().samplers()) {
                 if (!active.contains(source.compiled().bindings().get(sampler.name()))) continue;
-                if (!sampler.type().equals("sampler2D") || sampler.declaration().contains("[")
-                        || !Set.of("tex", "texture", "gtexture", "lightmap", "ofOverlay", "noisetex").contains(sampler.name()))
+                boolean supplied = textures.resolve(TextureStage.GBUFFERS, sampler.name())
+                        .filter(texture -> texture.raw().isEmpty()).isPresent();
+                boolean builtin = Set.of("tex", "texture", "gtexture", "lightmap", "ofOverlay", "noisetex").contains(sampler.name());
+                if (!sampler.type().equals("sampler2D") || sampler.declaration().contains("[") || !(supplied || builtin))
                     throw new IllegalArgumentException("Unsupported caster texture: " + sampler.declaration());
             }
             return source;
