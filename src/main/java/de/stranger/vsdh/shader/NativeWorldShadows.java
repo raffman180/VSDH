@@ -131,7 +131,7 @@ public final class NativeWorldShadows implements AutoCloseable {
             for(String name:pipeline.requiredSamplers()) {
                 var supplied=textures.image(plan.shadow().programs().get("solid").path(),name);
                 if(supplied!=null){pipeline.bindImage(name,supplied);continue;}
-                int texture=switch(name) {case "tex","gtexture","texture"->atlas;case "lightmap"->RenderSystem.getShaderTexture(2);default->throw new IllegalArgumentException("Unsupported shadow input: "+name);};
+                int texture=switch(name) {case "tex","gtexture","texture","ofTexture"->atlas;case "lightmap"->RenderSystem.getShaderTexture(2);default->throw new IllegalArgumentException("Unsupported shadow input: "+name);};
                 var bound=GlTexture.getTexture(texture);
                 if(bound==null||bound.getVulkanImage()==null)throw new IllegalStateException("Missing real shadow texture: "+name);
                 pipeline.bindImage(name,bound.getVulkanImage());

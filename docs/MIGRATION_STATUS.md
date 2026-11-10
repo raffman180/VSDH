@@ -1,4 +1,25 @@
-# VSDH — Prüfstand 0.23.0-dev, 10.11.2026
+# VSDH — Prüfstand 0.24.0-dev, 10.11.2026
+
+## Umfang der Kompatibilität
+
+Modrinth listet für Minecraft 1.21.1 und NeoForge vier stabile DH-Versionen
+und 22 Vorabversionen. 0.24 erweitert die stabile Reihe auf 3.3.0 bis 3.3.3.
+Die Testmatrix mit den tatsächlich geprüften Pack-/DH-Kombinationen steht
+in `dist/0.24.0-dev/verification.json`.
+
+DH 3.3.0/3.3.1 verwenden interne Typen für Tiefenrichtung und Tiefenbereich.
+DH 3.3.2/3.3.3 veröffentlichen beide Typen im API-Paket. Der gemeinsame
+Vulkan-Renderer lädt den passenden Tiefenadapter. Temporäre DH-Einstellungen
+verwenden die verfügbare `setApiValue`-Signatur. Die älteren 3.x-Betas haben
+weitere Schnittstellenunterschiede. Den geprüften 2.x-Versionen fehlt die
+Klasse `AbstractDhRenderApiDefinition` vollständig.
+
+BSL 10.1 verwendet zusätzlich `bedrockLevel`, `heightLimit`, `sunPosition`,
+`blockEntityId` und `isRightHanded`. `ofTexture` ist der übersetzte Name von
+`texture` und erhält dieselbe Live-Textur. Die Packprüfung nennt konkrete
+weitere Hürden für Bliss 2.1.2 und Photon 1.4. Bliss scheitert in der aktuellen
+Übersetzung an `FlatNormals` und `viewToWorld`. Photon benötigt `deferred4_a`
+als Compute-Pass. Die JAR enthält keine Shaderpacks oder DH-JARs.
 
 ## Aktuell 0.23
 

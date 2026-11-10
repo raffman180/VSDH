@@ -19,7 +19,7 @@ public final class WorldUniforms implements ExpressionFrame {
             "gbufferProjection","gbufferProjectionInverse","gbufferPreviousModelView","gbufferPreviousProjection",
             "cameraPosition","previousCameraPosition","fogColor","skyColor","viewWidth","viewHeight","aspectRatio",
             "near","far","frameCounter","frameTime","frameTimeCounter","worldTime","worldDay","rainStrength","eyeAltitude",
-            "alphaTestRef","renderStage");
+            "alphaTestRef","renderStage","blockEntityId");
     private static final Set<String> DISTANT=Set.of("dhProjection","dhProjectionInverse","dhPreviousProjection","dhNearPlane","dhFarPlane","dhRenderDistance");
     private final Matrix4f distantProjection=new Matrix4f(), distantView=new Matrix4f();
     private final float[] dhProjection=new float[16],dhInverse=new float[16],dhPrevious=new float[16],
@@ -106,7 +106,7 @@ public final class WorldUniforms implements ExpressionFrame {
         }
         ForwardDepthProjection.toLegacy(renderedProjection,legacyCameraProjection);
         matrices.begin(mc.level,view,legacyCameraProjection,pos.x,pos.y,pos.z,width,height);
-        builtins.capture(camera,matrices,partialTick);
+        builtins.capture(camera,matrices,partialTick,plan.directives().sunPathRotation());
         this.width=width; this.height=height; this.far=mc.gameRenderer.getRenderDistance();
         builtins.read("sunAngle",scratchValue);
         shadowCamera.capture(plan.directives(),scratchValue.f(0),pos.x,pos.y,pos.z,this.far);
@@ -230,6 +230,7 @@ public final class WorldUniforms implements ExpressionFrame {
             }
             if (member.type().equals("int")) {
                 integer[0]=switch(name) {case "worldTime"->worldTime;case "worldDay"->worldDay;case "frameCounter"->frame;case "renderStage"->renderStage;case "dhRenderDistance"->dhDistance;
+                    case "blockEntityId" -> -1; // Outside a block-entity mesh, matching Iris's default.
                     case "entityId"->{if(space==DrawSpace.FULLSCREEN)throw new IllegalArgumentException("Entity context is unavailable in fullscreen passes");yield 0;}
                     default->throw new IllegalArgumentException("Unknown integer world uniform "+name);};
                 layout.putInts(buffer,name,0,integer); continue;

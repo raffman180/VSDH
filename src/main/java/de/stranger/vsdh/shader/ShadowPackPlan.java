@@ -68,7 +68,7 @@ public record ShadowPackPlan(Map<String, PackProgramSource.Prepared> programs, L
                 if (!active.contains(source.compiled().bindings().get(sampler.name()))) continue;
                 boolean supplied = textures.resolve(TextureStage.GBUFFERS, sampler.name())
                         .filter(texture -> texture.raw().isEmpty()).isPresent();
-                boolean builtin = Set.of("tex", "texture", "gtexture", "lightmap", "ofOverlay", "noisetex").contains(sampler.name());
+                boolean builtin = Set.of("tex", "texture", "ofTexture", "gtexture", "lightmap", "ofOverlay", "noisetex").contains(sampler.name());
                 if (!sampler.type().equals("sampler2D") || sampler.declaration().contains("[") || !(supplied || builtin))
                     throw new IllegalArgumentException("Unsupported caster texture: " + sampler.declaration());
             }

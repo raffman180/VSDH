@@ -21,7 +21,12 @@ project.ext.devNatives = host.windows ? 'natives-windows' : host.macOsX ?
         (System.getProperty('os.arch').contains('aarch64') ? 'natives-macos-arm64' : 'natives-macos') : 'natives-linux'
 
 
+def currentDh = files('libs/DistantHorizons-3.3.3-1.21.1-fabric-neoforge.jar')
+def earlyDh = files('libs/DistantHorizons-3.3.1-1.21.1-fabric-neoforge.jar')
 sourceSets {
+    dh33Early {
+        compileClasspath = sourceSets.main.output + earlyDh + (sourceSets.main.compileClasspath - currentDh)
+    }
     test { resources.srcDir 'src/smoke/resources' }
     smoke {
         compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
@@ -60,7 +65,7 @@ neoForge {
 
 dependencies {
 
-    implementation files('libs/DistantHorizons-3.3.3-1.21.1-fabric-neoforge.jar')
+    implementation currentDh
     compileOnly 'io.github.llamalad7:mixinextras-neoforge:0.5.3'
     compileOnly files('libs/flywheel-neoforge-1.21.1-1.0.6.jar')
     compileOnly('maven.modrinth:T9PomCSv:1L6XJqnY') { transitive = false }
@@ -118,10 +123,12 @@ processResources {
     filesMatching('META-INF/neoforge.mods.toml') { expand version: project.version, renderer_version: project.renderer_version }
 }
 tasks.named('jar', Jar) {
+    from sourceSets.dh33Early.output
     from('LICENSE', 'COPYING', 'NOTICE')
     from('docs/upstream') { into 'META-INF/vsdh/attribution' }
 }
 tasks.named('sourcesJar', Jar) {
+    from sourceSets.dh33Early.allSource
     from('LICENSE', 'COPYING', 'NOTICE')
     from('docs/upstream') { into 'META-INF/vsdh/attribution' }
 }
@@ -131,6 +138,7 @@ tasks.register('verifyDependencies') {
     description = 'Checks the exact renderer and DH binaries used for this development build.'
     doLast {
         def pins = [
+            'libs/DistantHorizons-3.3.1-1.21.1-fabric-neoforge.jar': ['SHA-1', '740532bd920ba59b828caa4eebc3cf90160556c1'],
             'libs/DistantHorizons-3.3.3-1.21.1-fabric-neoforge.jar': ['SHA-1', '4357b4d19fab818780c94f0e43dad1cc931634b2'],
             'libs/flywheel-neoforge-1.21.1-1.0.6.jar': ['SHA-256', '31dda15c205eb596d3b3449ef03f6af7363a6cd35b3da4bfe916b304f9e5337e']
         ]

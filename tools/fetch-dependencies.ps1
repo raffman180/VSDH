@@ -10,6 +10,12 @@ $dependencies = @(
         Hash = '31dda15c205eb596d3b3449ef03f6af7363a6cd35b3da4bfe916b304f9e5337e'
     },
     @{
+        Name = 'DistantHorizons-3.3.1-1.21.1-fabric-neoforge.jar'
+        Url = 'https://cdn.modrinth.com/data/uCdwusMi/versions/IcOcoekl/DistantHorizons-3.3.1-1.21.1-fabric-neoforge.jar'
+        Algorithm = 'SHA512'
+        Hash = 'd64daa41c419410421695afbbc72da47372168ed8346f5154fb9232b401f86e4c3bf8b4e8a29deb36a70af98fb804ce2b9041334f0931cea3f6b7156c7668c1d'
+    },
+    @{
         Name = 'DistantHorizons-3.3.3-1.21.1-fabric-neoforge.jar'
         Url = 'https://cdn.modrinth.com/data/uCdwusMi/versions/9w34y8ai/DistantHorizons-3.3.3-1.21.1-fabric-neoforge.jar'
         Algorithm = 'SHA512'

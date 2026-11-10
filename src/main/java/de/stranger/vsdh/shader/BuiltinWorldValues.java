@@ -8,11 +8,14 @@ import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.material.FogType;
 import net.vulkanmod.gl.GlTexture;
 import dev.vitrail.uniform.Val;
+import org.joml.Matrix4f;
+import org.joml.Vector3f;
 
 import java.nio.ByteBuffer;
 import java.util.Set;
@@ -21,13 +24,18 @@ import java.util.Set;
 public final class BuiltinWorldValues {
     public static final Set<String> NAMES=Set.of("atlasSize","blindness","darknessFactor","nightVision","isEyeInWater",
             "eyeBrightness","eyePosition","relativeEyePosition","playerLookVector","cameraPositionInt","cameraPositionFract",
-            "previousCameraPositionInt","previousCameraPositionFract","cloudHeight","moonPhase","sunAngle","screenBrightness","of_Fog");
+            "previousCameraPositionInt","previousCameraPositionFract","cloudHeight","moonPhase","sunAngle","screenBrightness","of_Fog",
+            "bedrockLevel", "heightLimit", "sunPosition", "isRightHanded");
     private final int[] cameraInt=new int[3],previousInt=new int[3],eyeLight=new int[2],pair=new int[2],oneInt=new int[1];
     private final float[] cameraFract=new float[3],previousFract=new float[3],eye=new float[3],relativeEye=new float[3],look=new float[3],one=new float[1];
     private float blindness,darkness,nightVision,cloudHeight,sunAngle,gamma,waterDensity;
-    private int moonPhase,eyeMedium;
+    private int moonPhase,eyeMedium,bedrockLevel,heightLimit;
+    private boolean rightHanded;
+    private final Matrix4f celestialView = new Matrix4f();
+    private final Vector3f sun = new Vector3f();
+    private final float[] sunPosition = new float[3];
 
-    public void capture(Camera camera,WorldMatrices matrices,float partialTick) {
+    public void capture(Camera camera,WorldMatrices matrices,float partialTick,float sunPathRotation) {
         var mc=Minecraft.getInstance();var level=mc.level;var entity=camera.getEntity();var position=camera.getPosition();
         CameraCoordinates.split(position.x,position.y,position.z,cameraInt,cameraFract);
         CameraCoordinates.split(matrices.previousX(),matrices.previousY(),matrices.previousZ(),previousInt,previousFract);
@@ -51,6 +59,17 @@ public final class BuiltinWorldValues {
             nightVision=Math.clamp(mc.player.getWaterVision(),0,1);
         moonPhase=level.getMoonPhase();
         float skyAngle=level.getTimeOfDay(partialTick);sunAngle=skyAngle<.75f?skyAngle+.25f:skyAngle-.75f;
+        celestialView.set(matrices.view)
+                .rotateY((float) (-Math.PI / 2))
+                .rotateZ((float) Math.toRadians(sunPathRotation))
+                .rotateX((float) (skyAngle * 2 * Math.PI))
+                .transformDirection(sun.set(0, 100, 0));
+        sunPosition[0] = sun.x;
+        sunPosition[1] = sun.y;
+        sunPosition[2] = sun.z;
+        bedrockLevel = level.dimensionType().minY();
+        heightLimit = level.dimensionType().height();
+        rightHanded = mc.options.mainHand().get() == HumanoidArm.RIGHT;
         cloudHeight=level.effects().getCloudHeight();gamma=mc.options.gamma().get().floatValue();
         waterDensity=0;
         if(medium==FogType.WATER) {
@@ -76,6 +95,10 @@ public final class BuiltinWorldValues {
             case "blindness"->out.set(blindness);case "darknessFactor"->out.set(darkness);
             case "nightVision"->out.set(nightVision);case "cloudHeight"->out.set(cloudHeight);
             case "sunAngle"->out.set(sunAngle);case "screenBrightness"->out.set(gamma);
+            case "bedrockLevel" -> out.set(bedrockLevel);
+            case "heightLimit" -> out.set(heightLimit);
+            case "isRightHanded" -> out.set(rightHanded);
+            case "sunPosition" -> out.set(sunPosition[0], sunPosition[1], sunPosition[2]);
             default->{return false;}
         }
         return true;
@@ -92,6 +115,15 @@ public final class BuiltinWorldValues {
             case "relativeEyePosition"->layout.putFloats(destination,name,0,relativeEye);
             case "playerLookVector"->layout.putFloats(destination,name,0,look);
             case "eyeBrightness"->layout.putInts(destination,name,0,eyeLight);
+            case "sunPosition" -> layout.putFloats(destination, name, 0, sunPosition);
+            case "isRightHanded" -> {
+                oneInt[0] = rightHanded ? 1 : 0;
+                layout.putInts(destination, name, 0, oneInt);
+            }
+            case "bedrockLevel", "heightLimit" -> {
+                oneInt[0] = name.equals("bedrockLevel") ? bedrockLevel : heightLimit;
+                layout.putInts(destination, name, 0, oneInt);
+            }
             case "atlasSize"->{
                 var texture=GlTexture.getTexture(RenderSystem.getShaderTexture(0));
                 if(texture==null || texture.getVulkanImage()==null)throw new IllegalStateException("Atlas size requires the real bound terrain texture");

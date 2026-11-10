@@ -25,7 +25,7 @@ import com.seibel.distanthorizons.core.wrapperInterfaces.render.renderPass.*;
  * as post-process passes, so those renderers are stubs that delegate
  * to the core VulkanBackend at the right lifecycle points.
  */
-public class VkRenderApiDefinition extends AbstractDhRenderApiDefinition {
+public abstract class VkRenderApiDefinition extends AbstractDhRenderApiDefinition {
 
     private final VulkanBackend backend;
     private final VkMetaRenderer metaRenderer;
@@ -53,13 +53,6 @@ public class VkRenderApiDefinition extends AbstractDhRenderApiDefinition {
 
     @Override public String getEngineName() { return "VulkanMod"; }
 
-    @Override public com.seibel.distanthorizons.api.enums.config.EDhApiDepthDirection getDepthDirection() {
-        return com.seibel.distanthorizons.api.enums.config.EDhApiDepthDirection.FORWARD_Z;
-    }
-    @Override public com.seibel.distanthorizons.api.enums.config.EDhApiDepthRange getDepthRange() {
-        // dh_terrain.vert converts DH's GL clip space to Vulkan.
-        return com.seibel.distanthorizons.api.enums.config.EDhApiDepthRange.NEG_ONE_TO_POS_ONE;
-    }
     @Override public com.seibel.distanthorizons.api.enums.config.EDhApiRenderingApi getRenderApi() {
         return com.seibel.distanthorizons.api.enums.config.EDhApiRenderingApi.VULKAN;
     }

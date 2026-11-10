@@ -1,4 +1,28 @@
-# Fortsetzungs-Prompt — VSDH 0.23
+# Fortsetzungs-Prompt — VSDH 0.24
+
+## Breite Kompatibilität
+
+Der Nutzer möchte alle für Minecraft 1.21.1 / NeoForge 21.1.264 geeigneten
+DH-Ausgaben und möglichst alle Iris-/OptiFine-Shaderpacks verwenden.
+Siehe `dist/0.24.0-dev/verification.json` für echte Spieltests. Die vier
+stabilen DH-Ausgaben reichen von 3.3.0 bis 3.3.3. Auf Modrinth sind 22 weitere
+Alpha- und Beta-Ausgaben für dieselbe Zielplattform gelistet. Die lokale
+Liste und geprüfte Binärvergleiche liegen unter `build/reference/dh-matrix`.
+2.x braucht einen anderen Renderer-Einstieg. Bei 3.0–3.2 sind unter anderem
+Render-API, Buffer-Verträge und Datenbank-Mixins versionsabhängig. Nächster
+DH-Kandidat ist 3.2.0-b. Prüfe jede Familie im eigenen Spielprofil.
+
+Die 0.24-Adapter liegen in `src/dh33Early` und `src/main`. Der Build prüft
+beide DH-Referenz-JARs. In der Laufzeit nur eine DH-JAR laden. Bei der alten
+Variante auch `ConfigEntry.setApiValue(T)` berücksichtigen. Der aktuelle
+Artefaktstand unterstützt zusätzliche gemeinsame Werte für BSL 10.1.
+
+Nächste Pack-Hürden aus den CPU-Audits sind Bliss 2.1.2 (`FlatNormals` und
+`viewToWorld` im übersetzten Terrain-Vertexshader) und Photon 1.4 (Compute
+`deferred4_a`). Zuerst den gemeinsamen Shaderübersetzer bzw. den nativen
+Compute-Pfad erweitern. Manche Packs liefern keine DH-Programme. Für diese
+ist ein separater LOD-Pfad mit eigener Sichtprüfung nötig. Keine fremden
+Packs oder DH-JARs mit dem Ergebnis ausliefern.
 
 ## Aktuelle Arbeit
 

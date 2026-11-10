@@ -26,7 +26,7 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
     private static final String TRANSLUCENT = "gbuffers_entities_translucent";
     private static final Pattern ENTRY = Pattern.compile("^\\s*entity\\.(-?\\d+)\\s*=\\s*(.*?)\\s*$");
     private static final Pattern RESOURCE_ID = Pattern.compile("[a-z0-9_.-]+:[a-z0-9_./-]+");
-    private static final Set<String> DRAW_IMAGES = Set.of("tex", "texture", "gtexture", "lightmap", "ofOverlay", "noisetex");
+    private static final Set<String> DRAW_IMAGES = Set.of("tex", "texture", "ofTexture", "gtexture", "lightmap", "ofOverlay", "noisetex");
     private static final Set<String> SHADOW_DEPTH = Set.of("shadow", "watershadow", "shadowtex0", "shadowtex1");
     private static final Set<String> SHADOW_COLOR = Set.of("shadowcolor", "shadowcolor0", "shadowcolor1");
 

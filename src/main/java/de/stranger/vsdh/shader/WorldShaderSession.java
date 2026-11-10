@@ -496,7 +496,7 @@ public final class WorldShaderSession implements MainPass {
             var activeBindings=new java.util.HashSet<Integer>();
             source.compiled().stages().values().forEach(bytes->activeBindings.addAll(SpirvInterface.bindings(bytes)));
             for (var sampler:source.translated().samplers()) if (activeBindings.contains(source.compiled().bindings().get(sampler.name()))
-                    && !java.util.Set.of("gtexture","texture","tex","lightmap").contains(sampler.name())
+                    && !java.util.Set.of("gtexture","texture","ofTexture","tex","lightmap").contains(sampler.name())
                     && !(source.translated().inputs().vulkanEntity() && sampler.name().equals("ofOverlay"))
                     && !(shadowName(sampler.name())&&plan.shadow()!=null)&&!depthName(sampler.name())
                     && !(distantDepth(sampler.name())&&plan.distant()!=null)

@@ -1,8 +1,9 @@
-# VSDH — Entwicklungsstand 0.23.0-dev
+# VSDH — Entwicklungsstand 0.24.0-dev
 
 VSDH enthält einen **VulkanMod-Reforged-Fork**, eine native Anbindung für
 Distant Horizons und einen Vulkan-Renderer für ausgewählte Iris-Shaderpacks.
-Der aktuelle Entwicklungsstand zielt auf Complementary r5.9.3. Verwende
+Die Spieltests dieser Ausgabe verwenden Complementary Reimagined r5.9.3
+und BSL 10.1. Verwende
 für dieses Profil die VSDH-JAR als Renderer.
 
 | Bestandteil | Gebundene Version |
@@ -11,13 +12,13 @@ für dieses Profil die VSDH-JAR als Renderer.
 | NeoForge | 21.1.264 |
 | Java | 21 |
 | Vulkan-Renderer | in dieser VSDH-JAR enthalten; Reforged-Basis 0618965 |
-| Distant Horizons | 3.3.2 oder 3.3.3 für 1.21.1, Fabric/NeoForge-JAR |
+| Distant Horizons | 3.3.0 bis 3.3.3 für 1.21.1, Fabric/NeoForge-JAR |
 | Erstes Shader-Ziel | Complementary Reimagined r5.9.3, Profil MEDIUM |
 
 ## Testinstallation
 
 1. Ein separates Profil für Minecraft 1.21.1 / NeoForge 21.1.264 anlegen.
-2. Die VSDH-0.23.0-dev-JAR und eine der oben genannten DH-Versionen in dessen `mods`-Ordner legen.
+2. Die VSDH-0.24.0-dev-JAR und eine der oben genannten DH-Versionen in dessen `mods`-Ordner legen.
 3. Aus diesem Profil die originale Reforged-JAR und frühere VSDH-JARs entfernen.
    Die VSDH-JAR enthält den Renderer und die Anbindung für Distant Horizons.
 4. Iris, Sodium und andere Renderer-Ersatzmods aus diesem Profil herauslassen.
@@ -27,7 +28,7 @@ für dieses Profil die VSDH-JAR als Renderer.
 
 Das Installationsbeispiel verwendet Complementary Reimagined r5.9.3 mit
 Profil MEDIUM. Die genauen Spieltests jeder Ausgabe stehen in
-`dist/0.23.0-dev/verification.json`.
+`dist/0.24.0-dev/verification.json`.
 
 1. Die Originaldatei `ComplementaryReimagined_r5.9.3.zip` in den Ordner
    `shaderpacks` des Testprofils legen.
@@ -53,7 +54,17 @@ VSDH wird ausschließlich auf dem Client installiert. Bestehende DH-Speicherung
 und Multiplayer-Protokolle bleiben bei DH. Keine eigenen Änderungen an Inventaren
 oder Weltdaten; dedizierte Server und große Modpacks sind noch ungetestet.
 
-## Aktuell 0.23
+## Aktuell 0.24
+
+Für BSL 10.1 liefert der gemeinsame Renderer zusätzliche Werte für
+Welthöhe, Sonnenrichtung, dominante Hand und Blockentitätskontext.
+Der ältere DH-3.3-Tiefenadapter wird zur Laufzeit ausgewählt. Beide
+Adapter verwenden denselben Vulkan-Renderer.
+
+Für BSL `BSL_v10.1.zip` als `shaderPack` und `MEDIUM` als Profil eintragen.
+`ENTITY_SHADOW` ist in der unten gezeigten Form eine Complementary-Option.
+
+## Stand 0.23
 
 Die Hand verwendet getrennte Pack-Durchläufe für opake und transparente
 Gegenstände. Verzauberungsglanz verwendet die animierte Textur und die

@@ -1,6 +1,9 @@
 package com.braffolk.dhvulkan.core;
 
 import com.seibel.distanthorizons.core.config.Config;
+import com.seibel.distanthorizons.core.config.types.ConfigEntry;
+
+import java.lang.reflect.Method;
 
 /**
  * Type-safe helper for reading DH config values across DH 2.4 and DH 3.0.
@@ -12,6 +15,33 @@ import com.seibel.distanthorizons.core.config.Config;
 public final class DhConfigHelper {
 
     private DhConfigHelper() {}
+
+    /** DH 3.3.2 added a source label to session-only API overrides. */
+    static void disableForSession(ConfigEntry<Boolean> setting, String reason) {
+        Method setter = SessionOverride.SETTER;
+        try {
+            if (setter.getParameterCount() == 2) setter.invoke(setting, false, reason);
+            else setter.invoke(setting, false);
+        } catch (ReflectiveOperationException failure) {
+            throw new IllegalStateException("Cannot apply DH session override: " + reason, failure);
+        }
+    }
+
+    private static final class SessionOverride {
+        private static final Method SETTER = findSetter();
+
+        private static Method findSetter() {
+            try {
+                try {
+                    return ConfigEntry.class.getMethod("setApiValue", Object.class, String.class);
+                } catch (NoSuchMethodException legacy) {
+                    return ConfigEntry.class.getMethod("setApiValue", Object.class);
+                }
+            } catch (NoSuchMethodException failure) {
+                throw new IllegalStateException("DH has no session override method", failure);
+            }
+        }
+    }
 
     // ==================== //
     // Safe type converters //
