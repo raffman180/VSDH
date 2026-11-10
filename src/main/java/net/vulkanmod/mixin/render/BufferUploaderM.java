@@ -23,6 +23,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = BufferUploader.class, priority = 900)
 public class BufferUploaderM {
+    @Inject(method = "_drawWithShader", at = @At("HEAD"), cancellable = true)
+    private static void vsdh$drawOpaqueEntity(MeshData mesh, CallbackInfo ci) {
+        var session = de.stranger.vsdh.shader.WorldShaderSession.current();
+        if (session != null && session.renderOpaqueEntities(mesh)) ci.cancel();
+    }
     @Inject(method = "reset", at = @At("HEAD"), cancellable = true)
     private static void reset(CallbackInfo ci) {
         ci.cancel();

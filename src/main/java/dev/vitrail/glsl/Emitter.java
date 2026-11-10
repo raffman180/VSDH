@@ -153,7 +153,7 @@ record Emitter(ProgramStage stage, VertexInputs inputs, List<String> bound, Alph
 						this.used, this.synthesized, this.inputs.separateAo()));
 				case VULKAN_TERRAIN, VULKAN_TERRAIN_SEPARATE_AO, VULKAN_TERRAIN_OLD_LIGHTING, VULKAN_TERRAIN_OLD_LIGHTING_SEPARATE_AO -> lines.addAll(VulkanTerrainVertex.prologue(
 						this.bound, this.used, this.synthesized, this.inputs.separateAo(), this.inputs.oldLighting()));
-				case ENTITY, ENTITY_FULLBRIGHT -> lines.addAll(
+				case ENTITY, ENTITY_FULLBRIGHT, VULKAN_ENTITY -> lines.addAll(
 						EntityVertex.prologue(this.used, this.synthesized, this.inputs.fullbright()));
 				case GLINT -> lines.addAll(GlintVertex.prologue(this.used, this.synthesized));
 				case CRUMBLING -> lines.addAll(CrumblingVertex.prologue(this.used, this.synthesized));

@@ -2,12 +2,19 @@ package net.vulkanmod.mixin.render.vertex;
 
 import com.mojang.blaze3d.vertex.*;
 import net.vulkanmod.interfaces.ExtendedVertexBuilder;
+import de.stranger.vsdh.shader.NativeEntityMesh;
+import de.stranger.vsdh.shader.WorldShaderSession;
+import java.util.Arrays;
 import net.vulkanmod.render.vertex.VertexUtil;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(BufferBuilder.class)
 public abstract class BufferBuilderM
@@ -16,6 +23,38 @@ public abstract class BufferBuilderM
     @Shadow private boolean fastFormat;
     @Shadow private boolean fullFormat;
     @Shadow private VertexFormat format;
+    @Shadow @Final private VertexFormat.Mode mode;
+    @Shadow private int vertices;
+
+    @Unique private short[] vsdh$ids;
+    @Unique private boolean vsdh$mixedMesh;
+
+    @Inject(method = "beginVertex", at = @At("RETURN"))
+    private void vsdh$rememberEntityId(CallbackInfoReturnable<Long> ci) {
+        if (format != DefaultVertexFormat.NEW_ENTITY || mode != VertexFormat.Mode.QUADS || vsdh$mixedMesh) return;
+        int id = WorldShaderSession.materialForEntityVertex();
+        if (id == WorldShaderSession.NO_ENTITY_CAPTURE) {
+            if (vsdh$ids != null) vsdh$mixedMesh = true;
+            return;
+        }
+        if (vsdh$ids == null) {
+            if (vertices != 1) {
+                vsdh$mixedMesh = true;
+                return;
+            }
+            vsdh$ids = new short[64];
+        } else if (vertices > vsdh$ids.length) {
+            vsdh$ids = Arrays.copyOf(vsdh$ids, vsdh$ids.length * 2);
+        }
+        vsdh$ids[vertices - 1] = (short) id;
+    }
+
+    @Inject(method = "build", at = @At("RETURN"))
+    private void vsdh$attachEntityIds(CallbackInfoReturnable<MeshData> ci) {
+        var mesh = ci.getReturnValue();
+        if (mesh != null && !vsdh$mixedMesh && vsdh$ids != null)
+            ((NativeEntityMesh.EntityIds) (Object) mesh).vsdh$setEntityIds(vsdh$ids);
+    }
 
     @Shadow protected abstract long beginVertex();
 

@@ -1,6 +1,15 @@
-# VSDH — Prüfstand 0.17.0-dev, 10.11.2026
+# VSDH — Prüfstand 0.18.0-dev, 10.11.2026
 
-## Aktuell 0.17
+## Aktuell 0.18
+
+Der native Pfad für opake Entitäten verwendet die Minecraft-1.21.1-Matrizen,
+das Overlay und die pro Vertex erfasste Material-ID. Ein gepufferter
+Minecraft-Testbatch prüft auf der GPU zwei IDs, beide UV-Ausrichtungen,
+Lichtkoordinaten und Tangenten. Der Spieltest verwendet das Originalpack.
+Die unterstützten Entitätsarten, Dimensionsprüfungen und offenen Phasen
+stehen im Prüfbericht und in NEXT_AI_PROMPT.md.
+
+## Stand 0.17
 
 Die GPU liest beide Arten ganzzahliger Farbpuffer im nächsten Renderpass.
 Die Vulkan-Probe schreibt (7, 19, 33, 250) und (-120, 60, -8, 127) und

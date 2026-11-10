@@ -148,7 +148,10 @@ public enum VertexInputs {
 	 * and the stage works every corner out of {@code gl_VertexID} and a texel buffer.
 	 * {@link CloudVertex} carries the whole of it.
 	 */
-	CLOUDS;
+	CLOUDS,
+
+	/** Entity mesh using Minecraft 1.21.1 draw matrices in the native uniforms. */
+	VULKAN_ENTITY;
 
 	/**
 	 * Whether a vertex input the pack declares that the bound format has not got has to be taken out
@@ -222,7 +225,7 @@ public enum VertexInputs {
 	 * contract, and what it changes is {@code UV2} rather than {@code UV1}.
 	 */
 	public boolean overlay() {
-		return this == ENTITY || this == ENTITY_FULLBRIGHT;
+		return this == ENTITY || this == ENTITY_FULLBRIGHT || this == VULKAN_ENTITY;
 	}
 
 	/**
@@ -251,7 +254,7 @@ public enum VertexInputs {
 			case FULLSCREEN -> LegacyGlsl.FULLSCREEN_ELEMENTS;
 			case TERRAIN, TERRAIN_SEPARATE_AO -> SodiumVertex.ATTRIBUTES;
 			case VULKAN_TERRAIN, VULKAN_TERRAIN_SEPARATE_AO, VULKAN_TERRAIN_OLD_LIGHTING, VULKAN_TERRAIN_OLD_LIGHTING_SEPARATE_AO -> VulkanTerrainVertex.ATTRIBUTES;
-			case ENTITY, ENTITY_FULLBRIGHT -> EntityVertex.ATTRIBUTES;
+			case ENTITY, ENTITY_FULLBRIGHT, VULKAN_ENTITY -> EntityVertex.ATTRIBUTES;
 			case GLINT -> GlintVertex.ATTRIBUTES;
 			case CRUMBLING -> CrumblingVertex.ATTRIBUTES;
 			case MOVING_BLOCK -> MovingBlockVertex.ATTRIBUTES;

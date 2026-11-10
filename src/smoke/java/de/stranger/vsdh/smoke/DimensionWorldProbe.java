@@ -17,7 +17,7 @@ final class DimensionWorldProbe {
     private static final Set<String> seen=new HashSet<>();
     private static NativeShaderChain previous;
     private static String pendingDimension;
-    private static long enteredAt;
+    private static long enteredAt, enteredEntityDraws;
     private static boolean returned;
 
     static boolean enabled() {
@@ -36,13 +36,15 @@ final class DimensionWorldProbe {
         if(!dimension.equals(pendingDimension)) {
             pendingDimension=dimension;
             enteredAt=session.framesCompleted();
+            enteredEntityDraws=session.mappedEntityDraws();
         }
-        if(session.framesCompleted()-enteredAt<30 || !hasTerrain())return;
+        long entityDraws=session.mappedEntityDraws()-enteredEntityDraws;
+        if(session.framesCompleted()-enteredAt<30 || !hasTerrain() || entityDraws==0)return;
         if(previous==session.chain())throw new AssertionError("Reused GPU graph across dimensions");
         seen.add(dimension);
         previous=session.chain();
         if(!newDimension)returned=true;
-        LoggerFactory.getLogger("VSDH-Smoke").info("DIMENSION WORLD PASS: {} using {}, returned={}",dimension,expected,returned);
+        LoggerFactory.getLogger("VSDH-Smoke").info("DIMENSION WORLD PASS: {} using {}, returned={}, mappedEntityDraws={}",dimension,expected,returned,entityDraws);
         if(!dimension.equals("minecraft:overworld")) {
             Screenshot.grab(mc.gameDirectory,"vsdh-complementary-"+expected+".png",mc.getMainRenderTarget(),
                     message->LoggerFactory.getLogger("VSDH-Smoke").info("Dimension screenshot: {}",message.getString()));

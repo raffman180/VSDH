@@ -92,6 +92,7 @@ public final class WorldUniforms implements ExpressionFrame {
         }
         plan.skyPrograms().programs().values().forEach(p->missing.addAll(missing(p,plan)));
         plan.particles().programs().values().forEach(p->missing.addAll(missing(p,plan)));
+        if(plan.entities()!=null)plan.entities().programs().forEach(p->missing.addAll(missing(p,plan)));
         if (!missing.isEmpty()) throw new IllegalArgumentException("World uniforms not implemented: "+missing);
     }
     public void capture(Camera camera, Matrix4f view, Matrix4f renderedProjection, float partialTick, int width, int height) {

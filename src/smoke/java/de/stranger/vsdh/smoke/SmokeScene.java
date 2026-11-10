@@ -1,6 +1,7 @@
 package de.stranger.vsdh.smoke;
 
 import net.minecraft.client.Minecraft;
+import de.stranger.vsdh.shader.EntityContractGpuCheck;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
@@ -37,11 +38,12 @@ public final class SmokeScene {
         if (!Boolean.getBoolean("vsdh.smoke") || event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) return;
         int check = (worldNumber - 1) * 2 + (ticks >= 950 ? 2 : 1);
         WorldHostCheck.verifyIfReady(ticks);
-        if (ticks >= 100 && check > gpuChecks && NativePassGpuCheck.ready() && ChainGpuCheck.ready() && TerrainGpuCheck.ready()) {
+        if (ticks >= 100 && check > gpuChecks && NativePassGpuCheck.ready() && ChainGpuCheck.ready() && TerrainGpuCheck.ready() && EntityContractGpuCheck.ready()) {
             MrtGpuCheck.run();
             NativePassGpuCheck.run();
             ChainGpuCheck.run();
             TerrainGpuCheck.run();
+            EntityContractGpuCheck.run();
             gpuChecks = check;
             gpuGroupsCompleted++;
         }
@@ -57,6 +59,7 @@ public final class SmokeScene {
         NativePassGpuCheck.prepare();
         ChainGpuCheck.prepare();
         TerrainGpuCheck.prepare();
+        EntityContractGpuCheck.prepare();
         WorldHostCheck.prepare();
         Minecraft mc = Minecraft.getInstance();
         if (!started && (mc.screen instanceof TitleScreen || mc.screen instanceof AccessibilityOnboardingScreen)) {
@@ -74,6 +77,19 @@ public final class SmokeScene {
             if(worldNumber == 1) mc.getConnection().sendCommand("item replace entity @s weapon.offhand with minecraft:end_rod");
         }
         if (worldNumber == 1) {
+            if (Boolean.getBoolean("vsdh.smoke.livePack")) {
+                if (ticks == 70) {
+                    mc.getConnection().sendCommand("summon minecraft:iron_golem -2.5 97.5 3.5 {NoAI:1b,NoGravity:1b,Silent:1b}");
+                    mc.getConnection().sendCommand("summon minecraft:chicken -1.5 98 4.5 {NoAI:1b,NoGravity:1b,Silent:1b}");
+                }
+                if (ticks == 360) {
+                    var session = de.stranger.vsdh.shader.WorldShaderSession.current();
+                    if (session.entityDraws() == 0 || session.mappedEntityDraws() == 0)
+                        throw new AssertionError("No live entity draws with mapped IDs: " + session.entityDraws());
+                    LOGGER.info("ENTITY LIVE WORLD PASS: original pack, opaque draws={}, mapped batches={}",
+                            session.entityDraws(), session.mappedEntityDraws());
+                }
+            }
             if (!Boolean.getBoolean("vsdh.smoke.livePack")) {
                 if (ticks == 350) mc.getConnection().sendCommand("tp @s 0 100 0 45 -85");
                 if (ticks == 400) mc.getConnection().sendCommand("tp @s 0 100 0 45 35");
@@ -142,7 +158,12 @@ public final class SmokeScene {
         if (worldNumber == 1 && DimensionWorldProbe.enabled()) {
             switch(ticks) {
                 case 1050 -> mc.getConnection().sendCommand("execute in minecraft:the_nether run tp @s 0 90 0 45 35");
+                case 1080 -> {
+                    mc.getConnection().sendCommand("execute in minecraft:the_nether run fill -5 87 -2 3 94 7 minecraft:air");
+                    mc.getConnection().sendCommand("execute in minecraft:the_nether run summon minecraft:chicken -2 88 3 {NoAI:1b,NoGravity:1b,Silent:1b}");
+                }
                 case 1250 -> mc.getConnection().sendCommand("execute in minecraft:the_end run tp @s 0 100 0 45 35");
+                case 1280 -> mc.getConnection().sendCommand("execute in minecraft:the_end run summon minecraft:chicken -2 98 3 {NoAI:1b,NoGravity:1b,Silent:1b}");
                 case 1450 -> mc.getConnection().sendCommand("execute in minecraft:overworld run tp @s 0 100 0 45 35");
             }
         }

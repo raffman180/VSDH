@@ -2,6 +2,10 @@ package de.stranger.vsdh.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.MeshData;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import net.minecraft.client.particle.ParticleRenderType;
 import net.minecraft.client.renderer.GameRenderer;
@@ -34,6 +38,7 @@ import java.util.function.Predicate;
 /** Development world host. Installation is explicit, prepared off-thread, and requires an unloaded world. */
 public final class WorldShaderSession implements MainPass {
     private static WorldShaderSession current;
+    public static final int NO_ENTITY_CAPTURE = Integer.MIN_VALUE;
     private static final java.util.Set<String> DEPTH_NAMES=java.util.Set.of("depthtex0","depthtex1","depthtex2","gdepthtex");
     private final MainPass delegate;
     private final WorldPackSet plans;
@@ -47,6 +52,11 @@ public final class WorldShaderSession implements MainPass {
     private final long[] particleDraws=new long[ParticlePackPlan.Pass.values().length];
     private final long[] geometryDraws=new long[RenderStage.values().length];
     private RenderStage geometryStage;
+    private final NativeEntityMesh entityMesh = new NativeEntityMesh();
+    private final Map<ResourceLocation, Integer> entityMaterials = new HashMap<>();
+    private NativeGeometryPass entitySolid, entityCutout;
+    private int entityMaterial = NO_ENTITY_CAPTURE;
+    private long entityDraws, mappedEntityDraws;
     private final Map<Long,Integer> aliases=new HashMap<>();
     private NativeShaderChain chain;
     private NativeWorldDepth depth;
@@ -69,6 +79,8 @@ public final class WorldShaderSession implements MainPass {
     private void selectPlan(WorldPackPlan next) {
         plan=next;
         uniforms=new WorldUniforms(next);
+        entityMaterials.clear();
+        if (next.entities()!=null) next.entities().materials().forEach((name,id)->entityMaterials.put(ResourceLocation.parse(name),id));
         for(var type:TerrainRenderType.values())
             sources.put(type,next.terrain().get(type.name().toLowerCase(java.util.Locale.ROOT)));
     }
@@ -197,6 +209,73 @@ public final class WorldShaderSession implements MainPass {
         return true;
     }
 
+    public int beginEntity(Entity entity) {
+        int previous = entityMaterial;
+        if (active && !deferred && plan.entities() != null) {
+            var key = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+            entityMaterial = entityMaterials.getOrDefault(key, -1);
+        } else {
+            entityMaterial = NO_ENTITY_CAPTURE;
+        }
+        return previous;
+    }
+
+    public void endEntity(int previous) { entityMaterial = previous; }
+
+    public static int materialForEntityVertex() {
+        var session = current;
+        return session != null && RenderSystem.isOnRenderThread() ? session.entityMaterial : NO_ENTITY_CAPTURE;
+    }
+
+    public long entityDraws() { return entityDraws; }
+    public long mappedEntityDraws() { return mappedEntityDraws; }
+
+    public boolean renderOpaqueEntities(MeshData mesh) {
+        if (!active || deferred || entitySolid == null
+                || net.vulkanmod.compat.sable.render.SublevelRenderScope.current().isPresent()) return false;
+        var state = mesh.drawState();
+        if (state.format() != DefaultVertexFormat.NEW_ENTITY || state.mode() != VertexFormat.Mode.QUADS
+                || state.vertexCount() < 4 || state.vertexCount() % 4 != 0) return false;
+        short[] ids = ((NativeEntityMesh.EntityIds) (Object) mesh).vsdh$getEntityIds();
+        if (ids == null) return false;
+
+        ShaderInstance shader = RenderSystem.getShader();
+        if (shader == null) return false;
+        boolean solid = shader == GameRenderer.getRendertypeEntitySolidShader();
+        if (!solid && shader != GameRenderer.getRendertypeEntityCutoutShader()
+                && shader != GameRenderer.getRendertypeEntityCutoutNoCullShader()
+                && shader != GameRenderer.getRendertypeEntityCutoutNoCullZOffsetShader()) return false;
+        var program = solid ? entitySolid : entityCutout;
+        var source = solid ? plan.entities().solid() : plan.entities().cutout();
+        try (mesh) {
+            drawEntityBatch(mesh, ids, state, program, source);
+        }
+        return true;
+    }
+
+    private void drawEntityBatch(MeshData mesh, short[] ids, MeshData.DrawState state,
+                                 NativeGeometryPass program, PackProgramSource.Prepared source) {
+        var vertices = entityMesh.extend(mesh, ids);
+        var nativeState = new MeshData.DrawState(NativeEntityMesh.FORMAT, state.vertexCount(), state.indexCount(),
+                state.mode(), state.indexType());
+        uniforms.writeDraw(program, RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix(), RenderStage.ENTITIES);
+        bindGeometry(program, source, false, false);
+        int topology = VRenderSystem.topology;
+        try (var scope = Renderer.getInstance().temporaryRenderTarget()) {
+            VRenderSystem.setPrimitiveTopology(state.mode());
+            program.render(pipeline -> Renderer.getDrawer().draw(vertices, nativeState, mesh.indexBuffer()));
+        } finally {
+            VRenderSystem.topology = topology;
+        }
+        entityDraws++;
+        for (int i = 0; i < state.vertexCount(); i++) {
+            if (ids[i] != (short) -1) {
+                mappedEntityDraws++;
+                break;
+            }
+        }
+    }
+
     public long skippedFrames() { return skippedFrames; }
     public VulkanImage presentationImage() { return delegate.getColorAttachment(); }
     public void frameObserver(Consumer<WorldShaderSession> observer) { RenderSystem.assertOnRenderThread();frameObserver=observer; }
@@ -232,11 +311,13 @@ public final class WorldShaderSession implements MainPass {
         if(plan.distant()!=null)geometry.addAll(plan.distant().programs());
         geometry.addAll(plan.skyPrograms().programs().values());
         geometry.addAll(plan.particles().programs().values());
+        if(plan.entities()!=null)geometry.addAll(plan.entities().programs());
         for (var source:geometry) {
             var activeBindings=new java.util.HashSet<Integer>();
             source.compiled().stages().values().forEach(bytes->activeBindings.addAll(SpirvInterface.bindings(bytes)));
             for (var sampler:source.translated().samplers()) if (activeBindings.contains(source.compiled().bindings().get(sampler.name()))
                     && !java.util.Set.of("gtexture","texture","tex","lightmap").contains(sampler.name())
+                    && !(source.translated().inputs()==VertexInputs.VULKAN_ENTITY && sampler.name().equals("ofOverlay"))
                     && !(shadowName(sampler.name())&&plan.shadow()!=null)&&!depthName(sampler.name())
                     && !(distantDepth(sampler.name())&&plan.distant()!=null)
                     && plan.textures().resolve(source.path(),sampler.name())==null
@@ -296,6 +377,14 @@ public final class WorldShaderSession implements MainPass {
                     var target=chain.geometry(name,entry.getKey()!=ParticlePackPlan.Pass.BEFORE,worldDepth);
                     var blend=NativeBlend.forProgram(plan.chain().targets(),name,target.framebuffer().getColorAttachmentCount());
                     particles.put(entry.getKey(),new NativeGeometryPass(source,DefaultVertexFormat.PARTICLE,target,blend));
+                }
+                if (plan.entities() != null) {
+                    var source = plan.entities().solid();
+                    String name = bare(source.path());
+                    var target = chain.geometry(name, false, worldDepth);
+                    var blend = NativeBlend.forProgram(plan.chain().targets(), name, target.framebuffer().getColorAttachmentCount());
+                    entitySolid = new NativeGeometryPass(source, NativeEntityMesh.FORMAT, target, blend);
+                    entityCutout = new NativeGeometryPass(plan.entities().cutout(), NativeEntityMesh.FORMAT, target, blend);
                 }
                 chain.prepareOutput(output);
             } catch (Throwable failure) {releaseGraph();throw failure;}
@@ -371,7 +460,7 @@ public final class WorldShaderSession implements MainPass {
                 pipeline.bindImage(sampler,net.vulkanmod.vulkan.texture.VTextureSelector.getWhiteTexture());
                 continue;
             }
-            int id=RenderSystem.getShaderTexture(sampler.equals("lightmap")?2:0);
+            int id=RenderSystem.getShaderTexture(sampler.equals("lightmap")?2:sampler.equals("ofOverlay")?1:0);
             var texture=GlTexture.getTexture(id);
             if (texture==null || texture.getVulkanImage()==null) throw new IllegalStateException("Missing world texture: "+sampler+" id="+id);
             pipeline.bindImage(sampler,texture.getVulkanImage());
@@ -433,6 +522,11 @@ public final class WorldShaderSession implements MainPass {
         terrainBlend.clear();
         sky.values().forEach(NativeGeometryPass::close);sky.clear();
         particles.values().forEach(NativeGeometryPass::close);particles.clear();
+        if (entitySolid != null) entitySolid.close();
+        entitySolid = null;
+        if (entityCutout != null) entityCutout.close();
+        entityCutout = null;
+        entityMesh.close();
         if (chain!=null) chain.close();chain=null;
         if(distant!=null)distant.close();distant=null;
         if (depth!=null) depth.close();depth=null;borrowedDepth=null;

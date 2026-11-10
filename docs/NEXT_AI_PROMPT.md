@@ -1,6 +1,48 @@
-# Fortsetzungs-Prompt — VSDH 0.17
+# Fortsetzungs-Prompt — VSDH 0.18
 
 ## Aktuelle Arbeit
+
+0.18 bindet opake und Cutout-Mobs an das tatsächliche
+gbuffers_entities-Programm. Der native VULKAN_ENTITY-Übersetzer nutzt die
+vorhandenen 1.21.1-Drawmatrizen aus WorldUniforms ohne DynamicTransforms.
+Die Vertexorte folgen dem erweiterten 56-Byte-Format und bleiben bei
+inaktiven Attributen stabil. LevelRenderer.renderEntity setzt den
+Materialkontext, BufferBuilderM speichert die IDs pro Vertex und
+ShaderEntityMeshMixin reicht sie mit dem fertigen Mesh weiter.
+NativeEntityMesh ergänzt den Polygonmittelpunkt und die Tangente.
+Standardpuffer, gemischte Batches und nicht unterstützte Shader bleiben
+auf dem vorhandenen Weg. EntityPackPlan liest entity.properties und
+prüft die für diesen Einstieg implementierten Shaderressourcen.
+Overlay ist der Minecraft-Slot 1, Textur Slot 0, Licht Slot 2. Der
+Originalpfad für Schatten bleibt getrennt. Nether nutzt zusätzlich die
+vorhandene Rauschtextur aus PackTexturePlan.
+
+EntityContractGpuCheck prüft zwei IDs in einem echten Minecraft-Batch
+und beide UV-Windungen bis zur GPU. verify-0.18-entity-dimensions.log
+prüft das Originalpack mit DH und opaken Entitäten in den drei Dimensionen.
+Prüfbericht und installierbares Paket unter dist/0.18.0-dev prüfen.
+Der private Probeaufbau unter build/entity-contract-1.21.1 enthält den
+Zwischenstand vor der Main-Branch-Integration und gehört zu keiner JAR.
+Die früheren Entwicklungsstände unter dist/0.17.0-dev und dist/0.16.0-dev
+sind verifiziert und bleiben verfügbar.
+
+Als Nächstes die transparenten Entitätsschichten und Blockentitäten
+in getrennten Zeichenphasen ergänzen. Blockentitäten brauchen ihren
+eigenen Materialkontext, ebenso die Hand und gehaltene Items.
+Die festgelegte Iris-Referenz trennt die Phasen so:
+IrisRenderingPipeline.beginHand kopiert depthtex2 vor der Hand.
+HandRenderer.renderSolid zeichnet vor Deferred mit Z-Skalierung 0.125.
+beginTranslucents kopiert danach depthtex1 und startet Deferred.
+renderTranslucent läuft nach der Welttransparenz vor Composite/Final.
+GameRenderer.renderItemInHand enthält zusätzlich ScreenEffectRenderer.
+Für eine native Implementierung nur die doppelte Handzeichnung
+unterdrücken und die Bildschirmeffekte weiter ausführen. Die aus
+Vanilla geprüften Sichtbedingungen (Egoansicht, GUI, Schlafen, Zuschauer,
+Panorama) und NeoForge-Einstiegspunkte beibehalten. Die Vulkan-Projektion
+zuerst in die Pack-Koordinaten umrechnen und die Z-Skalierung genau dort
+anbringen. Welt- und Hand-Projektion getrennt prüfen. Keine Gleichheit der
+beiden Tiefekopien als Erfolg akzeptieren. Entitätsschatten, weitere Packs,
+Geräte und DH-Versionen einzeln testen. Keine ungetestete Kompatibilität behaupten.
 
 0.17 liest native Ganzzahl-Farbpuffer über `isampler2D` und `usampler2D`.
 ShaderChainPlan prüft bekannte Farbpufferformate schon beim Laden des Packs.

@@ -6,7 +6,19 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.17 — Ganzzahlige Shader-Farbpuffer lesen
+## Aktuell 0.18 — Opake Entitäten
+
+EntityPackPlan bereitet den tatsächlichen Entitätspass und die
+Materialtabelle vor. WorldShaderLevelMixin setzt den Kontext bei
+LevelRenderer.renderEntity. BufferBuilderM speichert die ID passend
+zum Vertex und hängt sie an MeshData. NativeEntityMesh erweitert den
+Batch unmittelbar vor dem Vulkan-Zeichnen. Der Fallback behält den
+Originalpuffer. Unterstützt sind die opaken Standardprogramme für
+NEW_ENTITY-Quads vor Deferred und die Standardtexturen dieser Pässe.
+Complementarys Netherprogramm bezieht noisetex aus PackTexturePlan.
+Details zu Tests und den noch offenen Geometriephasen in NEXT_AI_PROMPT.md.
+
+## Stand 0.17 — Ganzzahlige Shader-Farbpuffer lesen
 
 NativeGraphicsProgram bindet `isampler2D` und `usampler2D` an passende
 Farbbilder. NativeColorTargets liefert dafür bereits Nearest-Filter.

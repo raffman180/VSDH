@@ -2408,7 +2408,8 @@ public final class GlslTranslator {
 				continue;
 			}
 
-			if (name.equals("gl_TextureMatrix") && LegacyGlsl.bindsGameTransforms(this.program)
+			if (name.equals("gl_TextureMatrix") && this.inputs != VertexInputs.VULKAN_ENTITY
+                    && LegacyGlsl.bindsGameTransforms(this.program)
 					&& rewriteGameTextureMatrix(index)) {
 				continue;
 			}
@@ -2418,7 +2419,8 @@ public final class GlslTranslator {
 				continue;
 			}
 
-			if (LegacyGlsl.readsDrawModelView(this.program) && rewriteGameModelView(index, name)) {
+			if (this.inputs != VertexInputs.VULKAN_ENTITY && LegacyGlsl.readsDrawModelView(this.program)
+                    && rewriteGameModelView(index, name)) {
 				continue;
 			}
 
@@ -2976,7 +2978,7 @@ public final class GlslTranslator {
 		// A pass drawn from the camera takes the draw's model view here too, and it has to: this is
 		// the spelling the corpus really uses for a glint, and a pack writing ftransform() would
 		// otherwise get the pass's matrix back through the door rewriteGameModelView closed.
-		if (LegacyGlsl.readsDrawModelView(this.program)) {
+		if (this.inputs != VertexInputs.VULKAN_ENTITY && LegacyGlsl.readsDrawModelView(this.program)) {
 			this.tokens.inject(index, "(of_ProjectionMatrix * " + DRAW_MODEL_VIEW + " * of_Vertex)");
 			this.injectedNames.add("of_ProjectionMatrix");
 			this.injectedNames.add(LegacyGlsl.CAMERA_BOB);
