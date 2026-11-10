@@ -63,8 +63,11 @@ neoForge {
     mods { vsdh { sourceSet sourceSets.main; sourceSet sourceSets.smoke } }
 }
 
+configurations { dh330Remapper }
+
 dependencies {
 
+    dh330Remapper 'org.ow2.asm:asm-commons:9.9.1'
     implementation currentDh
     compileOnly 'io.github.llamalad7:mixinextras-neoforge:0.5.3'
     compileOnly files('libs/flywheel-neoforge-1.21.1-1.0.6.jar')
@@ -200,6 +203,24 @@ tasks.named('jar') {
         jarFile.delete()
         ant.zip(destfile: jarFile, basedir: tmpDir)
     }
+}
+
+tasks.register('jarDh330', JavaExec) {
+    group = 'build'
+    description = 'Builds the separate VSDH JAR for the NeoForge namespace of DH 3.3.0.'
+    def standardJar = tasks.named('jar', Jar)
+    dependsOn standardJar
+    def reference = file(providers.gradleProperty('dh330Jar').getOrElse('libs/DistantHorizons-3.3.0-1.21.1-fabric-neoforge.jar'))
+    def source = file('tools/RemapDh330.java')
+    def output = layout.buildDirectory.file("libs/VSDH-neoforge-1.21.1-${version}-dh330.jar")
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    classpath = configurations.dh330Remapper
+    mainClass = source.absolutePath
+    args reference.absolutePath, standardJar.get().archiveFile.get().asFile.absolutePath, output.get().asFile.absolutePath
+    inputs.file reference
+    inputs.file source
+    inputs.file standardJar.flatMap { it.archiveFile }
+    outputs.file output
 }
 
 tasks.register('verifyBundledLwjgl') {

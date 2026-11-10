@@ -1,7 +1,7 @@
 # Weiterarbeit an VSDH
 
 Projekt: `C:/Users/Stranger/Documents/Meine Mods/VSDH`, Branch `codex/renderer-shaders`.
-MC 1.21.1 / NeoForge 21.1.264 / Java 21 / DH 3.3.1–3.3.3. Der Nutzer hat nach der
+MC 1.21.1 / NeoForge 21.1.264 / Java 21 / DH 3.3.0–3.3.3. Der Nutzer hat nach der
 Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
@@ -13,7 +13,9 @@ geprüfte DH-3.3.1-Artefakt. Der moderne Adapter verwendet DH 3.3.3 zum
 Kompilieren. Beide landen in einer VSDH-JAR. `tools/fetch-dependencies.ps1`
 prüft beide Referenzen. Die Laufzeit lädt genau eine installierte DH-JAR.
 Die älteren und neueren `setApiValue`-Signaturen ändern nur Sitzungswerte.
-3.3.0 braucht wegen der umbenannten NeoForge-Klassen einen eigenen Adapter.
+`jarDh330 -Pdh330Jar=<originale DH-JAR>` baut die getrennte VSDH-JAR
+für 3.3.0. `tools/RemapDh330.java` prüft den DH-Hash und ordnet die
+referenzierten DH-Typen den gleichnamigen `_neoforge`-Typen zu.
 
 Die BSL-Erweiterung liegt im gemeinsamen Uniform- und Texturpfad.
 Siehe `docs/MIGRATION_STATUS.md` und `dist/0.24.0-dev/verification.json` für

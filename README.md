@@ -12,13 +12,14 @@ für dieses Profil die VSDH-JAR als Renderer.
 | NeoForge | 21.1.264 |
 | Java | 21 |
 | Vulkan-Renderer | in dieser VSDH-JAR enthalten; Reforged-Basis 0618965 |
-| Distant Horizons | 3.3.1 bis 3.3.3 für 1.21.1, Fabric/NeoForge-JAR |
+| Distant Horizons | 3.3.1 bis 3.3.3 für 1.21.1 mit der regulären JAR. Für 3.3.0 die Datei mit Endung `-dh330.jar` verwenden. |
 | Erstes Shader-Ziel | Complementary Reimagined r5.9.3, Profil MEDIUM |
 
 ## Testinstallation
 
 1. Ein separates Profil für Minecraft 1.21.1 / NeoForge 21.1.264 anlegen.
-2. Die VSDH-0.24.0-dev-JAR und eine der oben genannten DH-Versionen in dessen `mods`-Ordner legen.
+2. Eine passende VSDH-0.24.0-dev-JAR und genau eine der oben genannten
+   DH-Versionen in dessen `mods`-Ordner legen.
 3. Aus diesem Profil die originale Reforged-JAR und frühere VSDH-JARs entfernen.
    Die VSDH-JAR enthält den Renderer und die Anbindung für Distant Horizons.
 4. Iris, Sodium und andere Renderer-Ersatzmods aus diesem Profil herauslassen.
@@ -59,7 +60,8 @@ oder Weltdaten; dedizierte Server und große Modpacks sind noch ungetestet.
 Für BSL 10.1 liefert der gemeinsame Renderer zusätzliche Werte für
 Welthöhe, Sonnenrichtung, dominante Hand und Blockentitätskontext.
 Der ältere DH-3.3-Tiefenadapter wird zur Laufzeit ausgewählt. Beide
-Adapter verwenden denselben Vulkan-Renderer.
+Adapter verwenden denselben Vulkan-Renderer. DH 3.3.0 braucht wegen seiner
+separat benannten NeoForge-Klassen die `-dh330.jar`.
 
 Für BSL `BSL_v10.1.zip` als `shaderPack` und `MEDIUM` als Profil eintragen.
 `ENTITY_SHADOW` ist in der unten gezeigten Form eine Complementary-Option.
@@ -203,7 +205,14 @@ reproduzierbarer FPS-Vergleich steht aus.
 
 ## Bauen und prüfen
 
-JDK 21 installieren; im Projektordner unter PowerShell:
+Für den DH-3.3.0-Build die originale DH-3.3.0-JAR an `jarDh330` übergeben.
+Der Build prüft ihre Prüfsumme und erzeugt die separate VSDH-JAR in `build/libs`.
+
+```powershell
+.\gradlew.bat jarDh330 '-Pdh330Jar=<Pfad zur originalen DH-3.3.0-JAR>'
+```
+
+Für den regulären Build JDK 21 installieren und im Projektordner PowerShell öffnen.
 
 ```powershell
 .\tools\fetch-dependencies.ps1

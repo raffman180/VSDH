@@ -3,7 +3,8 @@
 ## Umfang der Kompatibilität
 
 Modrinth listet für Minecraft 1.21.1 und NeoForge vier stabile DH-Versionen
-und 22 Vorabversionen. 0.24 erweitert die geprüfte Reihe um DH 3.3.1.
+und 22 Vorabversionen. 0.24 prüft die reguläre JAR mit 3.3.1 bis 3.3.3
+und die separate `-dh330.jar` mit 3.3.0.
 Die Testmatrix mit den tatsächlich geprüften Pack-/DH-Kombinationen steht
 in `dist/0.24.0-dev/verification.json`.
 
@@ -12,8 +13,10 @@ DH 3.3.2/3.3.3 veröffentlichen beide Typen im API-Paket. Der gemeinsame
 Vulkan-Renderer lädt den passenden Tiefenadapter. Temporäre DH-Einstellungen
 verwenden die verfügbare `setApiValue`-Signatur. DH 3.3.0 liefert für NeoForge
 zusätzlich `_neoforge`-Klassen mit einem getrennten Renderer-Injector.
-Der Spieltest bindet in der aktuellen Integration an den anderen Injector.
-Diese Ausgabe unterstützt daher DH 3.3.1 bis 3.3.3. Die älteren 3.x-Betas haben
+Der erste Spieltest mit der regulären JAR hat wegen des getrennten Injectors
+keinen Renderer geladen. `jarDh330` ordnet für den separaten Build die
+referenzierten Typen aus dem Original-JAR der NeoForge-Namensvariante zu.
+Die älteren 3.x-Betas haben
 weitere Schnittstellenunterschiede. Den geprüften 2.x-Versionen fehlt die
 Klasse `AbstractDhRenderApiDefinition` vollständig.
 
