@@ -35,6 +35,19 @@ public abstract class DeviceManager {
 
     public static Device device;
     private static boolean tessellationEnabled;
+    private static boolean geometryShaderEnabled, fragmentStoresEnabled, vertexStoresEnabled;
+
+    private static boolean dxgiInteropEnabled;
+    private static long deviceLuid;
+
+    /** Windows: shared D3D11 textures and fences can be imported (DXGI presentation, net.vulkanmod.vulkan.present). */
+    public static boolean isDxgiInteropEnabled() { return dxgiInteropEnabled; }
+    /** The device LUID (LowPart in the low 32 bits) for picking the same DXGI adapter. */
+    public static long deviceLuid() { return deviceLuid; }
+
+    public static boolean isGeometryShaderEnabled() { return geometryShaderEnabled; }
+    public static boolean isFragmentStoresEnabled() { return fragmentStoresEnabled; }
+    public static boolean isVertexStoresEnabled() { return vertexStoresEnabled; }
     private static boolean independentBlendEnabled;
 
     public static boolean supportsIndependentBlend() {
@@ -48,6 +61,7 @@ public abstract class DeviceManager {
 
     static GraphicsQueue graphicsQueue;
     static PresentQueue presentQueue;
+    static boolean separatePresentQueue;
     static TransferQueue transferQueue;
     static ComputeQueue computeQueue;
 
@@ -203,11 +217,23 @@ public abstract class DeviceManager {
 
             VkDeviceQueueCreateInfo.Buffer queueCreateInfos = VkDeviceQueueCreateInfo.calloc(uniqueQueueFamilies.length, stack);
 
+            // Present gets a queue of its own when it shares the graphics family and the family
+            // has a second queue: a windowed present then waits only for its own frame, not for
+            // the next frame already submitted to the graphics queue (Renderer.PRESENT_LAG).
+            IntBuffer familyCount = stack.ints(0);
+            vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, familyCount, null);
+            VkQueueFamilyProperties.Buffer families = VkQueueFamilyProperties.malloc(familyCount.get(0), stack);
+            vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, familyCount, families);
+            separatePresentQueue = "true".equals(System.getProperty("vsdh.separatePresentQueue"))
+                    && indices.presentFamily == indices.graphicsFamily
+                    && families.get(indices.graphicsFamily).queueCount() >= 2;
+
             for (int i = 0; i < uniqueQueueFamilies.length; i++) {
                 VkDeviceQueueCreateInfo queueCreateInfo = queueCreateInfos.get(i);
                 queueCreateInfo.sType(VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO);
                 queueCreateInfo.queueFamilyIndex(uniqueQueueFamilies[i]);
-                queueCreateInfo.pQueuePriorities(stack.floats(1.0f));
+                boolean two = separatePresentQueue && uniqueQueueFamilies[i] == indices.graphicsFamily;
+                queueCreateInfo.pQueuePriorities(two ? stack.floats(1.0f, 1.0f) : stack.floats(1.0f));
             }
 
             VkPhysicalDeviceVulkan11Features deviceVulkan11Features = VkPhysicalDeviceVulkan11Features.calloc(stack);
@@ -221,6 +247,17 @@ public abstract class DeviceManager {
             independentBlendEnabled = device.availableFeatures.features().independentBlend();
             deviceFeatures.features().independentBlend(independentBlendEnabled);
             deviceFeatures.features().tessellationShader(device.availableFeatures.features().tessellationShader());
+            // Optional shaderpack contracts (VSDH): stores/atomics from graphics stages for SSBOs and
+            // images, typed storage views of extended formats, and geometry stages. Enabled only
+            // where the device offers them; the shader host checks the flags before relying on one.
+            var available = device.availableFeatures.features();
+            geometryShaderEnabled = available.geometryShader();
+            fragmentStoresEnabled = available.fragmentStoresAndAtomics();
+            vertexStoresEnabled = available.vertexPipelineStoresAndAtomics();
+            deviceFeatures.features().geometryShader(geometryShaderEnabled);
+            deviceFeatures.features().fragmentStoresAndAtomics(fragmentStoresEnabled);
+            deviceFeatures.features().vertexPipelineStoresAndAtomics(vertexStoresEnabled);
+            deviceFeatures.features().shaderStorageImageExtendedFormats(available.shaderStorageImageExtendedFormats());
 
             deviceFeatures.features().multiDrawIndirect(device.isDrawIndirectSupported());
 
@@ -249,6 +286,17 @@ public abstract class DeviceManager {
             if (device.isPortabilitySubset()) {
                 deviceExtensions.add(KHRPortabilitySubset.VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
             }
+            dxgiInteropEnabled = false;
+            if (dxgiInteropAvailable(stack)) {
+                // DXGI flip presentation: import shared D3D11 textures and fences (timeline semaphores).
+                deviceExtensions.add(org.lwjgl.vulkan.KHRExternalMemoryWin32.VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
+                deviceExtensions.add(org.lwjgl.vulkan.KHRExternalSemaphoreWin32.VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME);
+                var vulkan12 = org.lwjgl.vulkan.VkPhysicalDeviceVulkan12Features.calloc(stack).sType$Default()
+                        .timelineSemaphore(true);
+                vulkan12.pNext(deviceVulkan11Features.address());
+                createInfo.pNext(vulkan12);
+                dxgiInteropEnabled = true;
+            }
             createInfo.ppEnabledExtensionNames(asPointerBuffer(deviceExtensions));
 
             createInfo.ppEnabledLayerNames(Vulkan.ENABLE_VALIDATION_LAYERS ? asPointerBuffer(Vulkan.VALIDATION_LAYERS) : null);
@@ -264,9 +312,48 @@ public abstract class DeviceManager {
 
             graphicsQueue = new GraphicsQueue(stack, indices.graphicsFamily);
             transferQueue = new TransferQueue(stack, indices.transferFamily);
-            presentQueue = new PresentQueue(stack, indices.presentFamily);
+            presentQueue = new PresentQueue(stack, indices.presentFamily, separatePresentQueue ? 1 : 0);
+            org.slf4j.LoggerFactory.getLogger("VulkanMod").info("Present queue: family {}, index {}", indices.presentFamily, separatePresentQueue ? 1 : 0);
             computeQueue = new ComputeQueue(stack, indices.computeFamily);
         }
+    }
+
+    /**
+     * DXGI flip presentation in a window (net.vulkanmod.vulkan.present): needs Windows, both Win32 interop
+     * extensions, timeline semaphores and a valid device LUID; records the LUID for the presenter.
+     * -Dvsdh.dxgiPresent: auto (default: D3D12 on NVIDIA, where it was measured faster, see
+     * docs/PERFORMANCE.md), d3d12/true, d3d11 (slower, kept for comparison), false.
+     */
+    private static boolean dxgiInteropAvailable(MemoryStack stack) {
+        String mode = dxgiMode();
+        if (mode.equals("false")) return false;
+        if (mode.equals("auto") && !device.isNvidia()) return false;
+        if (org.lwjgl.system.Platform.get() != org.lwjgl.system.Platform.WINDOWS) return false;
+        var missing = device.getUnsupportedExtensions(java.util.Set.of(
+                org.lwjgl.vulkan.KHRExternalMemoryWin32.VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
+                org.lwjgl.vulkan.KHRExternalSemaphoreWin32.VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME));
+        if (!missing.isEmpty()) return false;
+        var features12 = org.lwjgl.vulkan.VkPhysicalDeviceVulkan12Features.calloc(stack).sType$Default();
+        var features = VkPhysicalDeviceFeatures2.calloc(stack).sType$Default().pNext(features12);
+        org.lwjgl.vulkan.VK11.vkGetPhysicalDeviceFeatures2(physicalDevice, features);
+        if (!features12.timelineSemaphore()) return false;
+        var id = org.lwjgl.vulkan.VkPhysicalDeviceIDProperties.calloc(stack).sType$Default();
+        var properties = org.lwjgl.vulkan.VkPhysicalDeviceProperties2.calloc(stack).sType$Default().pNext(id);
+        org.lwjgl.vulkan.VK11.vkGetPhysicalDeviceProperties2(physicalDevice, properties);
+        if (!id.deviceLUIDValid()) return false;
+        deviceLuid = id.deviceLUID().getLong(0);
+        return true;
+    }
+
+    /** -Dvsdh.dxgiPresent normalised: auto, d3d12, d3d11 or false. */
+    public static String dxgiMode() {
+        String mode = System.getProperty("vsdh.dxgiPresent", "auto").trim().toLowerCase(java.util.Locale.ROOT);
+        return switch (mode) {
+            case "true", "d3d12" -> "d3d12";
+            case "d3d11" -> "d3d11";
+            case "false", "off", "vulkan" -> "false";
+            default -> "auto";
+        };
     }
 
     private static PointerBuffer getRequiredExtensions() {

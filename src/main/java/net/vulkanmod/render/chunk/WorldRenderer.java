@@ -75,6 +75,13 @@ public class WorldRenderer {
 
     private SectionGrid sectionGrid;
     private final Map<ChunkArea,StaticQueue<RenderSection>> shadowDrawQueues=new IdentityHashMap<>();
+    /** The same queues in insertion order: the per-type draw loop must not allocate map entries. */
+    private final ArrayList<ChunkArea> shadowDrawAreas=new ArrayList<>();
+    private final ArrayList<StaticQueue<RenderSection>> shadowDrawList=new ArrayList<>();
+    /** Per-frame area verdicts for the light pass by ChunkArea.index: 0 unknown, 1 kept, 2 culled. */
+    private byte[] shadowAreaState=new byte[0];
+    private IndirectBuffer[] shadowIndirectBuffers;
+    private int shadowSectionsQueued, shadowSectionsCulled;
 
     private SectionGraph sectionGraph;
     private boolean graphNeedsUpdate;
@@ -522,17 +529,56 @@ public class WorldRenderer {
         }
     }
 
+    /** Camera-relative box test for the light pass; must keep any box that contains a kept box. */
+    @FunctionalInterface
+    public interface ShadowBoxTest {
+        boolean visible(float minX, float minY, float minZ, float maxX, float maxY, float maxZ);
+    }
+
     /** Separate light visibility: never reuse the camera's occlusion-filtered section queues. */
     public void prepareShadowDraws() {
-        shadowDrawQueues.values().forEach(StaticQueue::clear);
+        prepareShadowDraws(null,0,0,0);
+    }
+
+    /**
+     * Queues the uploaded sections the light may see. A null test keeps every section. Areas are
+     * tested first; because the test is monotone, a rejected area cannot hold a kept section.
+     */
+    public void prepareShadowDraws(ShadowBoxTest test,double cameraX,double cameraY,double cameraZ) {
+        for(int i=0;i<shadowDrawList.size();i++)shadowDrawList.get(i).clear();
+        shadowSectionsQueued=0;shadowSectionsCulled=0;
+        var indirect=shadowIndirectBuffer();
+        if(indirect!=null)indirect.reset();
         if(sectionGrid==null)return;
+        int areas=sectionGrid.chunkAreaManager.size;
+        if(shadowAreaState.length!=areas)shadowAreaState=new byte[areas];
+        else java.util.Arrays.fill(shadowAreaState,(byte)0);
+        final int areaWidth=ChunkAreaManager.WIDTH<<4, areaHeight=ChunkAreaManager.HEIGHT<<4;
         for(RenderSection section:sectionGrid.sections) {
             var area=section.getChunkArea();
             if(area==null||section.isCompletelyEmpty())continue;
-            shadowDrawQueues.computeIfAbsent(area,ignored->new StaticQueue<>(512)).add(section);
+            if(test!=null) {
+                byte state=shadowAreaState[area.index];
+                if(state==0) {
+                    float ax=(float)(area.position.x()-cameraX),ay=(float)(area.position.y()-cameraY),az=(float)(area.position.z()-cameraZ);
+                    state=test.visible(ax,ay,az,ax+areaWidth,ay+areaHeight,az+areaWidth)?(byte)1:(byte)2;
+                    shadowAreaState[area.index]=state;
+                }
+                boolean areaVisible=state==1;
+                float sx=(float)(section.xOffset-cameraX),sy=(float)(section.yOffset-cameraY),sz=(float)(section.zOffset-cameraZ);
+                if(!areaVisible||!test.visible(sx,sy,sz,sx+16,sy+16,sz+16)) {shadowSectionsCulled++;continue;}
+            }
+            var queue=shadowDrawQueues.get(area);
+            if(queue==null) {queue=new StaticQueue<>(512);shadowDrawQueues.put(area,queue);shadowDrawAreas.add(area);shadowDrawList.add(queue);}
+            queue.add(section);
+            shadowSectionsQueued++;
         }
     }
-    public void clearShadowDraws() {shadowDrawQueues.clear();}
+    /** Non-empty sections queued for the last light pass. */
+    public int shadowSectionsQueued() {return shadowSectionsQueued;}
+    /** Non-empty sections the last light pass rejected. */
+    public int shadowSectionsCulled() {return shadowSectionsCulled;}
+    public void clearShadowDraws() {shadowDrawQueues.clear();shadowDrawAreas.clear();shadowDrawList.clear();}
     /** Smoke diagnostics only: uploaded light casters absent from the camera's current queue. */
     public int shadowOffCameraSections() {
         var visible=Collections.newSetFromMap(new IdentityHashMap<RenderSection,Boolean>());
@@ -547,16 +593,35 @@ public class WorldRenderer {
     }
     public long drawShadowSectionBatches(GraphicsPipeline pipeline,TerrainRenderType type,double x,double y,double z) {
         Renderer.getDrawer().bindIndexBuffer(Renderer.getCommandBuffer(),Renderer.getDrawer().getQuadsIndexBuffer().getIndexBuffer());
+        var indirect=shadowIndirectBuffer();
         long draws=0;
-        for(var entry:shadowDrawQueues.entrySet()) {
-            var buffers=entry.getKey().getDrawBuffers();var queue=entry.getValue();
+        for(int a=0;a<shadowDrawList.size();a++) {
+            var buffers=shadowDrawAreas.get(a).getDrawBuffers();var queue=shadowDrawList.get(a);
             if(buffers.getAreaBuffer(type)==null)continue;
             int count=0;for(int i=0;i<queue.size();i++)if(queue.get(i).getDrawParameters(type).indexCount()>0)count++;
             if(count==0)continue;
             buffers.bindBuffers(Renderer.getCommandBuffer(),pipeline,type,x,y,z);
-            buffers.buildDrawBatchesDirect(queue,type);draws+=count;
+            if(indirect!=null)buffers.buildDrawBatchesIndirect(indirect,queue,type);
+            else buffers.buildDrawBatchesDirect(queue,type);
+            draws+=count;
         }
+        if(indirect!=null)indirect.submitUploads();
         return draws;
+    }
+
+    /**
+     * The light pass owns its per-frame indirect buffers: it may run before the camera pass resets
+     * its own, and must never share their offsets.
+     */
+    private IndirectBuffer shadowIndirectBuffer() {
+        if(!Initializer.CONFIG.indirectDraw||!DeviceManager.supportsFastIndirectDraw())return null;
+        int frames=Renderer.getFramesNum();
+        if(shadowIndirectBuffers==null||shadowIndirectBuffers.length!=frames) {
+            if(shadowIndirectBuffers!=null)Arrays.stream(shadowIndirectBuffers).forEach(Buffer::freeBuffer);
+            shadowIndirectBuffers=new IndirectBuffer[frames];
+            for(int i=0;i<frames;i++)shadowIndirectBuffers[i]=new IndirectBuffer(1000000,MemoryTypes.HOST_MEM);
+        }
+        return shadowIndirectBuffers[Renderer.getCurrentFrame()];
     }
 
     public SectionGrid getSectionGrid() {
@@ -586,6 +651,9 @@ public class WorldRenderer {
     public void cleanUp() {
         if (indirectBuffers != null)
             Arrays.stream(indirectBuffers).forEach(Buffer::freeBuffer);
+        if (shadowIndirectBuffers != null)
+            Arrays.stream(shadowIndirectBuffers).forEach(Buffer::freeBuffer);
+        shadowIndirectBuffers = null;
     }
 
 }

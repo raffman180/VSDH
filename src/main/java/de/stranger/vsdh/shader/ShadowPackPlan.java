@@ -5,6 +5,7 @@ import dev.vitrail.pack.model.AlphaTest;
 import dev.vitrail.pack.model.ProgramStage;
 import dev.vitrail.pack.model.TextureStage;
 import dev.vitrail.pack.source.ShadowCasters;
+import dev.vitrail.pack.source.ShadowCullState;
 import dev.vitrail.pack.source.IncludeExpander;
 import dev.vitrail.pack.source.OpenedPack;
 import dev.vitrail.pack.target.DrawBuffers;
@@ -17,10 +18,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-/** The pack's actual shadow programs and output slots. */
+/**
+ * The pack's actual shadow programs and output slots, plus how the light pass may cull terrain.
+ * {@code voxelizes} mirrors Iris: a geometry stage on the shadow program means voxelisation.
+ */
 public record ShadowPackPlan(Map<String, PackProgramSource.Prepared> programs, List<Integer> outputs,
-                             PackProgramSource.Prepared entities, PackProgramSource.Prepared blocks, ShadowCasters casters) {
-    public ShadowPackPlan { programs = Map.copyOf(programs); outputs = List.copyOf(outputs); }
+                             PackProgramSource.Prepared entities, PackProgramSource.Prepared blocks, ShadowCasters casters,
+                             ShadowCullState cull, boolean voxelizes) {
+    public ShadowPackPlan {
+        programs = Map.copyOf(programs); outputs = List.copyOf(outputs);
+        java.util.Objects.requireNonNull(cull, "cull");
+    }
 
     public static ShadowPackPlan prepare(OpenedPack pack, String prefix, int ceiling,
                                          Set<String> customUniforms, boolean distant, PackTextures textures,
@@ -39,7 +47,9 @@ public record ShadowPackPlan(Map<String, PackProgramSource.Prepared> programs, L
             entities = caster(pack, prefix, "shadow_entities", ceiling, outputs, customUniforms, distant, alpha, textures, warning);
         if (casters.blockEntities() || casters.lightBlockEntities())
             blocks = caster(pack, prefix, "shadow_block", ceiling, outputs, customUniforms, distant, alpha, textures, warning);
-        return new ShadowPackPlan(programs, outputs, entities, blocks, casters);
+        var cull = pack.properties().shadowCull(defines);
+        boolean voxelizes = pack.source().file(path + ".gsh").isPresent();
+        return new ShadowPackPlan(programs, outputs, entities, blocks, casters, cull, voxelizes);
     }
 
     private static List<Integer> outputs(OpenedPack pack, String path, int ceiling) throws IOException {
@@ -57,11 +67,9 @@ public record ShadowPackPlan(Map<String, PackProgramSource.Prepared> programs, L
             var source = PackProgramSource.prepare(pack, path, inputs, inputs.elements(), alpha.getOrDefault(name, AlphaTest.ONE_TENTH));
             if (!outputs(pack, path, ceiling).equals(sharedOutputs))
                 throw new IllegalArgumentException("Shadow output slots differ from the shared map");
-            if (!source.compiled().stages().keySet().equals(Set.of(ProgramStage.VERTEX, ProgramStage.FRAGMENT))
-                    || source.translated().stages().values().stream().anyMatch(stage -> !stage.notes().storageBlocks().isEmpty()))
-                throw new IllegalArgumentException("Unsupported caster shader stages or storage");
-            var missing = WorldUniforms.missing(source, customUniforms, distant);
-            if (!missing.isEmpty()) throw new IllegalArgumentException("Missing caster uniforms: " + missing);
+            if (!PackProgramSource.graphicsStages(source.compiled().stages().keySet()))
+                throw new IllegalArgumentException("Unsupported caster shader stages");
+            // Unprovided uniforms read as zero, as WorldUniforms writes them for every program of the plan.
             var active = new java.util.HashSet<Integer>();
             source.compiled().stages().values().forEach(bytes -> active.addAll(SpirvInterface.bindings(bytes)));
             for (var sampler : source.translated().samplers()) {
@@ -69,7 +77,11 @@ public record ShadowPackPlan(Map<String, PackProgramSource.Prepared> programs, L
                 boolean supplied = textures.resolve(TextureStage.GBUFFERS, sampler.name())
                         .filter(texture -> texture.raw().isEmpty()).isPresent();
                 boolean builtin = Set.of("tex", "texture", "ofTexture", "gtexture", "lightmap", "ofOverlay", "noisetex").contains(sampler.name())
-                        || PackTexturePlan.hasMaterialDefault(sampler.name());
+                        || PackTexturePlan.hasMaterialDefault(sampler.name())
+                        // A shadow target this pass does not write (NativeWorldShadows.readableColour).
+                        || sampler.name().matches("shadowcolor[0-7]?") && !sharedOutputs.contains(
+                                sampler.name().equals("shadowcolor") ? 0 : Integer.parseInt(sampler.name().substring(11)));
+                if (dev.vitrail.pack.texture.CustomImages.named(sampler.name())) continue; // bound from the graph's images
                 if (!sampler.type().equals("sampler2D") || sampler.declaration().contains("[") || !(supplied || builtin))
                     throw new IllegalArgumentException("Unsupported caster texture: " + sampler.declaration());
             }

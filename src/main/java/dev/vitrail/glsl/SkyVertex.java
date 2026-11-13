@@ -6,10 +6,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Maps the game sky's four mesh layouts to legacy GLSL inputs. Each bound
- * attribute keeps its vertex-format location even if SPIR-V optimization removes
- * an unused input. Sky meshes have no lightmap, overlay or normal, so the legacy
- * attributes use full light and a viewer-facing normal.
+ * Maps the game sky's four mesh layouts, and the 1.21.1 cloud mesh, to legacy GLSL inputs. Each
+ * bound attribute keeps its vertex-format location even if SPIR-V optimization removes an unused
+ * input. Sky meshes have no lightmap, overlay or normal, so the legacy attributes use full light and
+ * a viewer-facing normal; the cloud mesh (POSITION_TEX_COLOR_NORMAL) carries its own face normal.
  */
 public final class SkyVertex {
 
@@ -22,7 +22,7 @@ public final class SkyVertex {
 	 * the bound format happens not to carry costs nothing, while missing one that it does carry is a
 	 * redefinition at file scope that refuses the stage.
 	 */
-	public static final List<String> ATTRIBUTES = List.of("Position", "Color", "UV0");
+	public static final List<String> ATTRIBUTES = List.of("Position", "Color", "UV0", "Normal");
 
 	private SkyVertex() {
 	}
@@ -87,7 +87,10 @@ public final class SkyVertex {
 
 		lines.addAll(VertexPrologue.blankTexCoords());
 
-		lines.add("#define of_Normal vec3(0.0, 0.0, 1.0)");
+		// Four signed bytes like the entity mesh; only the cloud layout binds one.
+		lines.add(bound.contains("Normal")
+				? "#define of_Normal Normal.xyz"
+				: "#define of_Normal vec3(0.0, 0.0, 1.0)");
 		lines.addAll(VertexPrologue.tail(used, synthesized));
 
 		return List.copyOf(lines);

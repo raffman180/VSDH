@@ -311,8 +311,10 @@ public class VulkanImage {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             readOnlyLayout(stack, commandBuffer.getHandle());
         }
-        DeviceManager.getGraphicsQueue().submitCommands(commandBuffer);
-        Synchronization.INSTANCE.addCommandBuffer(commandBuffer);
+        // Joins an open upload batch instead of submitting the shared buffer on its own.
+        long fence = DeviceManager.getGraphicsQueue().endIfNeeded(commandBuffer);
+        if (fence != VK_NULL_HANDLE)
+            Synchronization.INSTANCE.addCommandBuffer(commandBuffer);
     }
 
     public void readOnlyLayout(MemoryStack stack, VkCommandBuffer commandBuffer) {
@@ -367,7 +369,7 @@ public class VulkanImage {
             }
             case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL -> {
                 srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-                sourceStage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+                sourceStage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
             }
             case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> {
                 srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -376,6 +378,11 @@ public class VulkanImage {
             case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL -> {
                 srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
                 sourceStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+            }
+            // Shader image stores (compute or fragment) and reads through a storage view.
+            case VK_IMAGE_LAYOUT_GENERAL -> {
+                srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+                sourceStage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
             }
             default -> throw new RuntimeException("Unexpected value:" + image.currentLayout);
         }
@@ -391,7 +398,7 @@ public class VulkanImage {
             }
             case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL -> {
                 dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-                destinationStage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+                destinationStage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
             }
             case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> {
                 dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
@@ -403,6 +410,10 @@ public class VulkanImage {
             }
             case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR -> {
                 destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+            }
+            case VK_IMAGE_LAYOUT_GENERAL -> {
+                dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+                destinationStage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
             }
             default -> throw new RuntimeException("Unexpected value:" + newLayout);
         }

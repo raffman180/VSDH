@@ -20,9 +20,18 @@ freigegeben. Größen- und Speichergrenzen werden vor der Allokation geprüft.
 
 Die Schattenqueues werden aus geladenen und hochgeladenen RenderSections gebildet.
 Die Kamera-Queues werden weder verändert noch als Licht-Sichtbarkeit benutzt.
-Dadurch können außerhalb des Blicks liegende Chunks Schatten werfen. Der aktuelle
-Ansatz zeichnet konservativ alle geladenen Chunks und benötigt später eine
-packgerechte Schatten-Sichtbarkeitsprüfung. Es gibt keine FPS-Zusage. Entitäten,
+Dadurch können außerhalb des Blicks liegende Chunks Schatten werfen. Seit 0.26
+wählt ShadowCuller pro Frame dieselbe Form wie Iris: `shadow.culling`, ein
+Geometrie-Shader am Schattenprogramm (Voxelisierung), `shadowDistance ×
+shadowDistanceRenderMul` und `voxelDistance` entscheiden zwischen einem Würfel
+um die Kamera, dem in Lichtrichtung verlängerten Sichtfeld und der Safe-Zone.
+WorldRenderer prüft zuerst ganze Chunk-Bereiche und danach Sektionen. Die
+Prüfung ist monoton, deshalb ändert die Bereichsprüfung das Ergebnis nicht.
+ShadowCullerTest prüft per Strahl-Abtastung, dass kein Schattenwerfer eines
+sichtbaren Punktes verworfen wird. Ein absichtlich falsches Culling lässt den
+Test scheitern. Bei ungültigen Matrizen zeichnet der Pass wieder alles.
+Mit `indirectDraw` sammelt der Schattenpass seine Draws pro Bereich in eigenen
+Indirect-Puffern pro Frame. Es gibt keine FPS-Zusage. Entitäten,
 Blockentitäten und DH-LODs sind noch keine eigenen Schattenwerfer dieses Passes.
 Schatten-Depth-Mipmaps und Perspektiv-Schattenkameras sind noch nicht umgesetzt.
 
@@ -72,3 +81,18 @@ weiter zu untersuchen, insbesondere zusammen mit der noch fehlenden Pack-DH-Ausg
 verify-realpack-world-7.log besteht mit der korrigierten Richtung bei beiden
 Rendermaßstäben und anschließendem Rückwechsel zum Standardmodus. Vollständige
 Packkompatibilität folgt daraus nicht. Entsprechende Fehlerläufe bleiben erhalten.
+
+## Weitere Schattenziele (11.11.2026 abends)
+
+- `HIGHER_SHADOWCOLOR` wird wie unter Iris angekündigt; ein Pack, das es deklariert,
+  erhält bis zu acht `shadowcolor`-Ziele.
+- `shadowcolorimgN` in `shadowcomp`-Computes bindet Schattenziel N als Speicherbild
+  (Speicher-Nutzung wird beim Anlegen gesetzt).
+- Schattenprogramme dürfen Schattenziele lesen, die derselbe Durchgang nicht
+  schreibt (Rethinking Voxels liest `shadowcolor2` für wogendes Wasser). Ein Ziel,
+  das gelesen und zugleich geschrieben würde, wird mit Meldung abgelehnt.
+- Angelegt wird jedes `shadowcolorN`, das ein Programm tatsächlich abtastet; durch
+  eine Pack-Textur ersetzte (`texture.gbuffers.shadowcolor3=…`) nicht.
+- Im Spiel geprüft: Rethinking Voxels mit Profil HIGH und `WATER_STYLE_DEFINE=3`
+  (interaktives Wasser) startet ohne Fehler; Wasserbereiche wie Iris
+  (Mittel 89/122/164 gegen 91/124/167).

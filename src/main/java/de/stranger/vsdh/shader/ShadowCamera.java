@@ -22,7 +22,6 @@ public final class ShadowCamera {
         if(interval!=0) view.translate((float)(x%interval)-interval/2,(float)(y%interval)-interval/2,(float)(z%interval)-interval/2);
         view.invert(inverseView);
         projection.setOrthoSymmetric(distance*2,distance*2,near,far,false);
-        projection.m01(-projection.m01()).m11(-projection.m11()).m21(-projection.m21()).m31(-projection.m31());
         projection.invert(inverseProjection);
     }
 }

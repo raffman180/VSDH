@@ -13,11 +13,13 @@ class WorldMatricesTest {
         var clip=state.projection.transform(new Vector4f(0,0,-10000,1));
         float depth=(clip.z/clip.w)*.5f+.5f;assertTrue(Float.isFinite(depth)&&depth<=1&&depth>.99);
     }
-    @Test void projectedWorldPointMatchesTopDownUvAndDepthRoundTrip() {
+    @Test void projectedWorldPointKeepsGlOrientationAndDepthRoundTrip() {
         var state=new WorldMatrices();var projection=new Matrix4f().perspective((float)Math.toRadians(70),16f/9,.05f,512);
         state.begin(this,new Matrix4f(),projection,0,80,0,1280,720);
         var clip=state.projection.transform(new Vector4f(0,1,-4,1));clip.div(clip.w);
-        assertTrue(clip.y<0,"Eye-space up must map to a smaller sampled image V");
+        // GL orientation as under Iris: eye-space up is NDC up (larger texture V, gbufferProjection[1][1] > 0).
+        assertTrue(clip.y>0,"Eye-space up must map to a larger sampled image V");
+        assertTrue(state.projection.m11()>0,"gbufferProjection[1][1] stays positive (packs derive their FOV from it)");
         float nativeDepth=clip.z*.5f+.5f;assertTrue(nativeDepth>0&&nativeDepth<1);
         var eye=state.inverseProjection.transform(new Vector4f(clip.x,clip.y,nativeDepth*2-1,1));eye.div(eye.w);
         assertEquals(1,eye.y,1e-4);assertEquals(-4,eye.z,1e-4);

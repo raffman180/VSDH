@@ -150,6 +150,10 @@ public class DhDepthReaderPipeline {
         if (!this.initialized)
             return null;
 
+        // A VSDH shaderpack frame keeps the main depth GL-oriented (rows bottom-up); DH's images are
+        // top-down, so the copy flips it (the shader reads uDummy as that flag).
+        this.dummyBuf.putInt(0, mcDepth.isRowsBottomUp() ? 1 : 0);
+
         // Prepare depth-only view (does NOT restore — stays set through upload)
         Compat.prepareMcDepthForSampling(MC_DEPTH_READ_SLOT, mcDepth);
 

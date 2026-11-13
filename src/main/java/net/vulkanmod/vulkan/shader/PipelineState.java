@@ -39,11 +39,21 @@ public class PipelineState {
     }
 
     public static int getAssemblyRasterState() {
+        return getAssemblyRasterState(Renderer.isRasterRowsBottomUp());
+    }
+
+    /** The current state for a target whose rows are stored bottom-up (VSDH's GL-oriented pack targets). */
+    public static PipelineState getCurrentPipelineState(RenderPass renderPass, boolean rowsBottomUp) {
+        return new PipelineState(getAssemblyRasterState(rowsBottomUp), getBlendState(), getDepthState(), getStencilState(),
+                getLogicOpState(), VRenderSystem.getColorMask(), renderPass);
+    }
+
+    public static int getAssemblyRasterState(boolean rowsBottomUp) {
         int cullMode = VRenderSystem.cull ? VRenderSystem.cullFace : VK_CULL_MODE_NONE;
         int frontFace = VRenderSystem.frontFace;
 
 
-        if (Renderer.isRasterRowsBottomUp()) {
+        if (rowsBottomUp) {
             frontFace = frontFace == VK_FRONT_FACE_COUNTER_CLOCKWISE
                     ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
         }

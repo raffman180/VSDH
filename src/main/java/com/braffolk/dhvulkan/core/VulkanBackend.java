@@ -75,6 +75,18 @@ public interface VulkanBackend {
      */
     void queueDataFree(VkVertexData data);
 
+    /** Whether DH generic objects can be drawn in the current DH frame. */
+    default boolean acceptsGenericDraws() { return false; }
+
+    /** Whether this frame's DH geometry is shaded by a pack rather than DH's own pipeline. */
+    default boolean packFrameActive() { return false; }
+
+    /** Whether DH's own clouds may be drawn (a pack can turn them off). */
+    default boolean drawsDhClouds() { return true; }
+
+    /** Draws DH generic boxes already in the LOD vertex layout, positioned relative to the camera. */
+    default void drawGenericQuads(Object vertexBuffer, int quadCount, float x, float y, float z) {}
+
     /**
      * Read MC's depth buffer and cache it for the current frame's composite.
      * Must be called at renderLevel @RETURN — after MC has fully rendered

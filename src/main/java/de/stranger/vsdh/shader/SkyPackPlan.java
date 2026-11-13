@@ -11,16 +11,20 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-/** Four Minecraft 1.21.1 vertex layouts used by the vanilla sky draws. */
+/** Four Minecraft 1.21.1 vertex layouts used by the vanilla sky draws, plus the vanilla cloud mesh. */
 public record SkyPackPlan(Map<Layout, PackProgramSource.Prepared> programs) {
     enum Layout {
         DISC("gbuffers_skybasic", List.of("Position")),
         SUNSET("gbuffers_skybasic", List.of("Position", "Color")),
         CELESTIAL("gbuffers_skytextured", List.of("Position", "UV0")),
-        END("gbuffers_skytextured", List.of("Position", "UV0", "Color"));
+        END("gbuffers_skytextured", List.of("Position", "UV0", "Color")),
+        /** LevelRenderer.renderClouds: drawn after translucent terrain, so after deferred like Iris. */
+        CLOUDS("gbuffers_clouds", List.of("Position", "UV0", "Color", "Normal"));
 
         final String program;
         final List<String> elements;
+
+        boolean afterDeferred() { return this == CLOUDS; }
 
         Layout(String program, List<String> elements) {
             this.program = program;
@@ -33,6 +37,7 @@ public record SkyPackPlan(Map<Layout, PackProgramSource.Prepared> programs) {
                 case SUNSET -> SUNSET;
                 case SUN, MOON -> CELESTIAL;
                 case CUSTOM_SKY -> END;
+                case CLOUDS -> CLOUDS;
                 default -> throw new IllegalArgumentException("Not a sky stage: " + stage);
             };
         }

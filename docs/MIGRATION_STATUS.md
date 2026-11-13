@@ -1,4 +1,237 @@
-# VSDH — Prüfstand 0.25.0-dev, 10.11.2026
+# VSDH — Prüfstand 0.26.0-dev, 11.11.2026
+
+## Stand 13.11.2026 vormittags (0.26, Speicher-Churn, `dist/0.26.0-dev-perf`)
+
+- Neu: Indexschleifen in der Weltgenerierung (`MaterialRuleListMixin`, `SurfaceSequenceRuleMixin`), Pause der
+  DH-3.3.x-Chunk-Update-Schleife im Leerlauf (`MixinChunkUpdateQueueBackoff`, nur wenn DH `runQueueingLoop`
+  hat), zwei allokationsfreie Render-Thread-Stellen. `tools/RemapDh330.java` benennt jetzt auch
+  Mixin-Zielangaben (`Lowner;name(desc)`) um; ohne das scheiterte die DH-3.3.0-JAR beim Start.
+- Messung (Details `docs/PERFORMANCE.md`): weniger Allokation und GC-Läufe, aber kein messbarer FPS-/Hänger-
+  Gewinn in 7+7 Flügen. Java-Optionen geprüft, keine empfohlen.
+- Prüfung 09:53–10:18 mit den JARs f5e88bf7…/f09de1bf…: Unit-Tests 96, Matrix 6/6 mit 0 Fehlerzeilen
+  (DH 3.3.0 nach der Remapper-Korrektur erneut), Smoke 3/3 ohne Fehlerzeile, ohne DH, Menütest, Weltwechsel.
+- Nachmittags nur Messungen (kein Mod-Code geändert): Vollbild gegen Iris, lange Frames zugeordnet (G1-Remark mit
+  Class Unloading, Treiber-Present 20–25 ms). Spieler-Empfehlung: `-XX:-ClassUnloadingWithConcurrentMark` und
+  FPS-Grenze knapp unter der Bildwiederholrate (VSDH dann 0 Frames > 25 ms, Iris 2–3). GPU-Abstand
+  `composite1`/`deferred1` ohne GPU-Profiler offen; vom Nutzer am 13.11. abgeschlossen.
+
+## Stand 13.11.2026 nachts (0.26, DH optional, Glätte im Flug)
+
+- Neu: Seite **Pack-Optionen** (`PackOptionsView`, `ShaderSettingsPage.optionsPage`): alle Optionen, die
+  die Seiten des Packs erreichen (`screen=`), mit Beschriftungen und Tooltips aus der Sprachdatei des
+  Packs; Ein/Aus oder Werte aus der Liste. „Übernehmen“ speichert nur Abweichungen vom Profil in
+  `shaderOptions` und lädt das Pack neu (Hauptmenü sofort, Welt beim Verlassen). Ein neu gewähltes Profil
+  ersetzt Einzeloptionen (wie Iris). Die Liste entsteht beim Vorbereiten des Packs ohne zweites Lesen.
+  Im Spiel: Complementary 305 Optionen, `SHADER_STYLE=4` gesetzt, neu geladen, Welt danach bestanden.
+- Endprüfung 13.11. 01:16–01:38 mit den JARs 0a23c752…/4ae7368d… (damals `dist/0.26.0-dev-night`, inzwischen ersetzt): Unit-Tests
+  95, Smoke 3/3 ohne Fehlerzeile, Release-Matrix 6/6 mit 0 Fehlerzeilen, ohne DH (Complementary),
+  Menütest, Weltwechsel (Photon), Pack-Optionen mit BSL (359 Optionen, `SHADOW=false`, neu geladen, Welt mit DH).
+- Korrigiert danach: Der Optionsindex las nur Dateien mit bekannten Endungen; Miniature deklariert seine
+  Optionen in `shaders/shader.h` (13 statt 82 Optionen erkannt, Profilwerte dieser Optionen wurden still
+  ignoriert, `shaderOptions` dafür als unbekannt abgelehnt). Jetzt liest `ShaderPackSource.options()` auch
+  jede per `#include` eingebundene Datei, wie Iris. Pack-Audit aller 14 Packs: nur Miniature ändert sich
+  (49 Optionen in 6 Gruppen). Im Spiel: Miniature `WATER_BRIGHTNESS=0.0` macht das Wasser sichtbar dunkler
+  (Helligkeit 112 → 91), `shadowMapResolution=256` (const) neu geladen ohne Fehler (Kartengröße nicht gemessen).
+- Prüfung 13.11. 01:59–02:22 mit den JARs 131e9473…/7c927d4b… (vor dem Zurücksetzen-Knopf): Unit-Tests 96 (neu `IncludedOptionIndexTest`), Smoke 3/3 ohne Fehlerzeile, Matrix 6/6
+  mit 0 Fehlerzeilen, ohne DH, Menütest, Weltwechsel (Photon), Pack-Optionen (Miniature `WATER_BRIGHTNESS`).
+- Neu: Knopf „Alle Pack-Optionen zurücksetzen“ (auf Profilwerte, wirksam mit Übernehmen). Geprüft 02:30–02:54
+  mit den JARs 64e549e0…/97a85ac9…: Unit-Tests 96, Smoke 3/3 ohne Fehlerzeile,
+  Matrix 6/6 mit 0 Fehlerzeilen, ohne DH, Menütest, Weltwechsel (Photon), Pack-Optionen + Zurücksetzen mit
+  Miniature und BSL (jeweils neu geladen, danach Welt).
+- Neu: Statuszeile auf der Shader-Seite (aktiv / wird vorbereitet / nach Verlassen der Welt), Profilnamen aus
+  der Sprachdatei des Packs. **Endstand** 03:12–03:36 mit den JARs 8358cd0a…/89f0bde3… (= `dist/0.26.0-dev-night`):
+  Unit-Tests 96, Smoke 3/3 ohne Fehlerzeile, Matrix 6/6 mit 0 Fehlerzeilen, ohne DH, Menütest, Weltwechsel,
+  Pack-Optionen + Zurücksetzen (Miniature, BSL).
+
+- Distant Horizons ist optional: Ohne DH starten Vulkan-Renderer, Standarddarstellung und Shaderpacks
+  (DH-Hooks werden nicht geladen, DH-Schalter auf der Shader-Seite ist dann gesperrt mit Hinweis).
+- Neue Flug-Messung (`run-vsdh-026-flight.ps1`, beide Clients): 2560×1440 Complementary, Median VSDH
+  ≈ 208 FPS / 18 verpasste 165-Hz-Takte pro s gegen Iris ≈ 188 FPS / 33 pro s (6 bzw. 4 Läufe; Einzelläufe
+  schwanken stark). Einzelheiten und Ursachen in `docs/PERFORMANCE.md`.
+- Geändert: Geräte-lokale Puffer-Uploads (DH-LODs, VBOs) im Upload-Batch des Frames statt eigener
+  Transfer-Übermittlung mit Fence; Render-Thread-Allokationen pro Frame stark verringert; Diagnose
+  `-Dvsdh.spikeMs`, `-Dvsdh.gpuSpikes`, `bufUp` in Spike-Zeilen.
+- Code geprüft: eigene Durchsicht. Kompiliert: ja. Unit-Tests: 95 bestanden. Im Spiel (00:24–00:45, JARs
+  dac921de…/e5a14b1b… = `dist/0.26.0-dev-smooth`): Smoke 3/3 (eine OpenAL-Fehlerzeile von Minecraft),
+  Release-Matrix 6/6 mit 0 Fehlerzeilen, ohne DH (Complementary), Menütest (Complementary → BSL → Aus →
+  zurück), Weltwechseltest (Photon). AMD-iGPU nicht testbar: Monitor hängt an der NVIDIA-Karte.
+
+## Stand 12.11.2026 abends (0.26, Bedienung für alle Spieler)
+
+- Neu: Seite **Shader** in den Videoeinstellungen (`ShaderSettingsPage`): Shaderpack (Liste aus
+  `shaderpacks`, „Aus“), Pack-Profil (aus `shaders.properties`, „Pack-Standard“), Schalter „Pack auch
+  für Distant Horizons“, Knopf „Shaderpack-Ordner öffnen“. „Übernehmen“ speichert `config/vsdh.json`
+  und lädt das Pack ohne Neustart (`ShaderPackStartup.request`): im Hauptmenü sofort, in einer Welt
+  beim nächsten Verlassen. Profil/Optionen anderer Packs bleiben in `otherPacks`. Meldungen
+  „wird vorbereitet“/„bereit“/„ausgeschaltet“/„fehlgeschlagen“; scheitert die Vorbereitung, bleibt die
+  bisherige Darstellung. Eine unlesbare `vsdh.json` wird vor dem Speichern als `vsdh.json.unreadable`
+  gesichert. Chat-Meldungen des Frame-Guards sind übersetzt (de/en). NeoForge meldet Iris, Oculus,
+  Sodium und Embeddium mit klarer Begründung als unverträglich.
+- Code geprüft: eigene Durchsicht. Kompiliert: ja. Unit-Tests: 95 bestanden. Im Spiel (RTX 4070,
+  1280×720): Menütest Complementary → BSL → Aus → Complementary ohne Neustart, gespeicherte
+  Konfiguration korrekt, danach Welt mit Shader und DH (`PACKAGED JAR WORLD PASS`); Weltwechsel-Test
+  BSL: „Aus“ in der Welt, nach Verlassen Standarddarstellung; Bildschirmfoto der Seite geprüft.
+  Smoke 3/3 und Release-Matrix 6/6 mit 0 Fehlerzeilen (Stand vor der letzten Sicherungs-Änderung);
+  mit den endgültigen JARs (SHA-256 e68ec9ce…, dh330 e6d54aed…) erneut Menütest Complementary → Photon →
+  Aus → Complementary (Profil MEDIUM gemerkt) und Release-Matrix 6/6 mit 0 Fehlerzeilen. Paket
+  `dist/0.26.0-dev-menu` = diese JARs.
+- Nicht getestet: echte Mausklicks durch einen Menschen (Test ruft dieselben Methoden wie die Knöpfe),
+  ein Pack, dessen Vorbereitung scheitert, über die Seite; andere Sprachen als de/en.
+
+## Stand 12.11.2026 nachts (0.26, Leistung ohne Bildverlust)
+
+- 12.11. mittags: eigene DirectX-12-Bildausgabe im Fenster (`net.vulkanmod.vulkan.present.D3d12Presenter`,
+  Standard auf NVIDIA unter Windows, `-Dvsdh.dxgiPresent=false` schaltet ab); im Vollbild bleibt die
+  Vulkan-Swapchain (dort schneller), `SwapChain` wechselt bei F11. Fenster 1440p jetzt +5 bis +14 %
+  vor Iris (alle fünf Mess-Packs). Code geprüft: eigene Durchsicht, alle COM-Funktionsnummern gegen
+  SDK-10.0.28000-Header. Kompiliert: ja. Unit-Tests: 95 bestanden. Im Spiel: Smoke 3/3 (0 Fehlerzeilen),
+  Release-Matrix 6/6, F11-hin-und-zurück plus zwei Größenänderungen ohne Fehler, Desktop-Bildschirmfoto
+  gleich Spiel-Screenshot. Nur RTX 4070 gemessen. Paket `dist/0.26.0-dev-d3d12` (SHA-256 5d661992…,
+  dh330 5558c30f…) = die geprüften JARs.
+- Neu: Upload-Batch im selben Submit wie der Frame; Mip-Ketten eines Passes gebündelt; echte
+  3D-Texturen für Pack-Volumen (`-Dvsdh.flatVolumes=true` = alter Atlas); `shadowtex1`-Kopie nur
+  bei Bedarf; Profiler mit `GPU_GAP`, `<pass>/setup`, eindeutigen Stufenenden.
+- Untersucht ohne Änderung: GPU-Pause zwischen Frames = Treiber-Präsentation; gleicher Shader ist
+  unter Vulkan 10–20 % langsamer als unter OpenGL (Treiber-Codeerzeugung).
+- Code geprüft: eigene Durchsicht der Änderungen. Kompiliert: ja. Unit-Tests: 95 bestanden
+  (neu `NativeVolumeTest`). Im Spiel: Smoke 3/3, Release-Matrix 6/6, 14-Pack-Bildvergleich ohne
+  Fehlerzeilen. Bench 1440p: Vollbild +9 bis +18 % gegenüber Iris, Fenster −0,7 bis +6 %
+  (`docs/PERFORMANCE.md`). Paket `dist/0.26.0-dev-perf`: dieselben JARs liefen um 02:44 durch
+  Smoke 3/3 (0 Fehlerzeilen) und Matrix 6/6.
+
+## Stand 11.11.2026 spätabends (0.26, 1440p gegen Iris)
+
+- Vollbild 2560×1440 (RTX 4070, DH 3.3.3): VSDH vor Iris in allen fünf Mess-Packs
+  (+8 bis +16 %, Tabelle `docs/PERFORMANCE.md`). Fenster: 6–10 % zurück wegen der
+  Present-Kopie des NVIDIA-Treibers (~1 ms GPU pro Frame, nur Vulkan).
+- Neu: Tausch statt Rückkopie persistenter Ziele (nur bei ungeblendeten
+  Vollbildschreibern), Tiefen-Schnappschüsse nur bei Bedarf.
+- Prüfungen danach: Unit-Tests 93; Smoke 3/3 (zwei Proben an neue Semantik
+  angepasst); Release-Matrix 6/6; 14-Pack-Vergleich ohne Fehlerzeilen, Mittelwerte
+  gleich Iris.
+
+## Stand 11.11.2026 abends (0.26, Iris-Abgleich)
+
+Neu (Einzelheiten: `docs/NATIVE_PACK_FEATURES.md`, „Iris parity fixes“):
+- **GL-Ausrichtung der Pack-Kette**: `gbufferProjection[1][1]` positiv wie unter
+  Iris, Pack-Bilder mit Zeilen von unten, ein gespiegeltes Blit am Ende.
+  Vorher kehrten Formeln wie `gbufferProjection[1][1] / 1.37` (AO in BSL/Solas/
+  Insanity, Brechung in Complementary/RV, Tiefenschärfe in Mellow) das Vorzeichen
+  um. Gemessen mit einem Uniform-Prüf-Pack: alle Werte gleich Iris außer `near`.
+- **`vignette`/`underwaterOverlay`** werden beachtet; vorher lag die Vanilla-
+  Vignette über jedem Pack (Ränder 5–10 % dunkler als unter Iris).
+- **Iris-Merkmale** `HIGHER_SHADOWCOLOR`, `BLOCK_EMISSION_ATTRIBUTE`,
+  `ENTITY_TRANSLUCENT`; `shadowcolorimgN`; Schattenprogramme lesen nicht
+  geschriebene Schattenziele (Rethinking Voxels: interaktives Wasser läuft).
+- **Terrainprogramme je Schicht** (`gbuffers_terrain_solid`/`_cutout`) und
+  Ersatzkette bis `gbuffers_textured`/`gbuffers_basic`.
+- **`indirect.<pass>`**: Compute-Dispatch mit Gruppenzahlen aus einem
+  Speicherpuffer (`vkCmdDispatchIndirect`).
+
+Prüfungen (RTX 4070, DH 3.3.3 wo nicht anders genannt):
+- Code geprüft: Probe-Pack-Vergleich Wert für Wert gegen Iris; A/B-Läufe gegen die
+  JAR vor der Umstellung (Snapshot) für jede Bildabweichung.
+- Kompiliert: Haupt-JAR und DH-3.3.0-Variante; Unit-Tests 93 bestanden.
+- Smoke 3/3 (Diagnose, Complementary, Dimensionen; 0 Assertion-Fehler). Zwei
+  GPU-Proben lasen feste Zeilen im alten Top-down-Layout und wurden angepasst.
+- Release-Matrix 6/6 (DH 3.2.0-b, 3.3.0-Variante, 3.3.1, 3.3.2, BSL und Bliss mit
+  3.3.3; 2560×1440; 0 Fehlerzeilen). JARs in `dist/0.26.0-dev-compat/`
+  (SHA-256 184ad5a1… Haupt-JAR, c491e1bd… DH-3.3.0-Variante; identisch mit den
+  in der Matrix geprüften Dateien).
+- Im Spiel gegen Iris: alle 14 Testpacks ohne Fehlerzeilen, sichtbar übereinstimmend.
+  Rethinking Voxels HIGH mit interaktivem Wasser, `indirect`-Testpack (Iris und
+  VSDH grün), Beacon-Strahl mit Complementary und ohne Pack.
+- Leistung 720p unverändert bis leicht besser (Tabelle in `docs/PERFORMANCE.md`).
+- Befund ohne Codefehler: Die dunklen Rechtecke im nahen Wasser ohne
+  Shaderpack waren noch nicht aktualisierte DH-LODs; eine Minute später gleicht
+  das Bild Iris. Die zuvor gemessene „dunklere Himmel“-Abweichung aller Packs
+  war die Vignette (und im Testclient zusätzlich die sichtbare GUI).
+
+## Stand 11.11.2026 nachmittags (0.26, Fortsetzung)
+
+Neu und im Spiel geprüft (RTX 4070, DH 3.3.3, Sichtweite 4, gleiche Szene wie
+der Iris-1.8.12-Referenzclient):
+- **DH-Generic-Objekte** (DHs eigene Wolken, Beacon-Strahlen, API-Boxen) werden
+  gezeichnet: als LOD-Quads über `dh_generic` bzw. `dh_terrain` (Pack) oder DHs
+  Pipeline (ohne Pack). Vorher schaltete VSDH sie ab; deshalb fehlten in BSL die
+  Wolken. Pack-Regel `dhClouds`/`clouds=off` wie Iris. `docs/DISTANT_PACK.md`.
+- **Geschlossener Horizont** für Pack-Himmelsprogramme (`SkyHorizon`): behebt die
+  harte, hellere Kante am Sichtweitenrand bei AstraLex und Insanity.
+  `docs/WORLD_SKY.md`.
+- **`near`** folgt der tatsächlichen Projektion (Reforgeds JOML-Mixin greift unter
+  NeoForge nicht; wirksame Near-Ebene 0,1). `docs/WORLD_UNIFORMS.md`.
+- **Frame-Guard**: Laufzeitfehler beim Zeichnen beenden nur das Pack-Rendering
+  (Chat-Hinweis, Standarddarstellung) statt das Spiel.
+- **CPU**: Uniforms je Programm nur einmal pro Frame und Zeichenraum voll
+  schreiben; `skyColor` nur auf Anfrage. `docs/PERFORMANCE.md`.
+
+Wichtiger Befund: Ein früherer, inzwischen entfernter DH-API-Abschalter hatte
+`rendererMode = "DISABLED"` in die DH-Konfiguration des Testclients geschrieben.
+Alle VSDH-Läufe zwischen 06:43 und 09:40 hatten daher keine LODs; Benchmarks und
+„BSL-DH-Wasser fehlt“ aus dieser Zeit waren ungültig. Die Skripte setzen den Wert
+jetzt zurück; Benutzer dieser Zwischenstände sollten in DH „Renderer Mode“ prüfen.
+
+Prüfungen:
+- Unit-Tests: 87 bestanden. Smoke 3/3 (Diagnose, Complementary, Dimensionen).
+  Release-Matrix 6/6 (DH 3.2.0-b, 3.3.0-Variante, 3.3.1, 3.3.2, BSL und Bliss mit
+  3.3.3; 2560×1440; 0 Fehlerzeilen). JARs in `dist/0.26.0-dev-compat/`
+  (SHA-256 4a12c847… Haupt-JAR, cb8056ab… DH-3.3.0-Variante; identisch mit den
+  in der Matrix geprüften Dateien).
+- Bildvergleich aller 14 Testpacks gegen Iris, alle gestartet ohne Fehlerzeilen,
+  DH aktiv wo das Pack DH-Programme hat: AstraLex, Insanity, Bliss, BSL (jetzt mit
+  DH-Wolken), Complementary R/U, Eclipse, MakeUp, Miniature, Photon, Solas, Super
+  Duper Vanilla sichtbar übereinstimmend; Rethinking Voxels und Mellow mit kleinen
+  Farbunterschieden im Nahbereich. Die Detailstufe der fernen Insel schwankt je
+  nach DH-Erzeugungsfortschritt.
+- Leistung (Tabellen in `docs/PERFORMANCE.md`): Ohne Shaderpack ist der
+  Vulkan-Renderer in 720p 35–50 % schneller als Iris+Sodium, in 1440p gleichauf.
+  Mit Shaderpack und DH ist VSDH 7–20 % langsamer als Iris (GPU-Arbeit pro Pixel;
+  SPIR-V-Optimierungsstufe ändert nichts).
+
+Offen:
+- Leistungsabstand zu Iris mit Shaderpack (Ursache in der GPU-Ausführung der
+  übersetzten Programme; ohne GPU-Profiler-Vergleich nicht weiter eingegrenzt).
+- BSL: ferne Inselbäume zeitweise dunkler als unter Iris (Ursache offen).
+- DH-Wolken im Standardrenderer (ohne Pack) und Beacon-Strahlen nicht im Bild
+  geprüft; DH-Ereignis `DhApiBeforeGenericObjectRenderEvent` wird nicht gefeuert.
+- Entity-Schattenwerfer mit Geometry-Stufe (Rethinking Voxels) fällt mit Warnung
+  zurück; typisierte Custom-Image-Views, `indirect.*`, `shadowcolorimgN`.
+
+## Kompatibilitätsschritt 0.26 (11.11.2026)
+
+Neue Pack-Fähigkeiten, Einzelheiten in `docs/NATIVE_PACK_FEATURES.md`: Pack-Wolken
+(`gbuffers_clouds`), Compute-Programme (begin/prepare/deferred/composite/final,
+`setup`, `shadowcomp`), `colorimgN` in Compute- und Vollbildprogrammen,
+Speicherpuffer (`bufferObject`), eigene Bilder (`image.*`, 1D/2D/3D),
+Rohtexturen (2D, 3D als Atlas), Geometry-Stufen (gefaltet oder nativ),
+Tessellation-Stufen,
+Matrizen und `CAT_*` in Packformeln. `IRIS_FEATURE_COMPUTE_SHADERS/SSBO/
+CUSTOM_IMAGES` werden gesetzt. Ein Graphfehler beim Weltstart führt nicht mehr
+zum Absturz, sondern zur Standarddarstellung mit Chat-Hinweis.
+
+Geprüft am 11.11.2026 (RTX 4070, 1280×720, DH 3.3.3, Sichtweite 4, gleiche
+Szene wie der Iris-1.8.12-Referenzclient):
+- Unit-Tests: 86 bestanden. Smoke (Diagnose, Complementary, Dimensionen) bestanden.
+  Release-Matrix 6/6 (DH 3.2.0-b, 3.3.0-Variante, 3.3.1, 3.3.2, BSL und Bliss mit
+  3.3.3; 2560×1440). JARs: `dist/0.26.0-dev-compat/` mit `SHA256SUMS.txt`.
+- CPU-Vorbereitung aller drei Dimensionen mit Profil MEDIUM und mit den
+  Pack-Standardwerten: alle 14 Testpacks ohne Fehler.
+- Im Spiel mit Bildvergleich gegen Iris sichtbar übereinstimmend: Photon,
+  Eclipse Unstable, Bliss, Complementary Reimagined/Unbound, Miniature.
+  Weitgehend gleich mit kleineren Farb-/Dunstunterschieden: Solas,
+  Rethinking Voxels. BSL: die eigenen Volumenwolken aus deferred1 fehlen
+  (Uniform-Werte geprüft und plausibel, Ursache offen); eine fehlende Insel
+  in früheren Bildern war die noch laufende DH-Landschaftserzeugung.
+- Im Spiel geladen ohne Fehler, Bilder noch nicht im Detail verglichen:
+  AstraLex, Insanity, MakeUp, Mellow, Super Duper Vanilla.
+- Rückfälle mit Warnung (kein Absturz): Entity-Schattenwerfer mit
+  Geometry-Stufe bei Rethinking Voxels.
+- Offen: AstraLex/Insanity zeigen am Sichtweitenrand eine harte Kante statt
+  Nebel; BSL-Volumenwolken fehlen (Hinweis: fernes DH-Wasser liegt unter VSDH
+  nicht wie unter Iris nach deferred1). Laufzeitfehler beim Zeichnen beenden
+  das Spiel noch (nur Fehler beim Graphaufbau fallen sanft zurück).
+
+## Stand 0.25.0-dev
 
 DH 3.2.0-b ist die erste ältere Vorabversion im regulären Build. Der
 Mixin-Plugin liest die Methoden der installierten DH-JAR und lädt

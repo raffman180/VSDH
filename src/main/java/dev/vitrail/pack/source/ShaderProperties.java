@@ -124,6 +124,11 @@ public final class ShaderProperties {
 	// what the reference does too.
 	private static final Pattern SEPARATE_ENTITY_DRAWS = Pattern.compile("^\\s*separateEntityDraws\\s*=\\s*(.*)$");
 	private static final Pattern SEPARATE_AO = Pattern.compile("^\\s*separateAo\\s*=\\s*(.*)$");
+	// Whether the game's own screen overlays stay on top of the pack's picture: the vignette, and the
+	// water texture over the screen when the eye is under water. Iris leaves both off unless the pack
+	// asks (IrisRenderingPipeline: vignette().orElse(false), underwaterOverlay().orElse(false)).
+	private static final Pattern VIGNETTE = Pattern.compile("^\\s*vignette\\s*=\\s*(.*)$");
+	private static final Pattern UNDERWATER_OVERLAY = Pattern.compile("^\\s*underwaterOverlay\\s*=\\s*(.*)$");
 	// Whether the pack declares that anisotropy breaks the way it reads the block atlas. Read on the
 	// live lines and on separateAo's rule in every respect, and answered the same way.
 	private static final Pattern BREAKS_ANISOTROPY =
@@ -170,6 +175,8 @@ public final class ShaderProperties {
 	private static final Pattern IMAGE = Pattern.compile("^\\s*image\\.([^=\\s.]+)\\s*=\\s*(.*)$");
 	private static final Pattern BUFFER_OBJECT =
 			Pattern.compile("^\\s*bufferObject\\.(\\d+)\\s*=\\s*(.*)$");
+	private static final Pattern INDIRECT =
+			Pattern.compile("^\\s*indirect\\.([A-Za-z0-9_]+)\\s*=\\s*(.*)$");
 	private static final Pattern FLIP = Pattern.compile("^\\s*flip\\.([^=\\s.]+)\\.([^=\\s.]+)\\s*=\\s*(.*)$");
 	private static final Pattern OTHER_KEY = Pattern.compile("^\\s*([A-Za-z_][\\w]*)[.=].*$");
 
@@ -420,7 +427,8 @@ public final class ShaderProperties {
 		// whether the word is one or not. Left among the keys nothing reads, it would tell its
 		// author that nothing looks at a line which had just overruled the one before it.
 		Matcher separateAo = SEPARATE_AO.matcher(line);
-		if (separateAo.matches() || SEPARATE_ENTITY_DRAWS.matcher(line).matches()) {
+		if (separateAo.matches() || SEPARATE_ENTITY_DRAWS.matcher(line).matches()
+				|| VIGNETTE.matcher(line).matches() || UNDERWATER_OVERLAY.matcher(line).matches()) {
 			return;
 		}
 
@@ -540,7 +548,7 @@ public final class ShaderProperties {
 
 		// Same reason as the image family: the live lines are walked later, and falling through
 		// would count {@code bufferObject} as a prefix nobody reads.
-		if (BUFFER_OBJECT.matcher(line).matches()) {
+		if (BUFFER_OBJECT.matcher(line).matches() || INDIRECT.matcher(line).matches()) {
 			return;
 		}
 
@@ -1138,6 +1146,34 @@ public final class ShaderProperties {
 	 * is Iris's ceiling, and a size below one disables the line, which is Iris's way of turning
 	 * one off.
 	 */
+	/** Where an indirectly dispatched compute reads its three work group counts: buffer index and byte offset. */
+	public record IndirectPointer(int buffer, long offset) {}
+
+	/**
+	 * {@code indirect.<compute program> = <bufferObject index> <byte offset>}, on the live lines.
+	 * Iris dispatches such a program with {@code glDispatchComputeIndirect} from that buffer and
+	 * ignores its work group directives ({@code ShaderProperties} "indirect." handler,
+	 * {@code ComputeProgram.getWorkGroups}). A line that does not parse is left out.
+	 */
+	public Map<String, IndirectPointer> indirectDispatches(Map<String, String> defines) {
+		Map<String, IndirectPointer> pointers = new LinkedHashMap<>();
+		PropertiesFile.walk(this.lines, defines, line -> {
+			Matcher indirect = INDIRECT.matcher(line);
+			if (!indirect.matches()) {
+				return;
+			}
+			String[] parts = indirect.group(2).trim().split("\\s+");
+			try {
+				if (parts.length == 2 && Integer.parseInt(parts[0]) >= 0 && Long.parseLong(parts[1]) >= 0) {
+					pointers.put(indirect.group(1), new IndirectPointer(Integer.parseInt(parts[0]), Long.parseLong(parts[1])));
+				}
+			} catch (NumberFormatException ignored) {
+				// Not two numbers: the program keeps its directives.
+			}
+		});
+		return pointers;
+	}
+
 	public BufferObject.Reading bufferObjects(Map<String, String> defines) {
 		Map<Integer, BufferObject> buffers = new LinkedHashMap<>();
 		List<String> dropped = new ArrayList<>();
@@ -1444,6 +1480,24 @@ public final class ShaderProperties {
 			asked = truth(line.group(1).trim());
 		}
 
+		return Boolean.TRUE.equals(asked);
+	}
+
+	/** Whether the game's vignette is drawn over the pack's picture; off unless the pack says so, as in Iris. */
+	public boolean vignette(Map<String, String> defines) {
+		Boolean asked = null;
+		for (Matcher line : live(VIGNETTE, defines)) {
+			asked = truth(line.group(1).trim());
+		}
+		return Boolean.TRUE.equals(asked);
+	}
+
+	/** Whether the game's under-water screen texture is drawn; off unless the pack says so, as in Iris. */
+	public boolean underwaterOverlay(Map<String, String> defines) {
+		Boolean asked = null;
+		for (Matcher line : live(UNDERWATER_OVERLAY, defines)) {
+			asked = truth(line.group(1).trim());
+		}
 		return Boolean.TRUE.equals(asked);
 	}
 

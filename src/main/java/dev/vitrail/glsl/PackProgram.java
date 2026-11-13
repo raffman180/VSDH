@@ -141,6 +141,7 @@ public final class PackProgram {
 			return this.program.samplers().stream()
 					.filter(sampler -> SamplerTypes.refused(sampler.type()))
 					.filter(sampler -> !CustomImages.named(sampler.name()))
+					.filter(sampler -> !nativeVolume(sampler))
 					.toList();
 		}
 
@@ -582,6 +583,28 @@ public final class PackProgram {
 				bind(source.packName(), path, program, targets, AlphaTest.OFF, textures),
 				groups[0], groups[1], groups[2], render[0], render[1], local[0], local[1],
 				List.copyOf(unresolved)));
+	}
+
+	/**
+	 * The dispatch directives of one already expanded compute unit, read by the same rules as
+	 * {@link #loadCompute}: the counts, the multiplier and the local size, -1 where absent.
+	 */
+	public record Dispatch(int groupsX, int groupsY, int groupsZ, float renderX, float renderY,
+			int localX, int localY, List<String> unresolved) {
+		public Dispatch {
+			unresolved = List.copyOf(unresolved);
+		}
+	}
+
+	/** {@link Dispatch} of one expanded {@code .csh} unit, for hosts that translate it themselves. */
+	public static Dispatch dispatchOf(ExpandedUnit unit) {
+		Set<String> unresolved = new LinkedHashSet<>();
+		List<String> text = uncommented(unit.lines());
+		int[] groups = workGroupsOf(unit, text, unresolved);
+		float[] render = workGroupsRenderOf(unit, text, unresolved);
+		int[] local = localSizeOf(unit, text, unresolved);
+		return new Dispatch(groups[0], groups[1], groups[2], render[0], render[1], local[0], local[1],
+				List.copyOf(unresolved));
 	}
 
 	/**
@@ -1634,6 +1657,12 @@ public final class PackProgram {
 	 *               tells a name this engine has nothing to put behind from one that waits on a
 	 *               compute pass
 	 */
+	/** A volume the translation kept three dimensional because the backend binds the pack's file as one. */
+	static boolean nativeVolume(TranslatedUnit.Uniform sampler) {
+		return !dev.vitrail.pack.target.SamplerPlan.behind(sampler.name()).equals(sampler.name())
+				&& "3D".equals(SamplerTypes.shapeOf(sampler.type()));
+	}
+
 	private static Map<String, Refusal> unbindable(
 			Map<String, ProgramTranslator.TranslatedProgram> translated, Set<String> filled) {
 		Map<String, Refusal> refused = new LinkedHashMap<>();
@@ -1660,7 +1689,7 @@ public final class PackProgram {
 			// and never refused; only a shape nothing stands behind is.
 			List<TranslatedUnit.Uniform> plain = found.values().stream()
 					.filter(sampler -> !filled.contains(sampler.name())
-							&& !CustomImages.named(sampler.name()))
+							&& !CustomImages.named(sampler.name()) && !nativeVolume(sampler))
 					.toList();
 
 			Refusal refusal = new Refusal(plain, storage);

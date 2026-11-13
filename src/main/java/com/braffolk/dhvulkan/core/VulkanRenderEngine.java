@@ -228,6 +228,12 @@ public class VulkanRenderEngine implements VulkanBackend {
         this.drawCount = 0;
         this.frameReady = false;
         var session=de.stranger.vsdh.shader.WorldShaderSession.current();
+        if(session!=null&&session.active()&&!session.drawsDistantTerrain()) {
+            // A pack without DH programs: under Iris its own sky and fog cover the far field and no
+            // LOD reaches the picture. The native late composite would draw them unshaded on top.
+            this.packFrame=null;
+            return;
+        }
         this.packFrame=session!=null&&session.drawsDistantTerrain()?session:null;
         if(this.packFrame!=null) {
             retireQueuedBuffers();
@@ -452,6 +458,25 @@ public class VulkanRenderEngine implements VulkanBackend {
         this.renderContext.applyPerDrawState();
         this.renderContext.drawIndexed(buffer.vkBuffer,this.quadIndexBuffer,count);
         this.profiler.countDraw();
+    }
+
+    @Override public boolean acceptsGenericDraws() { return this.frameReady; }
+    @Override public boolean packFrameActive() { return this.packFrame != null; }
+    @Override public boolean drawsDhClouds() { return this.packFrame == null || this.packFrame.drawsDhClouds(); }
+
+    @Override
+    public void drawGenericQuads(Object vertexBuffer, int quadCount, float x, float y, float z) {
+        if (!this.frameReady || quadCount <= 0) return;
+        if (quadCount > this.quadIndexBufferCapacity) this.ensureQuadIndexBuffer(quadCount + 1024);
+        int count = quadCount * 6;
+        if (this.packFrame != null) {
+            this.packFrame.distant().enqueueGeneric(vertexBuffer, this.quadIndexBuffer, count, x, y, z);
+            return;
+        }
+        this.renderContext.setModelOffset(new DhVec3f(x, y, z));
+        this.renderContext.applyPerDrawState();
+        this.renderContext.drawIndexed(vertexBuffer, this.quadIndexBuffer, count);
+        this.totalTerrainDrawCalls++;
     }
 
     @Override
@@ -818,7 +843,7 @@ public class VulkanRenderEngine implements VulkanBackend {
      */
     private void disableUnsupportedSettings() {
         // API overrides are session-local and do not rewrite the user's config file.
-        DhConfigHelper.disableForSession(Config.Client.Advanced.Graphics.GenericRendering.enableGenericRendering, "VSDH: custom DH API geometry unsupported");
+        // DH generic objects (clouds, beacons, API boxes) are drawn as LOD quads: VkGenericRenderer.
         DhConfigHelper.disableForSession(Config.Client.Advanced.Graphics.Texture.enableTexturedLods, "VSDH: untextured LOD pipeline");
         DhConfigHelper.disableAntiAliasingIfPresent();
         DhConfigHelper.disableForSession(Config.Client.Advanced.Debugging.renderWireframe, "VSDH: wireframe unsupported");

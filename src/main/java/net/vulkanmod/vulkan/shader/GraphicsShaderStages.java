@@ -63,7 +63,7 @@ public final class GraphicsShaderStages implements AutoCloseable {
         if (sources == null || backend == null) {
             throw new IllegalArgumentException("Graphics shader sources and backend are required");
         }
-        Source[] ordered = new Source[4];
+        Source[] ordered = new Source[5];
         for (Source source : sources) {
             if (source == null || source.bytecode() == null) {
                 throw new IllegalArgumentException("Every graphics stage requires source bytecode");
@@ -72,7 +72,8 @@ public final class GraphicsShaderStages implements AutoCloseable {
                 case VK_SHADER_STAGE_VERTEX_BIT -> 0;
                 case VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT -> 1;
                 case VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT -> 2;
-                case VK_SHADER_STAGE_FRAGMENT_BIT -> 3;
+                case VK_SHADER_STAGE_GEOMETRY_BIT -> 3;
+                case VK_SHADER_STAGE_FRAGMENT_BIT -> 4;
                 default -> throw new IllegalArgumentException("Unsupported graphics shader stage: " + source.stage());
             };
             if (ordered[index] != null) {
@@ -80,14 +81,14 @@ public final class GraphicsShaderStages implements AutoCloseable {
             }
             ordered[index] = source;
         }
-        if (ordered[0] == null || ordered[3] == null) {
+        if (ordered[0] == null || ordered[4] == null) {
             throw new IllegalArgumentException("Graphics programs require vertex and fragment stages");
         }
         if ((ordered[1] == null) != (ordered[2] == null)) {
             throw new IllegalArgumentException("Tessellation control and evaluation stages must be paired");
         }
 
-        var entries = new ArrayList<Entry>(4);
+        var entries = new ArrayList<Entry>(5);
         try {
             for (Source source : ordered) {
                 if (source == null) continue;
@@ -125,7 +126,7 @@ public final class GraphicsShaderStages implements AutoCloseable {
     }
 
     public boolean hasTessellation() {
-        return entries.size() == 4;
+        return entries.stream().anyMatch(entry -> entry.stage() == VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT);
     }
 
     @Override

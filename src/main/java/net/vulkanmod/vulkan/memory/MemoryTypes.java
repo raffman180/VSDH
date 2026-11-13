@@ -74,6 +74,12 @@ public class MemoryTypes {
             StagingBuffer stagingBuffer = Vulkan.getStagingBuffer();
             stagingBuffer.copyBuffer((int) bufferSize, byteBuffer);
 
+            var graphics = DeviceManager.getGraphicsQueue();
+            if (graphics.isBatching()) {
+                // Render thread inside a frame: ride the frame's upload batch (no submit, no fence).
+                graphics.recordBufferUpload(stagingBuffer.id, stagingBuffer.offset, buffer.getId(), buffer.getUsedBytes(), bufferSize);
+                return;
+            }
             DeviceManager.getTransferQueue().copyBufferCmd(stagingBuffer.id, stagingBuffer.offset, buffer.getId(), buffer.getUsedBytes(), bufferSize);
         }
 

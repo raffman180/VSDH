@@ -51,6 +51,10 @@ public class MixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        // VSDH: allocation-free terrain generation loops; -Dvsdh.worldgenLoops=false restores vanilla (A/B checks).
+        if (mixinClassName.endsWith(".MaterialRuleListMixin") || mixinClassName.endsWith(".SurfaceSequenceRuleMixin")) {
+            return !"false".equals(System.getProperty("vsdh.worldgenLoops"));
+        }
         if (SCGUNS_MIXIN.equals(mixinClassName)) {
             return SCGUNS_HANDLER.equals(targetClassName) && supportsScgunsCooldownAbi();
         }

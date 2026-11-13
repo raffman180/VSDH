@@ -103,6 +103,7 @@ public class ImageDescriptor implements Descriptor {
 
     public static class State {
         long imageView, sampler;
+        int layout = -1;
 
         public State(long imageView, long sampler) {
             set(imageView, sampler);
@@ -113,8 +114,18 @@ public class ImageDescriptor implements Descriptor {
             this.sampler = sampler;
         }
 
+        public void set(long imageView, long sampler, int layout) {
+            set(imageView, sampler);
+            this.layout = layout;
+        }
+
         public boolean isCurrentState(long imageView, long sampler) {
             return this.imageView == imageView && this.sampler == sampler;
+        }
+
+        /** A layout change must rewrite the descriptor too (VSDH stores into sampled targets). */
+        public boolean isCurrentState(long imageView, long sampler, int layout) {
+            return isCurrentState(imageView, sampler) && this.layout == layout;
         }
 
     }

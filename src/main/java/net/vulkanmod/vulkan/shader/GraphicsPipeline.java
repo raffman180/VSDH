@@ -37,6 +37,7 @@ public class GraphicsPipeline extends Pipeline {
         this.buffers = builder.UBOs;
         this.manualUBO = builder.manualUBO;
         this.imageDescriptors = builder.imageDescriptors;
+        this.storageBuffers = builder.storageBuffers;
         this.pushConstants = builder.pushConstants;
         this.vertexFormat = builder.vertexFormat;
 
@@ -255,6 +256,9 @@ public class GraphicsPipeline extends Pipeline {
         if (builder.teseShaderSPIRV != null) {
             sources.add(new GraphicsShaderStages.Source(VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
                     builder.teseShaderSPIRV.bytecode()));
+        }
+        if (builder.geomShaderSPIRV != null) {
+            sources.add(new GraphicsShaderStages.Source(VK_SHADER_STAGE_GEOMETRY_BIT, builder.geomShaderSPIRV.bytecode()));
         }
         sources.add(new GraphicsShaderStages.Source(VK_SHADER_STAGE_FRAGMENT_BIT, builder.fragShaderSPIRV.bytecode()));
         VkDevice moduleDevice = DeviceManager.vkDevice;

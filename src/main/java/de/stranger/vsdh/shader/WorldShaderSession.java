@@ -73,6 +73,9 @@ public final class WorldShaderSession implements MainPass {
     private long entityDraws, mappedEntityDraws, mappedBlockEntityDraws;
     private final Map<Long,Integer> aliases=new HashMap<>();
     private NativeShaderChain chain;
+    private NativeStorageBuffers storage;
+    private VulkanImage failedDepth;
+    private NativeCustomImages customImages;
     private NativeWorldDepth depth;
     private NativeWorldShadows shadows;
     private NativeShadowCasters shadowCasters;
@@ -95,7 +98,9 @@ public final class WorldShaderSession implements MainPass {
 
     private void selectPlan(WorldPackPlan next) {
         plan=next;
+        readsWaterShadow.clear();
         uniforms=new WorldUniforms(next);
+        uniforms.blockMaterials(blockMaterials);
         entityMaterials.clear();
         if (next.entities()!=null) next.entities().materials().forEach((name,id)->entityMaterials.put(ResourceLocation.parse(name),id));
         for(var type:TerrainRenderType.values())
@@ -105,6 +110,7 @@ public final class WorldShaderSession implements MainPass {
     public void changeWorld(net.minecraft.client.multiplayer.ClientLevel level) {
         RenderSystem.assertOnRenderThread();
         releaseGraph();
+        failedDepth=null;pendingRelease=false;frameFailures=0;
         if(level!=null) {
             var next=plans.forDimension(level.dimension().location().toString());
             if(next!=plan)selectPlan(next);
@@ -113,6 +119,15 @@ public final class WorldShaderSession implements MainPass {
 
     public String dimensionFolder() { return plan.chain().targets().place(); }
     public static WorldShaderSession current() { return current; }
+    /** -Dvsdh.noSkyHorizon=true: diagnostic switch that leaves the closed horizon out. */
+    private static final boolean NO_SKY_HORIZON=Boolean.getBoolean("vsdh.noSkyHorizon");
+    /** Draws the closed horizon before the vanilla sky disc while a pack sky program replaces it. */
+    public static void drawSkyHorizon(Matrix4f view, Matrix4f projection, ShaderInstance shader) {
+        var session=current;
+        if(NO_SKY_HORIZON||session==null||!session.active||session.geometryStage!=RenderStage.SKY
+                ||session.sky.get(SkyPackPlan.Layout.DISC)==null)return;
+        SkyHorizon.draw(view,projection,shader);
+    }
     public boolean active() { return active; }
     public long framesCompleted() { return frames; }
     public long terrainCalls() { return terrainCalls; }
@@ -120,16 +135,25 @@ public final class WorldShaderSession implements MainPass {
     public NativeWorldShadows shadows() {return shadows;}
     public NativeDistantTerrain distant() {return distant;}
     public boolean drawsDistantTerrain() {return active && distant!=null;}
+    /** Whether the current dimension's pack plan has its own DH programs (independent of the frame). */
+    public boolean packHasDistantPrograms() {return plan.distant()!=null;}
+    /** Whether the game's vignette / under-water overlay stay on screen (pack directives, off by default as in Iris). */
+    public boolean drawsVignette() {return plans.vignette();}
+    public boolean drawsUnderwaterOverlay() {return plans.underwaterOverlay();}
+    /** Whether DH's own clouds are drawn under this pack (Iris's dhClouds/clouds rule). */
+    public boolean drawsDhClouds() {return plan.distant()==null||plan.distant().clouds();}
     public void captureDistant(com.braffolk.dhvulkan.core.data.RenderUniforms frame) {
         uniforms.captureDistant(frame);
     }
-    public void flushDistantDraws() {
+    private void flushDistantDrawsBody() {
         if (!drawsDistantTerrain()) throw new IllegalStateException("DH callback left its world frame");
         if (deferred && distant.hasOpaqueDraws())
             throw new IllegalStateException("DH opaque terrain arrived after deferred lighting");
+        net.vulkanmod.vulkan.queries.GpuTimestamps.mark(deferred ? "translucent" : "opaque");
         try (var scope = Renderer.getInstance().temporaryRenderTarget()) {
             distant.render(this, deferred);
         }
+        net.vulkanmod.vulkan.queries.GpuTimestamps.mark(deferred ? "dhWater" : "dhOpaque");
     }
     public net.minecraft.client.CloudStatus clouds(net.minecraft.client.CloudStatus userSetting) {
         if(!active)return userSetting;
@@ -156,7 +180,8 @@ public final class WorldShaderSession implements MainPass {
             case SUN->elements.sun();
             case MOON->elements.moon();
             case STARS->elements.stars();
-            case CUSTOM_SKY->true;
+            // Cloud directives already decide through getCloudsType whether renderClouds runs at all.
+            case CUSTOM_SKY,CLOUDS->true;
             default->throw new IllegalArgumentException("Not a sky stage: "+stage);
         };
         if(!enabled)return false;
@@ -190,7 +215,7 @@ public final class WorldShaderSession implements MainPass {
         withGeometryStage(RenderStage.PARTICLES,()->draw.accept(filter));
     }
 
-    public boolean renderWorldGeometry(VertexFormat format,VertexFormat.Mode mode,ShaderInstance shader,
+    private boolean renderWorldGeometryBody(VertexFormat format,VertexFormat.Mode mode,ShaderInstance shader,
                                        Matrix4f view,Matrix4f projection,Consumer<GraphicsPipeline> geometry) {
         if(!active || geometryStage==null)return false;
         var stage=geometryStage;
@@ -261,7 +286,7 @@ public final class WorldShaderSession implements MainPass {
     public long transparentBlockDraws() { return transparentBlockDraws; }
     public long emissiveDraws() { return emissiveDraws; }
 
-    public boolean queueTransparentEntity(RenderType type, MeshData mesh) {
+    private boolean queueTransparentEntityBody(RenderType type, MeshData mesh) {
         if (!active || deferred || plan.entities() == null || !plan.entities().lateTransparency()
                 || !RenderSystem.isOnRenderThread()
                 || net.vulkanmod.compat.sable.render.SublevelRenderScope.current().isPresent()) return false;
@@ -286,7 +311,7 @@ public final class WorldShaderSession implements MainPass {
     public long glintDraws() { return glintDraws; }
     public void glintObserver(java.util.function.BiConsumer<VulkanImage, Boolean> observer) { glintObserver = observer; }
 
-    public boolean renderEntityGeometry(MeshData mesh) {
+    private boolean renderEntityGeometryBody(MeshData mesh) {
         if (renderingShadowCasters) {
             try (mesh) { drawShadowCasterBatch(mesh); }
             return true;
@@ -480,12 +505,21 @@ public final class WorldShaderSession implements MainPass {
     private static void validatePlan(WorldPackPlan plan) {
         WorldUniforms.validate(plan);
         // Refuse unavailable resources before creating GPU objects or changing the terrain format.
-        for(var stage:plan.chain().stages().values())for(var pass:stage)for(var binding:pass.inputs()) {
+        var chainInputs=new java.util.ArrayList<java.util.Map.Entry<String,dev.vitrail.pack.target.SamplerPlan.Binding>>();
+        for(var stage:plan.chain().stages().values())for(var pass:stage) {
+            for(var binding:pass.inputs())chainInputs.add(java.util.Map.entry(pass.name(),binding));
+            for(var compute:pass.computes())for(var binding:compute.inputs())chainInputs.add(java.util.Map.entry(compute.name(),binding));
+        }
+        for(var compute:plan.chain().setup())for(var binding:compute.inputs())chainInputs.add(java.util.Map.entry(compute.name(),binding));
+        for(var compute:plan.chain().shadowComputes())for(var binding:compute.inputs())chainInputs.add(java.util.Map.entry(compute.name(),binding));
+        for(var input:chainInputs) {
+            String program=input.getKey();var binding=input.getValue();
             String sampler=binding.sampler();
+            if(binding.kind()==dev.vitrail.pack.target.SamplerPlan.Kind.CUSTOM_IMAGE||binding.kind()==dev.vitrail.pack.target.SamplerPlan.Kind.COLOUR_IMAGE)continue;
             if(binding.kind()!=dev.vitrail.pack.target.SamplerPlan.Kind.COLORTEX&&!depthName(sampler)
-                    &&!(shadowName(sampler)&&plan.shadow()!=null)&&!(distantDepth(sampler)&&plan.distant()!=null)&&plan.textures().resolve(pass.name(),sampler)==null
-                    &&!(binding.defaulted()&&plan.textures().resolve(pass.name(),"colortex0")!=null))
-                throw new IllegalArgumentException("World resource not implemented: "+pass.name()+"/"+sampler);
+                    &&!(shadowName(sampler)&&plan.shadow()!=null)&&!(distantDepth(sampler)&&plan.distant()!=null)&&plan.textures().resolve(program,sampler)==null
+                    &&!(binding.defaulted()&&plan.textures().resolve(program,"colortex0")!=null))
+                throw new IllegalArgumentException("World resource not implemented: "+program+"/"+sampler);
         }
         var geometry=new java.util.ArrayList<>(plan.terrain().values());
         if(plan.distant()!=null)geometry.addAll(plan.distant().programs());
@@ -501,8 +535,27 @@ public final class WorldShaderSession implements MainPass {
                     && !(shadowName(sampler.name())&&plan.shadow()!=null)&&!depthName(sampler.name())
                     && !(distantDepth(sampler.name())&&plan.distant()!=null)
                     && plan.textures().resolve(source.path(),sampler.name())==null
+                    && !plan.chain().images().images().stream().anyMatch(i->i.name().equals(sampler.name())||i.sampler().filter(sampler.name()::equals).isPresent())
                     && dev.vitrail.pack.model.TargetName.index(sampler.name()).stream().noneMatch(plan.chain().targets().allocated()::contains))
                 throw new IllegalArgumentException("Terrain resource not implemented: "+sampler.name());
+        }
+        // Every storage block a program uses needs its bufferObject; refuse at install, not mid-frame.
+        var programs=new java.util.ArrayList<PackProgramSource.Prepared>(geometry);
+        for(var stage:plan.chain().stages().values())for(var pass:stage) {
+            if(pass.draws())programs.add(pass.program());
+            pass.computes().forEach(c->programs.add(c.program().asProgram()));
+        }
+        plan.chain().setup().forEach(c->programs.add(c.program().asProgram()));
+        plan.chain().shadowComputes().forEach(c->programs.add(c.program().asProgram()));
+        if(plan.shadow()!=null) {
+            programs.addAll(plan.shadow().programs().values());
+            if(plan.shadow().entities()!=null)programs.add(plan.shadow().entities());
+            if(plan.shadow().blocks()!=null)programs.add(plan.shadow().blocks());
+        }
+        for(var source:programs)for(var key:source.compiled().bindings().keySet()) {
+            int index=VulkanProgramCompiler.storageIndex(key);
+            if(index>=0&&!plan.chain().buffers().hasIndex(index))
+                throw new IllegalArgumentException("Storage block of "+source.path()+" has no bufferObject."+index);
         }
     }
 
@@ -516,7 +569,7 @@ public final class WorldShaderSession implements MainPass {
     }
 
     /** Called after Minecraft has selected the current fog colour and before clearing/drawing the world. */
-    public void beginWorld(Camera camera, Matrix4f view, Matrix4f projection, float partialTick, float handPartialTick) {
+    private void beginWorldBody(Camera camera, Matrix4f view, Matrix4f projection, float partialTick, float handPartialTick) {
         if (hand != null) hand.resetFrame();
         if (closed || active) throw new IllegalStateException("Invalid world shader frame entry");
         var position=camera.getPosition();
@@ -528,19 +581,37 @@ public final class WorldShaderSession implements MainPass {
             return; // Keep the established vanilla target and do not advance matrix/colour history.
         }
         VulkanImage worldDepth=delegate.getDepthAttachment(), output=delegate.getColorAttachment();
+        // A graph that could not be built for this target stays on the standard renderer until the
+        // target or the dimension changes, instead of failing (and crashing) every frame.
+        if (failedDepth!=null && failedDepth==worldDepth) return;
         if (chain==null || borrowedDepth!=worldDepth) {
             releaseGraph();
             try {
                 borrowedDepth=worldDepth;
-                depth=new NativeWorldDepth(worldDepth,true,true);
+                // depthtex2 (before the hand) and depthtex1 (before translucents) are copies of the
+                // world depth; only make them when some program reads them (-0.18 ms at 1440p).
+                var read=PackUsage.activeSamplers(plan);
+                boolean all=Boolean.getBoolean("vsdh.allDepthSnapshots"); // diagnostics and smoke probes
+                depth=new NativeWorldDepth(worldDepth,all||read.contains("depthtex2"),all||read.contains("depthtex1"));
                 // Larger packs can use more of a dedicated heap without lifting the old limit on small GPUs.
                 long deviceMiB = net.vulkanmod.vulkan.memory.MemoryManager.getInstance().getDeviceMemoryMB();
                 long colorBudget = Math.clamp(deviceMiB / 8, 512L, 1024L) * 1024 * 1024;
+                storage=new NativeStorageBuffers(plan.chain().buffers(),worldDepth.width,worldDepth.height);
+                NativeStorageBuffers.install(storage);
+                customImages=new NativeCustomImages(plan.chain().images(),worldDepth.width,worldDepth.height);
+                NativeCustomImages.install(customImages);
                 chain=new NativeShaderChain(plan.chain(),worldDepth.width,worldDepth.height,colorBudget);
                 textures=new NativeWorldTextures(plan.textures());
-                if(plan.distant()!=null)distant=new NativeDistantTerrain(plan,worldDepth.width,worldDepth.height);
+                if(plan.distant()!=null) {
+                    distant=new NativeDistantTerrain(plan,worldDepth.width,worldDepth.height);
+                    var dhRead=PackUsage.activeSamplers(plan.distant().programs());
+                    distant.opaqueSnapshot(read.contains("dhDepthTex1")||dhRead.contains("dhDepthTex")||dhRead.contains("dhDepthTex0")||dhRead.contains("dhDepthTex1"));
+                }
                 if(plan.shadow()!=null) {
                     shadows=new NativeWorldShadows(plan);
+                    shadows.opaqueSnapshot(all||read.contains("shadowtex1")||read.contains("shadowtex1HW")||read.contains("shadow"));
+                    var shadowMap=shadows;
+                    chain.shadowColours(index->shadowMap.image("shadowcolor"+index));
                     if (plan.shadow().entities() != null || plan.shadow().blocks() != null) shadowCasters = new NativeShadowCasters();
                 }
                 for (TerrainRenderType type:TerrainRenderType.values()) {
@@ -554,16 +625,20 @@ public final class WorldShaderSession implements MainPass {
                 for(var entry:plan.skyPrograms().programs().entrySet()) {
                     var source=entry.getValue();
                     String name=bare(source.path());
-                    var target=chain.geometry(name,false,worldDepth);
+                    var target=chain.geometry(name,entry.getKey().afterDeferred(),worldDepth);
                     var blend=NativeBlend.forProgram(plan.chain().targets(),name,target.framebuffer().getColorAttachmentCount());
-                    sky.put(entry.getKey(),new NativeGeometryPass(source,NativeGeometryPass.skyFormat(entry.getKey()),target,blend));
+                    boolean late=entry.getKey().afterDeferred();
+                    sky.put(entry.getKey(),new NativeGeometryPass(source,NativeGeometryPass.skyFormat(entry.getKey()),
+                            (java.util.function.Supplier<NativeShaderChain.View>)()->chain.geometry(name,late,worldDepth),blend));
                 }
                 for(var entry:plan.particles().programs().entrySet()) {
                     var source=entry.getValue();
                     String name=bare(source.path());
                     var target=chain.geometry(name,entry.getKey()!=ParticlePackPlan.Pass.BEFORE,worldDepth);
                     var blend=NativeBlend.forProgram(plan.chain().targets(),name,target.framebuffer().getColorAttachmentCount());
-                    particles.put(entry.getKey(),new NativeGeometryPass(source,DefaultVertexFormat.PARTICLE,target,blend));
+                    boolean late=entry.getKey()!=ParticlePackPlan.Pass.BEFORE;
+                    particles.put(entry.getKey(),new NativeGeometryPass(source,DefaultVertexFormat.PARTICLE,
+                            (java.util.function.Supplier<NativeShaderChain.View>)()->chain.geometry(name,late,worldDepth),blend));
                 }
                 if (plan.entities() != null) {
                     if (plan.entities().translucent() != null) {
@@ -594,16 +669,28 @@ public final class WorldShaderSession implements MainPass {
                     glintLate = geometryPass(plan.entities().glint(), DefaultVertexFormat.POSITION_TEX, worldDepth, true);
                 }
                 chain.prepareOutput(output);
-            } catch (Throwable failure) {releaseGraph();throw failure;}
+            } catch (RuntimeException failure) {
+                releaseGraph();
+                failedDepth=worldDepth;
+                org.slf4j.LoggerFactory.getLogger("VSDH").error("Could not build the Vulkan shaderpack graph; this world uses the standard renderer until the window size or dimension changes", failure);
+                var gui=Minecraft.getInstance().gui;
+                if (gui!=null) gui.getChat().addMessage(net.minecraft.network.chat.Component.translatable(
+                        "vsdh.shader.graphFailed",String.valueOf(failure.getMessage())));
+                return;
+            }
         }
         if (hand != null) hand.beginFrame(camera, view, handPartialTick);
         uniforms.capture(camera,view,projection,partialTick,worldDepth.width,worldDepth.height);
         float[] fog=RenderSystem.getShaderFogColor();
         try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
             chain.beginFrame(new dev.vitrail.pack.target.TargetDirectives.Colour(fog[0],fog[1],fog[2],1));
+            storage.prepareFrame();
+            customImages.beginFrame();
             depth.beginFrame();
             if(distant!=null)distant.beginFrame();
-            chain.render(ShaderChainPlan.Stage.BEGIN,null,this::writeFullscreen,this::external);
+            net.vulkanmod.vulkan.queries.GpuTimestamps.mark("preWorld");
+            chain.render(ShaderChainPlan.Stage.BEGIN,null,this::writeFullscreen,this::writeCompute,this::external);
+            net.vulkanmod.vulkan.queries.GpuTimestamps.mark("begin");
             if(shadows!=null)shadows.render(camera,uniforms,textures,() -> {
                 if (shadowCasters == null) return;
                 renderingShadowCasters = true;
@@ -614,19 +701,23 @@ public final class WorldShaderSession implements MainPass {
                     renderingShadowCasters = false;
                 }
             });
-            chain.render(ShaderChainPlan.Stage.PREPARE,null,this::writeFullscreen,this::external);
+            net.vulkanmod.vulkan.queries.GpuTimestamps.mark("shadow");
+            storageBarrier();
+            chain.renderShadowComputes(this::writeCompute,this::external);
+            chain.render(ShaderChainPlan.Stage.PREPARE,null,this::writeFullscreen,this::writeCompute,this::external);
+            net.vulkanmod.vulkan.queries.GpuTimestamps.mark("prepareTail");
         }
         deferred=false;
         scene=chain.scene("gbuffers_basic",false,worldDepth);
         if (scene.framebuffer().getColorAttachmentCount()!=1) throw new IllegalArgumentException("Vanilla fallback requires one scene colour target");
-        active=true;rebindMainTarget();
+        active=true;Renderer.setMainTargetRowsBottomUp(true);rebindMainTarget();
     }
 
-    public void beforeTerrain(TerrainRenderType type) {
+    private void beforeTerrainBody(TerrainRenderType type) {
         if (active && !deferred && (type == TerrainRenderType.TRANSLUCENT || type == TerrainRenderType.TRIPWIRE)) runDeferred();
     }
 
-    public void renderTerrain(TerrainRenderType type, Consumer<GraphicsPipeline> batches) {
+    private void renderTerrainBody(TerrainRenderType type, Consumer<GraphicsPipeline> batches) {
         if (!active) throw new IllegalStateException("No world shader frame");
         var source=sources.get(type);
         var target=chain.geometry(bare(source.path()),deferred,borrowedDepth);
@@ -635,7 +726,7 @@ public final class WorldShaderSession implements MainPass {
         uniforms.write(pipeline,false,stage,type.alphaCutout);
         bindGeometry(pipeline,source,deferred,false);
         try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
-            var state=terrainBlend.get(type).apply(PipelineState.getCurrentPipelineState(target.pass()));
+            var state=terrainBlend.get(type).apply(PipelineState.getCurrentPipelineState(target.pass(),true));
             pipeline.renderBatches(target.framebuffer(),target.pass(),state,batches);
         }
         terrainCalls++;
@@ -688,15 +779,23 @@ public final class WorldShaderSession implements MainPass {
     }
 
     private void runDeferred() {
+        net.vulkanmod.vulkan.queries.GpuTimestamps.mark("opaque");
         try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
             depth.capturePreHand();
+            net.vulkanmod.vulkan.queries.GpuTimestamps.mark("copyPreHand");
         }
         if (hand != null) hand.draw(false);
+        net.vulkanmod.vulkan.queries.GpuTimestamps.mark("solidHand");
         try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
             depth.capturePreTranslucent();
+            net.vulkanmod.vulkan.queries.GpuTimestamps.mark("copyPreTranslucent");
             if(distant!=null)distant.snapshotOpaque();
-            chain.render(ShaderChainPlan.Stage.DEFERRED,null,this::writeFullscreen,this::external);
+            net.vulkanmod.vulkan.queries.GpuTimestamps.mark("copyDhOpaque");
+            storageBarrier();
+            chain.render(ShaderChainPlan.Stage.DEFERRED,null,this::writeFullscreen,this::writeCompute,this::external);
+            net.vulkanmod.vulkan.queries.GpuTimestamps.mark("deferredTail");
             if(distant!=null)distant.render(this,true);
+            net.vulkanmod.vulkan.queries.GpuTimestamps.mark("dhWater");
         }
         deferred=true;scene=chain.scene("gbuffers_basic",true,borrowedDepth);rebindMainTarget();
         while (!pendingEntities.isEmpty()) {
@@ -708,21 +807,40 @@ public final class WorldShaderSession implements MainPass {
     }
 
     /** After world and DH drawing, while the world's depth is still intact. */
-    public void finishWorld() {
+    /** -Dvsdh.debugFailFrame=N: throw once in frame N to exercise the frame guard (diagnostics only). */
+    private static final long DEBUG_FAIL_FRAME=Long.getLong("vsdh.debugFailFrame",-1L);
+    private void finishWorldBody() {
         if (!active) return;
+        if (frames==DEBUG_FAIL_FRAME) throw new IllegalStateException("Requested diagnostic frame failure");
         if (!deferred) runDeferred();
+        net.vulkanmod.vulkan.queries.GpuTimestamps.mark("translucent");
         if (hand != null) hand.draw(true);
+        net.vulkanmod.vulkan.queries.GpuTimestamps.mark("lateHand");
         Renderer renderer=Renderer.getInstance();renderer.endRenderPass();
-        active=false;scene=null;
+        active=false;Renderer.setMainTargetRowsBottomUp(false);scene=null;
         try (var scope=renderer.temporaryRenderTarget()) {
-            chain.render(ShaderChainPlan.Stage.COMPOSITE,null,this::writeFullscreen,this::external);
-            chain.render(ShaderChainPlan.Stage.FINAL,delegate.getColorAttachment(),this::writeFullscreen,this::external);
+            storageBarrier();
+            chain.render(ShaderChainPlan.Stage.COMPOSITE,null,this::writeFullscreen,this::writeCompute,this::external);
+            // Stage tails under their own labels: a pack pass is named "composite" or "final" too.
+            net.vulkanmod.vulkan.queries.GpuTimestamps.mark("compositeTail");
+            chain.render(ShaderChainPlan.Stage.FINAL,delegate.getColorAttachment(),this::writeFullscreen,this::writeCompute,this::external);
+            net.vulkanmod.vulkan.queries.GpuTimestamps.mark("finalTail");
             depth.endFrame();uniforms.commit();frames++;
         }
         delegate.rebindMainTarget();
         if(frameObserver!=null)frameObserver.accept(this);
     }
     private void writeFullscreen(ShaderChainPlan.Pass source,NativeFullscreenPass pipeline) {uniforms.write(pipeline,true,0,0);}
+    /**
+     * Geometry (terrain, entities, shadow, DH) may store into SSBOs and images without any barrier of
+     * its own; one global shader-write barrier per frame phase makes those writes visible to the next.
+     */
+    private void storageBarrier() {
+        if(plan.chain().buffers().buffers().isEmpty()&&plan.chain().images().images().isEmpty())return;
+        NativeStorageBuffers.shaderWriteBarrier();
+    }
+    private void writeCompute(ShaderChainPlan.Compute source,NativeComputePass pipeline) {uniforms.write(pipeline,true,0,0);}
+    private final java.util.Map<String,Boolean> readsWaterShadow=new java.util.HashMap<>();
     private VulkanImage external(String program,dev.vitrail.pack.target.SamplerPlan.Binding binding) {
         var supplied=textures.image(program,binding.sampler());
         if(binding.kind()==dev.vitrail.pack.target.SamplerPlan.Kind.PACK_TEXTURE&&binding.defaulted())supplied=textures.image(program,"colortex0");
@@ -731,8 +849,11 @@ public final class WorldShaderSession implements MainPass {
         if(distantDepth(binding.sampler())&&distant!=null)return distant.image(binding.sampler());
         if(shadowName(binding.sampler())&&shadows!=null) {
             if(binding.kind()==dev.vitrail.pack.target.SamplerPlan.Kind.SHADOW_COLOUR)return shadows.image("shadowcolor"+binding.index());
-            boolean water=plan.chain().stages().values().stream().flatMap(java.util.Collection::stream)
-                    .filter(p->p.name().equals(program)).flatMap(p->p.program().translated().samplers().stream()).anyMatch(s->s.name().equals("watershadow"));
+            // The plan is immutable: look the program up once, not with a stream per frame and sampler.
+            boolean water=readsWaterShadow.computeIfAbsent(program,name->plan.chain().stages().values().stream().flatMap(java.util.Collection::stream)
+                    .flatMap(p->java.util.stream.Stream.concat(p.draws()&&p.name().equals(name)?java.util.stream.Stream.of(p.program()):java.util.stream.Stream.empty(),
+                            p.computes().stream().filter(c->c.name().equals(name)).map(c->c.program().asProgram())))
+                    .flatMap(p->p.translated().samplers().stream()).anyMatch(s->s.name().equals("watershadow")));
             return shadows.image(dev.vitrail.pack.target.SamplerPlan.withoutTranslucents(binding.sampler(),water)?"shadowtex1":binding.sampler());
         }
         throw new IllegalArgumentException("Unimplemented world input "+program+"/"+binding.sampler());
@@ -741,7 +862,8 @@ public final class WorldShaderSession implements MainPass {
         return s.equals("dhDepthTex")||s.equals("dhDepthTex0")||s.equals("dhDepthTex1");
     }
     private static boolean depthName(String s) {return DEPTH_NAMES.contains(s);}
-    private static boolean shadowName(String s) {return s.equals("shadow")||s.equals("watershadow")||s.matches("shadowtex[01](?:HW)?|shadowcolor[0-7]?");}
+    private static final java.util.regex.Pattern SHADOW_SAMPLER=java.util.regex.Pattern.compile("shadowtex[01](?:HW)?|shadowcolor[0-7]?");
+    private static boolean shadowName(String s) {return s.equals("shadow")||s.equals("watershadow")||SHADOW_SAMPLER.matcher(s).matches();}
     private static String bare(String path) {return path.substring(path.lastIndexOf('/')+1);}
 
     private NativeGeometryPass entityPass(PackProgramSource.Prepared source, VulkanImage worldDepth, boolean late) {
@@ -752,11 +874,12 @@ public final class WorldShaderSession implements MainPass {
         String name = bare(source.path());
         var target = chain.geometry(name, late, worldDepth);
         var blend = NativeBlend.forProgram(plan.chain().targets(), name, target.framebuffer().getColorAttachmentCount());
-        return new NativeGeometryPass(source, format, target, blend);
+        return new NativeGeometryPass(source, format,
+                (java.util.function.Supplier<NativeShaderChain.View>) () -> chain.geometry(name, late, worldDepth), blend);
     }
 
     private void releaseGraph() {
-        active=false;scene=null;uniforms.reset();
+        active=false;Renderer.setMainTargetRowsBottomUp(false);scene=null;uniforms.reset();
         for (int id:aliases.values()) {GlTexture.setVulkanImage(id,null);GlTexture.glDeleteTextures(id);}
         aliases.clear();
         terrain.values().forEach(NativeTerrainPass::close);terrain.clear();
@@ -792,11 +915,81 @@ public final class WorldShaderSession implements MainPass {
         hand = null;
         entityMesh.close();
         if (chain!=null) chain.close();chain=null;
+        if (storage!=null) storage.close();storage=null;
+        if (customImages!=null) customImages.close();customImages=null;
         if(distant!=null)distant.close();distant=null;
         if (depth!=null) depth.close();depth=null;borrowedDepth=null;
         if(shadows!=null)shadows.close();shadows=null;
         if(shadowCasters!=null)shadowCasters.close();shadowCasters=null;
         if(textures!=null)textures.close();textures=null;
+    }
+
+
+    // ---- Frame guard: a failure while drawing ends the shader frame instead of the game. ----
+
+    private boolean pendingRelease;
+    private int frameFailures;
+
+    /**
+     * Ends the current shader frame after a failure: closes any open render pass, falls back to the
+     * vanilla target for the rest of the frame and keeps this world on the standard renderer until
+     * the window size or dimension changes. The graph is released at the next frame start, never
+     * while this frame's command buffer may still reference it.
+     */
+    private void abortFrame(String where, RuntimeException failure) {
+        var renderer=Renderer.getInstance();
+        try { renderer.endRenderPass(); renderer.restoreGraphicsPipeline(null); } catch(RuntimeException ignored) {}
+        boolean wasActive=active;
+        active=false;Renderer.setMainTargetRowsBottomUp(false);scene=null;renderingShadowCasters=false;geometryStage=null;
+        failedDepth=borrowedDepth;pendingRelease=true;
+        if(frameFailures++<3) {
+            org.slf4j.LoggerFactory.getLogger("VSDH").error("Vulkan shaderpack frame failed in {}; this world uses the standard renderer until the window size or dimension changes",where,failure);
+            var gui=Minecraft.getInstance().gui;
+            if(gui!=null)gui.getChat().addMessage(net.minecraft.network.chat.Component.translatable(
+                    "vsdh.shader.frameFailed",where,String.valueOf(failure.getMessage())));
+        }
+        if(wasActive) { try { delegate.rebindMainTarget(); } catch(RuntimeException ignored) {} }
+    }
+
+    /** Whether the pack finished the last world frame, which is what the GUI overlays sit on. */
+    private boolean packPicture;
+    public boolean packPicture() {return packPicture;}
+
+    public void beginWorld(Camera camera, Matrix4f view, Matrix4f projection, float partialTick, float handPartialTick) {
+        packPicture=false;
+        if(pendingRelease){releaseGraph();pendingRelease=false;}
+        try { beginWorldBody(camera,view,projection,partialTick,handPartialTick); }
+        catch(RuntimeException failure) { abortFrame("frame start",failure); }
+    }
+    public void beforeTerrain(TerrainRenderType type) {
+        if(!active)return;
+        try { beforeTerrainBody(type); } catch(RuntimeException failure) { abortFrame("deferred",failure); }
+    }
+    public void renderTerrain(TerrainRenderType type, Consumer<GraphicsPipeline> batches) {
+        if(!active)return;
+        try { renderTerrainBody(type,batches); } catch(RuntimeException failure) { abortFrame("terrain "+type,failure); }
+    }
+    public void finishWorld() {
+        if(!active)return;
+        try { finishWorldBody(); packPicture=true; } catch(RuntimeException failure) { abortFrame("composite",failure); }
+    }
+    public void flushDistantDraws() {
+        if(!drawsDistantTerrain())return;
+        try { flushDistantDrawsBody(); } catch(RuntimeException failure) { abortFrame("Distant Horizons",failure); }
+    }
+    public boolean renderWorldGeometry(VertexFormat format,VertexFormat.Mode mode,ShaderInstance shader,
+                                       Matrix4f view,Matrix4f projection,Consumer<GraphicsPipeline> geometry) {
+        if(!active)return false;
+        try { return renderWorldGeometryBody(format,mode,shader,view,projection,geometry); }
+        catch(RuntimeException failure) { abortFrame("sky/particles",failure); return true; }
+    }
+    public boolean queueTransparentEntity(RenderType type, MeshData mesh) {
+        try { return queueTransparentEntityBody(type,mesh); }
+        catch(RuntimeException failure) { abortFrame("translucent entities",failure); return false; }
+    }
+    public boolean renderEntityGeometry(MeshData mesh) {
+        try { return renderEntityGeometryBody(mesh); }
+        catch(RuntimeException failure) { abortFrame("entities",failure); return false; }
     }
 
     @Override public void rebindMainTarget() {
@@ -809,7 +1002,8 @@ public final class WorldShaderSession implements MainPass {
             // the already scaled dimensions here would scale vanilla fallback geometry twice.
             var renderer=Renderer.getInstance();
             int width=renderer.getViewportLogicalWidth(),height=renderer.getViewportLogicalHeight();
-            Renderer.setViewport(0,0,width>0?width:scene.framebuffer().getWidth(),height>0?height:scene.framebuffer().getHeight());
+            // GL orientation like the pack's own passes: vanilla draws into the scene unflipped (rows bottom-up).
+            Renderer.setInvertedViewport(0,0,width>0?width:scene.framebuffer().getWidth(),height>0?height:scene.framebuffer().getHeight());
         }
     }
     @Override public VulkanImage getColorAttachment() {return active?scene.framebuffer().getColorAttachment():delegate.getColorAttachment();}
@@ -827,9 +1021,9 @@ public final class WorldShaderSession implements MainPass {
     }
     @Override public RenderPass resumeRenderPass(RenderPass pass) {return delegate.resumeRenderPass(pass);}
     @Override public void begin(VkCommandBuffer command,MemoryStack stack) {delegate.begin(command,stack);}
-    @Override public void end(VkCommandBuffer command) {if(active) throw new IllegalStateException("World shader frame leaked into presentation");delegate.end(command);}
+    @Override public void end(VkCommandBuffer command) {if(active)abortFrame("presentation",new IllegalStateException("World shader frame leaked into presentation"));delegate.end(command);}
     @Override public void onResize() {releaseGraph();delegate.onResize();}
-    @Override public void resolveRenderScaleForGui() {if(active)throw new IllegalStateException("World shader frame leaked into GUI");delegate.resolveRenderScaleForGui();}
+    @Override public void resolveRenderScaleForGui() {if(active)abortFrame("GUI",new IllegalStateException("World shader frame leaked into GUI"));delegate.resolveRenderScaleForGui();}
     @Override public void mainTargetBindWrite() {if(active)rebindMainTarget();else delegate.mainTargetBindWrite();}
     @Override public void mainTargetUnbindWrite() {delegate.mainTargetUnbindWrite();}
     @Override public void cleanUp() {releaseGraph();closed=true;current=null;delegate.cleanUp();}

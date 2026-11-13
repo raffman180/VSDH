@@ -29,7 +29,32 @@ public class Synchronization {
         this.commandBuffers.add(commandBuffer);
     }
 
+    /** Opt-in ({@code -Dvsdh.syncTrace=true}): who makes the next frame submission wait on the CPU. */
+    private static final boolean TRACE = Boolean.getBoolean("vsdh.syncTrace");
+    private final java.util.Map<String, int[]> traced = new java.util.HashMap<>();
+    private long traceStart = System.nanoTime();
+
+    private void trace() {
+        StackTraceElement[] stack = new Throwable().getStackTrace();
+        StringBuilder key = new StringBuilder();
+        for (int i = 2, used = 0; i < stack.length && used < 7; i++) {
+            String owner = stack[i].getClassName();
+            if (owner.startsWith("net.vulkanmod.vulkan.Synchronization")) continue;
+            key.append(owner.substring(owner.lastIndexOf('.') + 1)).append('.').append(stack[i].getMethodName()).append(" < ");
+            used++;
+        }
+        traced.computeIfAbsent(key.toString(), ignored -> new int[1])[0]++;
+        long now = System.nanoTime();
+        if (now - traceStart > 5_000_000_000L) {
+            traced.entrySet().stream().sorted((a, b) -> b.getValue()[0] - a.getValue()[0]).limit(8)
+                    .forEach(entry -> net.vulkanmod.Initializer.LOGGER.info("SYNC_TRACE {} per 5s: {}", entry.getValue()[0], entry.getKey()));
+            traced.clear();
+            traceStart = now;
+        }
+    }
+
     public synchronized void addFence(long fence) {
+        if (TRACE) trace();
         if (idx == ALLOCATION_SIZE)
             waitFences();
 

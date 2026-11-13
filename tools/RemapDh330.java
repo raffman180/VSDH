@@ -35,8 +35,25 @@ class RemapDh330 {
                 if (value instanceof String name) {
                     String target = types.get(name.replace('.', '/'));
                     if (target != null) return name.indexOf('.') >= 0 ? target.replace('/', '.') : target;
+                    String member = mapMemberReference(name);
+                    if (member != null) return member;
                 }
                 return super.mapValue(value);
+            }
+
+            /** Mixin selectors such as {@code @At(target = "Lowner;name(desc)")}: owner and descriptor. */
+            private String mapMemberReference(String name) {
+                int semi = name.indexOf(';');
+                if (!name.startsWith("L") || semi < 2) return null;
+                String owner = name.substring(1, semi);
+                if (owner.indexOf('.') >= 0 || owner.indexOf('(') >= 0) return null;
+                String rest = name.substring(semi + 1);
+                int paren = rest.indexOf('(');
+                int colon = rest.indexOf(':');
+                String mappedRest = paren >= 0 ? rest.substring(0, paren) + mapMethodDesc(rest.substring(paren))
+                        : colon >= 0 ? rest.substring(0, colon + 1) + mapDesc(rest.substring(colon + 1)) : rest;
+                String result = "L" + types.getOrDefault(owner, owner) + ";" + mappedRest;
+                return result.equals(name) ? null : result;
             }
         };
         Path result = Path.of(args[2]).toAbsolutePath();

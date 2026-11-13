@@ -130,6 +130,8 @@
     "render.block.BakedQuadM",
     "optimization.StateHolderMixin",
     "optimization.HolderReferenceMixin",
+    "optimization.MaterialRuleListMixin",
+    "optimization.SurfaceSequenceRuleMixin",
     "voxel.VoxelShapeMixin",
     "compatibility.fml.ImmediateWindowHandlerMixin",
     "shader.WorldShaderLevelMixin",
@@ -141,7 +143,9 @@
     "shader.WorldShaderGameMixin",
     "shader.WorldShaderHandMixin",
     "shader.WorldShaderHandItemMixin",
-    "shader.WorldShaderLightMixin"
+    "shader.WorldShaderLightMixin",
+    "shader.WorldShaderOverlayMixin",
+    "shader.WorldShaderWaterOverlayMixin"
   ],
   "injectors": {
     "defaultRequire": 1

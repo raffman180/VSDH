@@ -102,6 +102,7 @@ public class CommandPool {
             submitInfo.pCommandBuffers(stack.pointers(commandBuffer.handle));
 
             vkQueueSubmit(queue, submitInfo, fence);
+            net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordSubmit(queue);
 
             return fence;
         }

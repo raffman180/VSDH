@@ -9,8 +9,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class ChunkFrameDiagnostics {
-    static final float SPIKE_FRAME_MS = 25.0f;
-    private static final long MIN_LOG_INTERVAL_NANOS = 250_000_000L;
+    // -Dvsdh.spikeMs / -Dvsdh.spikeLogMs: lower thresholds to explain short stutters (flight bench).
+    static final float SPIKE_FRAME_MS = Float.parseFloat(System.getProperty("vsdh.spikeMs", "25"));
+    private static final long MIN_LOG_INTERVAL_NANOS = Long.getLong("vsdh.spikeLogMs", 250L) * 1_000_000L;
 
     private static final long STATS_INTERVAL_NANOS = 30_000_000_000L;
 
@@ -47,6 +48,14 @@ public final class ChunkFrameDiagnostics {
     private static final AtomicInteger rebuildDefers = new AtomicInteger();
 
     private ChunkFrameDiagnostics() {
+    }
+
+    private static int batchedBufferUploads;
+    private static long batchedBufferBytes;
+
+    public static void recordBatchedBufferUpload(long bytes) {
+        batchedBufferUploads++;
+        batchedBufferBytes += bytes;
     }
 
     public static void recordUploadPhase(long nanos) {
@@ -114,7 +123,42 @@ public final class ChunkFrameDiagnostics {
         presentWaitNanos += nanos;
     }
 
+    /** Part of the GPU wait spent in vkAcquireNextImageKHR (the rest is the in-flight fence). */
+    public static void recordAcquireWait(long nanos) {
+        gpuWaitNanos += nanos;
+        acquireWaitNanos += nanos;
+    }
+
+    private static long acquireWaitNanos;
+    private static final java.util.concurrent.atomic.AtomicInteger graphicsSubmits = new java.util.concurrent.atomic.AtomicInteger(),
+            otherSubmits = new java.util.concurrent.atomic.AtomicInteger();
+    private static double cpuGraphicsSubmits, cpuOtherSubmits;
+
+    /** Auxiliary command-buffer submissions (uploads, transfers), counted for -Dvsdh.gpuProfile. */
+    public static void recordSubmit(org.lwjgl.vulkan.VkQueue queue) {
+        if (!CPU_PROFILE) return;
+        if (queue == net.vulkanmod.vulkan.device.DeviceManager.getGraphicsQueue().queue()) graphicsSubmits.incrementAndGet();
+        else otherSubmits.incrementAndGet();
+    }
+    private static final boolean CPU_PROFILE = Boolean.getBoolean("vsdh.gpuProfile");
+    private static double cpuFrameMs, cpuPresentMs, cpuGpuWaitMs, cpuAcquireMs;
+    private static int cpuFrames;
+
     public static void endFrame(float frameMs) {
+        if (CPU_PROFILE) {
+            cpuFrameMs += frameMs; cpuPresentMs += presentWaitNanos / 1e6; cpuGpuWaitMs += gpuWaitNanos / 1e6;
+            cpuAcquireMs += acquireWaitNanos / 1e6;
+            cpuGraphicsSubmits += graphicsSubmits.getAndSet(0);
+            cpuOtherSubmits += otherSubmits.getAndSet(0);
+            if (++cpuFrames == 300) {
+                Initializer.LOGGER.info(String.format(java.util.Locale.ROOT,
+                        "CPU_FRAME frames=300 frameMs=%.3f presentMs=%.3f gpuWaitMs=%.3f acquireMs=%.3f restMs=%.3f auxSubmits=%.2f/%.2f",
+                        cpuFrameMs / 300, cpuPresentMs / 300, cpuGpuWaitMs / 300, cpuAcquireMs / 300,
+                        (cpuFrameMs - cpuPresentMs - cpuGpuWaitMs) / 300, cpuGraphicsSubmits / 300, cpuOtherSubmits / 300));
+                cpuFrames = 0; cpuFrameMs = cpuPresentMs = cpuGpuWaitMs = cpuAcquireMs = cpuGraphicsSubmits = cpuOtherSubmits = 0;
+            }
+        }
+        acquireWaitNanos = 0;
         long gcDeltaMs = sampleGcDeltaMs();
         int builds = workerBuildsCompleted.getAndSet(0);
         long buildNanos = workerBuildNanosTotal.getAndSet(0);
@@ -130,7 +174,8 @@ public final class ChunkFrameDiagnostics {
                         readyRebuilds, delayedRebuilds, graphUpdateNanos, fenceWaitNanos,
                         areasReleased, areaBuffersCreated,
                         builds, buildNanos, buildMaxNanos,
-                        gpuWaitNanos, presentWaitNanos));
+                        gpuWaitNanos, presentWaitNanos)
+                        + String.format(" | bufUp %dx %dKB", batchedBufferUploads, batchedBufferBytes / 1024));
                 lastLogNanos = now;
                 suppressedSpikes = 0;
             } else {
@@ -138,6 +183,8 @@ public final class ChunkFrameDiagnostics {
             }
         }
 
+        batchedBufferUploads = 0;
+        batchedBufferBytes = 0;
         uploadPhaseNanos = 0;
         uploadedSections = 0;
         uploadedBytes = 0;

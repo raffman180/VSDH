@@ -22,6 +22,22 @@ import java.util.Map;
 public final class EngineDefines {
 
 	/**
+	 * Iris feature flags the VSDH native host implements. A pack requiring anything else through
+	 * {@code iris.features.required} is refused; each of these is also announced as a define.
+	 * <ul>
+	 * <li>HIGHER_SHADOWCOLOR: eight shadowcolor targets for a pack that declares it (TargetPlan),
+	 * also as shadowcolorimgN in shadowcomp (Rethinking Voxels' interactive water).</li>
+	 * <li>BLOCK_EMISSION_ATTRIBUTE: terrain carries the block's light in {@code at_midBlock.w}
+	 * (ShaderTerrainVertex), which Bliss, Eclipse, Miniature and Rethinking Voxels read.</li>
+	 * <li>ENTITY_TRANSLUCENT: gbuffers_entities_translucent / gbuffers_block_translucent are drawn
+	 * for translucent entity and block-entity layers (EntityPackPlan).</li>
+	 * </ul>
+	 * Iris announces these unconditionally, so a pack's main path is the one written for them.
+	 */
+	public static final java.util.Set<String> FEATURES = java.util.Set.of("COMPUTE_SHADERS", "SSBO", "CUSTOM_IMAGES",
+			"HIGHER_SHADOWCOLOR", "BLOCK_EMISSION_ATTRIBUTE", "ENTITY_TRANSLUCENT");
+
+	/**
 	 * Kept as OptiFine's packed form, major times 10000 plus minor times 100 plus patch. It is
 	 * a Minecraft version rather than ours, because that is what packs compare against.
 	 */
@@ -177,8 +193,11 @@ public final class EngineDefines {
 		// VSDH imports the pack language, not Vitrail's Minecraft 26.x renderer.
 		// IS_IRIS selects that language's syntax; it does not announce an installed Iris mod.
 		defines.put("IS_IRIS", "");
-		// Keep IRIS_FEATURE_* absent until this backend implements and verifies each contract.
-		// Device support alone is insufficient to promise SSBOs, images, compute or blending.
+		// Only the IRIS_FEATURE_* contracts this backend implements; see FEATURES. Device support
+		// alone is insufficient to promise SSBOs, images or blending.
+		for (String feature : FEATURES) {
+			defines.put("IRIS_FEATURE_" + feature, "");
+		}
 
 		// Straight off the enum the engine sets, so that the number a pack compares against and the
 		// number the block carries cannot part company. The value IS the ordinal.

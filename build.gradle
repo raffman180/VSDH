@@ -45,6 +45,8 @@ neoForge {
         smokeClient {
             client()
             systemProperty 'vsdh.smoke', 'true'
+            // The hand probe compares both depth snapshots; packs that read neither get none otherwise.
+            systemProperty 'vsdh.allDepthSnapshots', 'true'
             systemProperty 'vsdh.smoke.livePack', providers.gradleProperty('smokeLivePack').getOrElse('false')
             systemProperty 'vsdh.smoke.dimensions', providers.gradleProperty('smokeDimensions').getOrElse('false')
             systemProperty 'vsdh.smoke.configuredPack', providers.gradleProperty('smokeConfiguredPack').getOrElse('false')
@@ -89,6 +91,7 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly "org.lwjgl:lwjgl:${lwjglVersion}:${devNatives}"
     testImplementation 'org.joml:joml:1.10.5'
+    testRuntimeOnly 'org.slf4j:slf4j-api:2.0.9'
 }
 
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
@@ -118,7 +121,8 @@ tasks.register('auditWorldHost', JavaExec) {
     mainClass = 'de.stranger.vsdh.smoke.WorldHostAudit'
     args providers.gradleProperty('shaderPack').getOrElse('run/shaderpacks/ComplementaryReimagined_r5.9.3.zip'),
             layout.buildDirectory.file('world-host-audit.json').get().asFile.absolutePath,
-            providers.gradleProperty('smokeDistantPack').getOrElse('false')
+            providers.gradleProperty('smokeDistantPack').getOrElse('false'),
+            providers.gradleProperty('shaderProfile').getOrElse('MEDIUM')
 }
 processResources {
     inputs.property 'version', project.version

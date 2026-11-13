@@ -18,9 +18,11 @@ public final class NativeColorTargets implements AutoCloseable {
     private final long budgetBytes;
     private long feedbackBytes;
     private final Target[] targets = new Target[32];
+    private final java.util.Set<Integer> storage;
     private boolean initialized, closed;
 
     private static final class Target {
+        boolean swapped;
         final ShaderTargetLayout.Target spec;
         final VulkanImage main;
         final SamplerKey baseSampler, mipSampler;
@@ -32,9 +34,15 @@ public final class NativeColorTargets implements AutoCloseable {
     }
 
     public NativeColorTargets(ShaderTargetLayout layout, long budgetBytes) {
+        this(layout, budgetBytes, java.util.Set.of());
+    }
+
+    /** @param storage targets a shader stores into as colorimgN; they get storage usage on every copy. */
+    public NativeColorTargets(ShaderTargetLayout layout, long budgetBytes, java.util.Set<Integer> storage) {
         RenderSystem.assertOnRenderThread();
         this.layout = layout;
         this.budgetBytes = budgetBytes;
+        this.storage = java.util.Set.copyOf(storage);
         // Validate EVERY target before the first allocation, including format/mipmap device support.
         var indices = new java.util.HashSet<Integer>();
         for (var spec : layout.targets()) {
@@ -46,6 +54,7 @@ public final class NativeColorTargets implements AutoCloseable {
                 throw new IllegalArgumentException("Invalid target dimensions or mip count: " + spec);
             VulkanTargetFormat.requireRenderable(DeviceManager.physicalDevice, spec.format(), !spec.format().integer());
             if (spec.levels() > 1) requireBlit(spec);
+            if (this.storage.contains(spec.index())) requireStorage(spec);
         }
         try {
             for (var spec : layout.targets()) {
@@ -63,7 +72,9 @@ public final class NativeColorTargets implements AutoCloseable {
     public VulkanImage image(int index, Side side) {
         requireOpen();
         Target target = target(index);
-        return side == Side.MAIN ? target.main : target.alt;
+        // A persistent target that ended a frame on its alternate half swaps the two roles instead
+        // of being copied back (copyBack): "main" is then the image that half was drawn into.
+        return (side == Side.MAIN) != target.swapped ? target.main : target.alt;
     }
 
     /** Geometry reads the image as it stood before the draw without aliasing its output. */
@@ -103,32 +114,63 @@ public final class NativeColorTargets implements AutoCloseable {
     }
 
     public void mipmaps(int index, Side side) {
-        requireOpen();
-        var target = target(index);
-        var image = image(index, side);
-        NativeImageOps.mipmaps(image, !target.spec.format().integer());
-        sampler(image, target, true);
+        mipmaps(java.util.List.of(index), ignored -> side);
     }
 
+    /** Mip chains of several targets, generated together (see NativeImageOps.mipmaps). */
+    public void mipmaps(java.util.Collection<Integer> indices, java.util.function.IntFunction<Side> side) {
+        requireOpen();
+        var images = new java.util.ArrayList<VulkanImage>(indices.size());
+        var linear = new boolean[indices.size()];
+        var owners = new java.util.ArrayList<Target>(indices.size());
+        for (int index : indices) {
+            var target = target(index);
+            linear[images.size()] = !target.spec.format().integer();
+            images.add(image(index, side.apply(index)));
+            owners.add(target);
+        }
+        NativeImageOps.mipmaps(images, linear);
+        for (int i = 0; i < images.size(); i++) sampler(images.get(i), owners.get(i), true);
+    }
+
+    /**
+     * Iris copies a persistent target that ended the frame on its alternate half back to the main
+     * one (FinalPassRenderer). Swapping which image plays "main" has the same effect for every
+     * read of the next frame, without the full-image copy (0.37 ms per frame for Photon at 1440p).
+     * -Dvsdh.copyBack=true restores the copy.
+     */
     public void copyBack(java.util.List<Integer> indices) {
+        copyBack(indices, java.util.Set.of());
+    }
+
+    /**
+     * {@code swappable}: targets whose next write fully replaces the alternate half (fullscreen
+     * passes without blending). Iris leaves both halves equal after its copy; a swapped target's
+     * alternate half holds an older state instead, which only a blended or partial write (geometry,
+     * image stores) could see, so those keep the copy.
+     */
+    public void copyBack(java.util.List<Integer> indices, java.util.Set<Integer> swappable) {
         requireOpen();
         for (int index : indices) {
             Target target = target(index);
             if (target.main == target.alt || target.spec.clears())
                 throw new IllegalArgumentException("Invalid persistent target copy-back: " + index);
-            NativeImageOps.copyBase(target.alt, target.main);
+            if (COPY_BACK || !swappable.contains(index)) NativeImageOps.copyBase(image(index, Side.ALT), image(index, Side.MAIN));
+            else target.swapped = !target.swapped;
         }
     }
+    private static final boolean COPY_BACK = Boolean.getBoolean("vsdh.copyBack");
 
     private Target target(int index) {
         if (index < 0 || index >= targets.length || targets[index] == null)
             throw new IllegalArgumentException("Shader target is not allocated: colortex" + index);
         return targets[index];
     }
-    private static VulkanImage allocate(ShaderTargetLayout.Target spec) {
+    private VulkanImage allocate(ShaderTargetLayout.Target spec) {
+        int storageUsage = storage.contains(spec.index()) ? VK_IMAGE_USAGE_STORAGE_BIT : 0;
         VulkanImage image = VulkanImage.builder(spec.width(), spec.height()).setFormat(VulkanTargetFormat.of(spec.format()))
                 .setUsage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
-                        | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+                        | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | storageUsage)
                 .setMipLevels(spec.levels()).setLevelViews(spec.levels() > 1)
                 .setLinearFiltering(!spec.format().integer()).setClamp(true).createVulkanImage();
         try {
@@ -144,6 +186,14 @@ public final class NativeColorTargets implements AutoCloseable {
         int min = mipmaps && spec.levels() > 1 ? (spec.format().integer() ? 9984 : 9987) : filter;
         // Shader targets use zero LOD bias; the vanilla terrain texture sampler intentionally uses -0.5.
         return new SamplerKey(min, filter, 33071, 33071, 33071, 0, mipmaps ? spec.levels() - 1 : 0, 0, 0, 515);
+    }
+    private static void requireStorage(ShaderTargetLayout.Target spec) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            var props = VkFormatProperties.calloc(stack);
+            vkGetPhysicalDeviceFormatProperties(DeviceManager.physicalDevice, VulkanTargetFormat.of(spec.format()), props);
+            if ((props.optimalTilingFeatures() & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT) == 0)
+                throw new IllegalArgumentException("Device cannot store into shader target colortex" + spec.index() + ": " + spec.format());
+        }
     }
     private static void requireBlit(ShaderTargetLayout.Target spec) {
         try (MemoryStack stack = MemoryStack.stackPush()) {

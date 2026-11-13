@@ -32,7 +32,10 @@ import static org.lwjgl.vulkan.VK10.*;
 public class SwapChain extends Framebuffer {
     private static final int DEFAULT_IMAGE_COUNT = 3;
 
-    private static final int defUncappedMode = checkPresentMode(VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_MAILBOX_KHR);
+    // -Dvsdh.presentMode=mailbox: diagnostic switch to compare the uncapped present modes.
+    private static final int defUncappedMode = "mailbox".equals(System.getProperty("vsdh.presentMode"))
+            ? checkPresentMode(VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR)
+            : checkPresentMode(VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_MAILBOX_KHR);
 
     private final Long2ReferenceOpenHashMap<long[]> FBO_map = new Long2ReferenceOpenHashMap<>();
 
@@ -80,6 +83,11 @@ public class SwapChain extends Framebuffer {
             VkExtent2D extent = getExtent(surfaceProperties.capabilities);
 
             if (extent.width() == 0 && extent.height() == 0) {
+                if (this.dxgi != null) {
+                    this.width = 0;
+                    this.height = 0;
+                    return;
+                }
                 if (this.swapChainId != VK_NULL_HANDLE) {
                     this.swapChainImages.forEach(image -> vkDestroyImageView(device, image.getImageView(), null));
                     vkDestroySwapchainKHR(device, this.swapChainId, null);
@@ -89,6 +97,25 @@ public class SwapChain extends Framebuffer {
                 this.width = 0;
                 this.height = 0;
                 return;
+            }
+
+            // DXGI flip presentation only in a window: in exclusive fullscreen the Vulkan swapchain was
+            // faster (docs/PERFORMANCE.md). Switching either way needs the other swapchain gone first;
+            // the caller has waited for the device to be idle.
+            boolean fullscreen = org.lwjgl.glfw.GLFW.glfwGetWindowMonitor(Vulkan.window) != 0;
+            if (this.dxgi != null && (this.dxgiDisabled || fullscreen)) closeDxgi();
+            if (!this.dxgiDisabled && !fullscreen && DeviceManager.isDxgiInteropEnabled()) {
+                if (this.swapChainId != VK_NULL_HANDLE) {
+                    this.swapChainImages.forEach(image -> vkDestroyImageView(device, image.getImageView(), null));
+                    vkDestroySwapchainKHR(device, this.swapChainId, null);
+                    this.swapChainId = VK_NULL_HANDLE;
+                    this.swapChainImages = new ArrayList<>();
+                }
+                if (createDxgi(extent.width(), extent.height())) {
+                    createGlIds();
+                    createDepthResources();
+                    return;
+                }
             }
 
             int requestedImages = Math.max(DEFAULT_IMAGE_COUNT, surfaceProperties.capabilities.minImageCount());
@@ -145,6 +172,8 @@ public class SwapChain extends Framebuffer {
             LongBuffer pSwapchainImages = stack.mallocLong(imageCount.get(0));
 
             vkGetSwapchainImagesKHR(device, this.swapChainId, imageCount, pSwapchainImages);
+            org.slf4j.LoggerFactory.getLogger("VulkanMod").info("Swapchain: {} images (requested {}, surface min {}), present mode {}, format {}",
+                    imageCount.get(0), requestedImages, surfaceProperties.capabilities.minImageCount(), presentMode, this.format);
 
             this.swapChainImages = new ArrayList<>(imageCount.get(0));
 
@@ -164,6 +193,92 @@ public class SwapChain extends Framebuffer {
 
         createGlIds();
         createDepthResources();
+    }
+
+    // DXGI flip presentation (net.vulkanmod.vulkan.present): shared images instead of swapchain images.
+    private static final int DXGI_IMAGE_USAGE = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+            | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    private net.vulkanmod.vulkan.present.DxgiBackend dxgi;
+    private net.vulkanmod.vulkan.present.DxgiVulkanTargets dxgiTargets;
+    private boolean dxgiDisabled;
+    private final long[] dxgiCopyValues = new long[net.vulkanmod.vulkan.present.DxgiBackend.IMAGES];
+    private int dxgiNext;
+
+    /** Creates or resizes the DXGI path; false (and disabled for good) when it is unavailable. */
+    private boolean createDxgi(int width, int height) {
+        try {
+            if (this.dxgi == null) {
+                long hwnd = org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(Vulkan.window);
+                this.dxgi = "d3d11".equals(DeviceManager.dxgiMode())
+                        ? net.vulkanmod.vulkan.present.DxgiPresenter.create(hwnd, DeviceManager.deviceLuid(), width, height)
+                        : net.vulkanmod.vulkan.present.D3d12Presenter.create(hwnd, DeviceManager.deviceLuid(), width, height);
+                if (this.dxgi == null) {
+                    this.dxgiDisabled = true;
+                    return false;
+                }
+                this.dxgiTargets = net.vulkanmod.vulkan.present.DxgiVulkanTargets.create(this.dxgi, DXGI_IMAGE_USAGE);
+            } else if (this.dxgi.width() != width || this.dxgi.height() != height) {
+                // Caller (Renderer.recreateSwapChain) has waited for the device to be idle.
+                this.dxgiTargets.close();
+                this.dxgiTargets = null;
+                this.dxgi.resize(width, height);
+                this.dxgiTargets = net.vulkanmod.vulkan.present.DxgiVulkanTargets.create(this.dxgi, DXGI_IMAGE_USAGE);
+            }
+        } catch (RuntimeException failure) {
+            Initializer.LOGGER.warn("DXGI presentation failed, using the Vulkan swapchain", failure);
+            closeDxgi();
+            this.dxgiDisabled = true;
+            return false;
+        }
+        Arrays.fill(this.dxgiCopyValues, 0);
+        this.dxgiNext = 0;
+        this.format = net.vulkanmod.vulkan.present.DxgiVulkanTargets.FORMAT;
+        this.isBGRAformat = false;
+        this.extent2D = VkExtent2D.create().set(width, height);
+        this.width = width;
+        this.height = height;
+        this.swapChainImages = new ArrayList<>(this.dxgiTargets.images());
+        return true;
+    }
+
+    private void closeDxgi() {
+        if (this.dxgiTargets != null) this.dxgiTargets.close();
+        this.dxgiTargets = null;
+        if (this.dxgi != null) this.dxgi.close();
+        this.dxgi = null;
+        this.swapChainImages = new ArrayList<>();
+    }
+
+    /** Whether frames go out through DXGI rather than vkQueuePresentKHR. */
+    public boolean isDxgi() {
+        return this.dxgi != null && this.width > 0;
+    }
+
+    /** DXGI path: the next shared image; its previous copy has to finish first (see {@link #dxgiWaitValue}). */
+    public int dxgiAcquire() {
+        int index = this.dxgiNext;
+        this.dxgiNext = (index + 1) % this.swapChainImages.size();
+        return index;
+    }
+
+    public long dxgiWaitValue(int index) { return this.dxgiCopyValues[index]; }
+    public long dxgiCopySemaphore() { return this.dxgiTargets.copySemaphore(); }
+    public long dxgiRenderSemaphore() { return this.dxgiTargets.renderSemaphore(); }
+
+    /** Hands image {@code index} to DXGI once Vulkan's render timeline reaches {@code renderValue}. */
+    public boolean dxgiPresent(int index, long renderValue) {
+        long copy = this.dxgi.present(index, renderValue, this.vsync);
+        if (copy < 0) {
+            this.dxgiDisabled = true; // the next recreate falls back to the Vulkan swapchain
+            return false;
+        }
+        this.dxgiCopyValues[index] = copy;
+        return true;
+    }
+
+    /** Layout the frame's colour image ends in: GENERAL for a shared image, PRESENT_SRC for a swapchain image. */
+    public int presentLayout() {
+        return this.dxgi != null ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     }
 
     private void createGlIds() {
@@ -240,8 +355,12 @@ public class SwapChain extends Framebuffer {
             this.FBO_map.clear();
         }
 
-        vkDestroySwapchainKHR(device, this.swapChainId, null);
-        this.swapChainImages.forEach(image -> vkDestroyImageView(device, image.getImageView(), null));
+        if (this.dxgi != null || this.dxgiTargets != null) {
+            closeDxgi();
+        } else {
+            vkDestroySwapchainKHR(device, this.swapChainId, null);
+            this.swapChainImages.forEach(image -> vkDestroyImageView(device, image.getImageView(), null));
+        }
 
         if (this.glIds != null) {
             for (int id : this.glIds) {

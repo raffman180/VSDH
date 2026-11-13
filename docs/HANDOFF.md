@@ -6,7 +6,130 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vulkanmod`;
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
-## Aktuell 0.25 — DH 3.2.0-b und Shader-Stufen
+## Aktuell 0.26 — Speicher-Churn (13.11.2026 vormittags, `dist/0.26.0-dev-perf`)
+
+Mixins: `net.vulkanmod.mixin.optimization.MaterialRuleListMixin`/`SurfaceSequenceRuleMixin` (Access Transformer
+für `SurfaceRules$SurfaceRule`/`$SequenceRule`, Schalter in `MixinPlugin`), `dh3.MixinChunkUpdateQueueBackoff`
+(Schalter und Methodenprüfung in `DhMixinPlugin.dhClassHasMethod`). Werkzeuge: Flug mit Menü-Wartezeit
+`-PtestFlightMenu=<s>` (ReleaseScene `menuStopAt`), JFR-Auswertung mit `--stack-depth 40` und Zeitfenster.
+Messläufe immer mit Wächter starten (Log-Alter prüfen); ein Lauf hing einmal 3 h unbemerkt.
+Weitere Testclient-Schalter: `-PtestFlightFps=<n>` (beide Clients, FPS-Grenze im Flug), `-PtestJfrSettings=<jfc>`
+(VSDH-Client). Lange Frames zuordnen: Spike-Zeilen mit `-Dvsdh.spikeMs=18 -Dvsdh.spikeLogMs=0` gegen
+`flight-frames.csv` (Epoch-Zeitstempel). Ergebnisse und Spieler-Empfehlungen: `docs/PERFORMANCE.md` (Ende).
+
+## 0.26 — DH optional und Flug-Messung (13.11.2026 nachts)
+
+Pack-Optionen: `PackOptionsView.read` (im Vorbereitungs-Worker von `ShaderPackStartup`, Sprachdatei via
+`PackLang`, Layout via `ShaderProperties.screenLayout`), Seite `ShaderSettingsPage.optionsPage()`; Test
+`-PtestSysProps=vsdh.releaseQA.packOptions=true` (optional `vsdh.releaseQA.packOption=<NAME>`).
+
+DH optional: `neoforge.mods.toml` (optional), `DhMixinPlugin.distantHorizonsInstalled()` (keine DH-Hooks,
+auch nicht `shared.MixinLevelRenderer`), `Vsdh.distantHorizons()` + Halterklasse `DistantHorizonsSetup`,
+`WorldUniforms.captureDistantScalars`, `ShaderPackStartup.Selection` (distant nur mit DH), Shader-Seite.
+Testclient: `-PtestNoDh` (DH nur zum Kompilieren). Glätte: `run-vsdh-026-flight.ps1`, `flight-analyse.py`,
+`FlightBench` in beiden Testclients, `-PtestJvmArgs`, `-PtestJfr/-PtestJfrDelay/-PtestJfrDuration`.
+Upload-Batch für Geräte-lokale Puffer: `MemoryTypes.DeviceLocalMemory.copyToBuffer` →
+`GraphicsQueue.recordBufferUpload`/`closeBufferUploads`. Ergebnisse: `docs/PERFORMANCE.md`, letzter Abschnitt.
+
+## Aktuell 0.26 — Shader-Seite im Menü (12.11.2026 abends)
+
+Spieler wählen Packs unter Videoeinstellungen → Shader (`de.stranger.vsdh.shader.ShaderSettingsPage`,
+eingehängt in `Options.getOptionPages`, Übernehmen ruft über `ModSettingsRegistry` `applied()`).
+`ShaderPackStartup` ist jetzt ein Steuerobjekt: `start` (Konfiguration beim Laden), `request(Selection)`
+(Seite), Tick tauscht den Welt-Host nur ohne geladene Welt (`uninstall`, dann `install`).
+`DhVulkanConfig.save/selectPack` schreiben `vsdh.json` und merken Profil/Optionen je Pack (`otherPacks`).
+Neue Widgets `ActionOption`/`ActionOptionWidget` (Knopf ohne Wert). Testszene:
+`-PtestSysProps=vsdh.releaseQA.menuSwitch=<zip>` und `vsdh.releaseQA.worldSwitch=true`
+(`release-client-026-packs/ReleaseScene`). Paket `dist/0.26.0-dev-menu`.
+
+## Aktuell 0.26 — Pack-Kompatibilität (11.11.2026)
+
+Architektur und Grenzen: `docs/NATIVE_PACK_FEATURES.md`. Kernklassen:
+`NativeComputePass` + `ComputePipeline` (Compute, `colorimgN`, GENERAL-Layout,
+Barriere nach jedem Dispatch), `ShaderChainPlan.Compute/setup/shadowComputes`,
+`NativeStorageBuffers` + `StorageBufferDescriptor` (SSBO, Schlüssel `ssbo#N`),
+`NativeCustomImages` + `CustomImageBindings` (`image.*`), `PackTexturePlan.Texels`
+(Rohdaten 2D) und `PackTexturePlan.Volume` (3D-Volumen als echtes 3D-Bild, seit 12.11.;
+`-Dvsdh.flatVolumes=true` = alter `VolumeAtlas`), Geometry: `GeometryFold` im Compiler, sonst
+nativ mit `SpirvInterface.renameGeometryOutputs/linkStages`; Tessellation über
+VulkanMods vorhandenen Pfad (`renameControlOutputs`, `sizeControlOutputs`).
+`EngineDefines.FEATURES` steuert `iris.features.required` und `IRIS_FEATURE_*`.
+Diagnose: `-Dvsdh.uniformDump=<Programmendung>` loggt alle 240 Frames die
+geschriebenen Uniforms eines Programms (`UNIFORM_DUMP`). Der Testclient
+`build/reference/release-client-026-packs` nimmt `-PtestUniformDump=` und
+`-PtestShotTick=`; `run-vsdh-026-compare.ps1 -ReuseIris -Only ...` vergleicht mit
+den Iris-Bildern in `build/reference/compare-026`, `pair.ps1` (Scratchpad) setzt
+Paare zusammen. Ein Fehler beim Graphaufbau schaltet die Welt auf den
+Standard-Renderer (Chat-Hinweis), bis Fenstergröße oder Dimension wechseln.
+
+Stand 11.11. abends: BSL-Wolken kommen über DH-Generic-Objekte; die hohe
+Dschungelinsel hängt vom DH-Erzeugungsfortschritt ab (kein Renderfehler);
+RV-Entity-Schattenwerfer kompilieren nativ; `shadowcolorimgN` und `indirect.*`
+sind umgesetzt. Die Pack-Kette arbeitet in GL-Ausrichtung (Zeilen von unten,
+`gbufferProjection[1][1]` positiv, einmaliges gespiegeltes Blit ins Hauptziel,
+`Renderer.setMainTargetRowsBottomUp`, `PipelineState.getCurrentPipelineState(pass,true)`,
+DH-Tiefenleser spiegelt). `vignette`/`underwaterOverlay` wie Iris. Prüf-Packs
+(nur Test): `build/reference/packs-debug/zzUniformProbe.zip`, `zzIndirectProbe.zip`.
+Offen: typisierte Custom-Image-Views (kein Testpack nutzt sie), reine
+Nachbearbeitungs-Packs ohne Terrainprogramm (werden mit Meldung abgelehnt).
+
+## Aktuell 0.26 — Nachtarbeit (12.11.2026)
+
+Ergebnisse und Messhinweise: `docs/PERFORMANCE.md` („GPU-Pause zwischen Frames genau vermessen“).
+Neue Klassen/Stellen: `GraphicsQueue.detachBatch` + `Renderer.submitFrame(uploads)`,
+`NativeImageOps.mipmaps(List, boolean[])`, `PackTexturePlan.Volume` + `NativeWorldTextures.createVolume`,
+`GlslTranslator.nativeVolumes`, `NativeWorldShadows.opaqueSnapshot`, `NativeGraphicsProgram.transitionInputs`
+(nur im Profilmodus). Diagnose: `-Dvsdh.debugCpuDelayUs=N`, Testclient `-PtestSysProps=a=b,c=d`.
+Mess-Packs mit festem Bildinhalt (nur lokal erzeugen, nie ausliefern) sind für Vergleiche einzelner
+Shader mit Iris verlässlicher als Pass-Zeiten echter Packs.
+
+## Aktuell 0.26 — eigene DXGI-Ausgabe (12.11.2026 mittags)
+
+Im Fenster präsentiert VSDH auf NVIDIA über D3D12 (`net.vulkanmod.vulkan.present`): D3D12 besitzt drei
+gemeinsame Texturen und zwei Fences, Vulkan rendert hinein, D3D12 kopiert in den Back-Buffer einer
+Flip-Swapchain. Im Vollbild bleibt die Vulkan-Swapchain (schneller); `SwapChain.createSwapChain`
+wechselt nach `glfwGetWindowMonitor`. Fehler jeder Art → Rückfall auf Vulkan. Schalter
+`-Dvsdh.dxgiPresent=auto|d3d12|d3d11|false`. Ergebnis und verworfene Wege (D3D11, Kopier-Queue,
+Vorwärmen): `docs/PERFORMANCE.md`. Test-Hilfe: `-PtestSysProps=vsdh.releaseQA.windowSteps=150:toggle;350:1600x900`.
+
+## 0.26 — 1440p gegen Iris (11.11.2026 abends)
+
+Vollbild 2560×1440: VSDH in allen fünf Mess-Packs vor Iris (Tabelle
+`docs/PERFORMANCE.md`). Im Fenster kostet NVIDIAs Vulkan-Present ~1 ms GPU pro Frame
+(Treiberkopie), dort liegt VSDH 6–10 % zurück. Present-Thread, verzögertes Present und
+eigene Present-Queue brachten nichts und sind entfernt bzw. aus
+(`-Dvsdh.separatePresentQueue=true`). Gewinne: Tausch statt Rückkopie persistenter
+Ziele (`NativeShaderChain.swappable`, Notschalter `-Dvsdh.copyBack=true`), Tiefen-
+Schnappschüsse nur bei Bedarf (`PackUsage`). Werkzeuge: `run-vsdh-026-bench.ps1
+-HighResolution -Fullscreen`, `run-vsdh-026-profile.ps1 -Extra '-Ptest1440p','-PtestFullscreen'`,
+`-PtestVsync`, `-PtestSyncPresent` (nur noch Diagnose).
+
+## Aktuell 0.26 — Leistung
+
+Messwerkzeuge, Testszene und Befunde stehen in `docs/PERFORMANCE.md`.
+`ShadowCuller` begrenzt den Schattenpass wie Iris (`shadow.culling`,
+Voxelisierung, `shadowDistance × shadowDistanceRenderMul`, `voxelDistance`).
+`WorldRenderer.prepareShadowDraws` prüft zuerst Bereiche, dann Sektionen;
+mit `indirectDraw` zeichnet der Schattenpass über eigene Indirect-Puffer.
+`NativeWorldDepth` kopiert für depthtex1/2 nur den Tiefenanteil. Das war
+mit 2 × 1,3 ms der größte VSDH-eigene GPU-Posten. `GraphicsQueue` bündelt
+Uploads des Render-Threads pro Frame ohne CPU-Fence. `Renderer` öffnet das
+Bündel am Ende von `preInitFrame`; seit 12.11. geht es in `endFrame` als erster
+Command-Buffer im selben `vkQueueSubmit` wie der Frame mit (`GraphicsQueue.detachBatch`),
+in `flushCmds`, beim Swapchain-Neuaufbau und vor jeder anderen Grafik-Queue-Übergabe
+weiterhin als eigener Submit.
+Notschalter: `-Dvsdh.legacyUploadSync=true`. Gemessen in derselben Szene:
+0.25 89,4 FPS, 0.26 112,4 FPS. Kein FPS-Vergleich mit Iris, keine anderen GPUs.
+
+Kompatibilität in 0.26: `NativeDistantPass` zeichnet DH-Pack-Programme mit
+Rückseitenausblendung wie DH selbst. Das beseitigt die weißen Kacheln von
+Bliss über Ozeanen; die Bildreferenz unter Iris stimmt jetzt überein. Die
+DH-Kennzahlen `dhNearPlane`, `dhFarPlane` und `dhRenderDistance` sind immer
+verfügbar, Bliss startet so auch ohne DH-Programme. Der Iris-Referenzclient
+unter `build/reference/iris-client` hat Seed, Kamera und DH-Konfiguration
+der VSDH-Testprofile und ist das Werkzeug für Pack-Fehler.
+
+## Stand 0.25 — DH 3.2.0-b und Shader-Stufen
 
 `DhMixinPlugin` liest FullDataSourceV2Repo.class direkt aus der installierten
 DH-JAR. Die NeoForge-Mixin-Phase hat dafür noch keine zuverlässig
@@ -380,3 +503,12 @@ Anbindung übernommen werden. Die bislang aktive Vollbildkette benötigt es nich
 
 Keine erneute Addon/Fork-Frage; der Nutzer will Weiterarbeit. Alte Artefakte behalten,
 keinen vollständigen Shader-Modus behaupten oder einen bloßen Filter aktivieren.
+
+## Fortsetzung 11.11.2026 nachmittags
+
+Siehe `docs/MIGRATION_STATUS.md` (oberster Abschnitt). Kurz: DH-Wolken und andere
+DH-Generic-Objekte werden gezeichnet, Pack-Himmel hat einen geschlossenen Horizont,
+`near` folgt der Projektion, Laufzeitfehler beim Zeichnen beenden nur noch das
+Pack-Rendering. Leistung: ohne Shaderpack 35–50 % schneller als Iris+Sodium (720p),
+mit Shaderpack und DH 7–20 % langsamer als Iris. Eine frühere Testserie lief wegen
+einer persistierten DH-Einstellung ohne LODs und ist ungültig (Details dort).

@@ -79,3 +79,37 @@ Der zweite Lauf vergleicht alle Werte ohne diese unbeabsichtigte Vermischung.
 
 36 CPU-Tests, Build und verifyBundledLwjgl bestehen; alle Build-Tasks erneut ohne
 Gradle-Build-Cache ausgeführt. Einzelheiten: verification/0.6.0-dev.json.
+
+## 0.26: DH-Kennzahlen ohne DH-Programme
+
+`dhNearPlane`, `dhFarPlane` und `dhRenderDistance` stellt Iris jedem Pack
+bereit. Bliss liest sie auch ohne seine DH-Programme. VSDH lehnte Bliss bei
+`"shaderDistantHorizons": false` deshalb ab. Diese drei Werte sind jetzt
+immer verfügbar und stammen aus denselben DH-Quellen wie im DH-Modus. Die
+DH-Matrizen bleiben an die DH-Programme gebunden. Ohne DH-Programme verdeckt
+der Nebel des Packs die Ferne, wie bei einem Pack ohne DH-Unterstützung.
+
+## `near` und die tatsächliche Projektion (11.11.2026)
+
+Unter NeoForge greift Reforgeds JOML-Mixin (`Matrix4fM`) nicht: Ein
+Laufzeittest (`new Matrix4f().perspective(1,1,.05,256).m32()`) liefert -0,1,
+also die OpenGL-Form. Die Projektion, die beim Zeichnen ankommt, wirkt in
+Vulkan deshalb wie eine mit Near-Ebene 0,1. Alle veröffentlichten Matrizen
+sind untereinander und mit dem Tiefenpuffer stimmig. Nur `near` war fest
+0,05. Packs, die Tiefe mit `near` linearisieren, erhielten so etwa halbe
+Entfernungen. `near` folgt jetzt der Near-Ebene der veröffentlichten
+Projektion (`WorldUniforms.capture`). Prüfbar mit `-Dvsdh.uniformDump=...`:
+die Zeile `PROJECTION_DUMP` enthält Probe, Matrixwerte und Near/Far.
+
+## Ausrichtung wie OpenGL (11.11.2026 abends)
+
+`gbufferProjection`, `shadowProjection`, die DH-Projektion und die Projektion
+einzelner Zeichnungen werden jetzt unverändert (Y nicht gespiegelt)
+veröffentlicht: `gbufferProjection[1][1]` ist positiv wie unter Iris. Die
+Pack-Bilder liegen dafür wie in OpenGL mit Zeilen von unten nach oben vor;
+`texcoord.y` und `gl_FragCoord.y` wachsen nach oben. Erst das fertige Bild wird
+einmal gespiegelt in das Hauptziel kopiert. Vorher war `[1][1]` negativ, was
+Packformeln wie `fovScale = gbufferProjection[1][1] / 1.37` das Vorzeichen
+umkehrte. Geprüft mit einem Probe-Pack, das Uniforms als Farbbalken ausgibt:
+alle verglichenen Werte gleich Iris außer `near` (0,1 statt 0,05, siehe oben).
+Details: `NATIVE_PACK_FEATURES.md`, Abschnitt „Iris parity fixes“.

@@ -10,7 +10,11 @@ import java.util.List;
 import java.util.Map;
 
 /** CPU-prepared programs for the three vanilla dimension IDs. */
-public record WorldPackSet(Map<String, WorldPackPlan> dimensions, WorldPackPlan overworld) {
+public record WorldPackSet(Map<String, WorldPackPlan> dimensions, WorldPackPlan overworld, boolean vignette, boolean underwaterOverlay) {
+    public WorldPackSet(Map<String, WorldPackPlan> dimensions, WorldPackPlan overworld) {
+        this(dimensions, overworld, false, false);
+    }
+
     private static final List<String> VANILLA = List.of("minecraft:overworld", "minecraft:the_nether", "minecraft:the_end");
 
     public WorldPackSet {
@@ -38,7 +42,9 @@ public record WorldPackSet(Map<String, WorldPackPlan> dimensions, WorldPackPlan 
             }
             byDimension.put(dimension, plan);
         }
-        return new WorldPackSet(byDimension, byDimension.get(VANILLA.getFirst()));
+        var defines = pack.settings().globalDefines(pack.options());
+        return new WorldPackSet(byDimension, byDimension.get(VANILLA.getFirst()),
+                pack.properties().vignette(defines), pack.properties().underwaterOverlay(defines));
     }
 
     WorldPackPlan forDimension(String dimension) { return dimensions.getOrDefault(dimension, overworld); }

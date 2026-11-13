@@ -12,9 +12,10 @@ final class WaterFaceProbe {
     static void verify(WorldShaderSession session) {
         var image = session.chain().targets().image(1, Side.MAIN);
         int x = image.width * 3 / 8;
-        int y = image.height * 5 / 6;
         int width = image.width / 4;
         int height = image.height / 8;
+        // Lower part of the screen; pack targets store their rows bottom-up (GL orientation).
+        int y = image.isRowsBottomUp() ? image.height - image.height * 5 / 6 - height : image.height * 5 / 6;
         int pixels = Math.multiplyExact(width, height);
         var bytes = MemoryUtil.memAlloc(Math.multiplyExact(pixels, 8));
         try (var scope = Renderer.getInstance().temporaryRenderTarget()) {

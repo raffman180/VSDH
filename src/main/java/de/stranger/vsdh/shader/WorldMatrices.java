@@ -3,7 +3,12 @@ package de.stranger.vsdh.shader;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 
-/** Render-thread matrix history. Native sampled images use top-to-bottom UV coordinates. */
+/**
+ * Render-thread matrix history. The pack chain keeps OpenGL's orientation: the published projection is
+ * the game's own (gbufferProjection[1][1] > 0), images hold their rows bottom-up and texture y, NDC y
+ * and gl_FragCoord.y all grow upwards, as under Iris. The finished picture is flipped once into the
+ * top-down main target (NativeShaderChain).
+ */
 public final class WorldMatrices {
     public final Matrix4f view = new Matrix4f(), inverseView = new Matrix4f();
     public final Matrix4f projection = new Matrix4f(), inverseProjection = new Matrix4f();
@@ -22,9 +27,8 @@ public final class WorldMatrices {
                     +", viewFinite="+view.isFinite()+", projectionFinite="+legacyProjection.isFinite()+", camera="+x+","+y+","+z);
         this.view.set(view); this.view.invert(inverseView);
         projection.set(legacyProjection);
-        // Flip the projection's Y row, NOT its column. Keep GL -w..w depth here: the
-        // translated vertex epilogue performs the one and only forward 0..w conversion.
-        projection.m01(-projection.m01()).m11(-projection.m11()).m21(-projection.m21()).m31(-projection.m31());
+        // Keep GL -w..w depth here: the translated vertex epilogue performs the one and only
+        // forward 0..w conversion.
         projection.invert(inverseProjection);
         if (!inverseView.isFinite() || !inverseProjection.isFinite()) throw new IllegalArgumentException("Singular world matrix");
         boolean reset = !initialized || this.world != world || this.width != width || this.height != height

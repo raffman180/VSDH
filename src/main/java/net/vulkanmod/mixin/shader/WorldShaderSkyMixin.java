@@ -21,7 +21,10 @@ public abstract class WorldShaderSkyMixin {
 
     @WrapOperation(method = "renderSky", at = @At(value = "INVOKE", target = BUFFER_DRAW, ordinal = 0))
     private void vsdh$skyDisc(VertexBuffer buffer, Matrix4f view, Matrix4f projection, ShaderInstance shader, Operation<Void> original) {
-        WorldShaderSession.drawSkyStage(RenderStage.SKY, () -> original.call(buffer, view, projection, shader));
+        WorldShaderSession.drawSkyStage(RenderStage.SKY, () -> {
+            WorldShaderSession.drawSkyHorizon(view, projection, shader);
+            original.call(buffer, view, projection, shader);
+        });
     }
 
     @WrapOperation(method = "renderSky", at = @At(value = "INVOKE", target = BUFFER_DRAW, ordinal = 1))
@@ -47,6 +50,12 @@ public abstract class WorldShaderSkyMixin {
     @WrapOperation(method = "renderSky", at = @At(value = "INVOKE", target = IMMEDIATE_DRAW, ordinal = 2))
     private void vsdh$moon(MeshData mesh, Operation<Void> original) {
         if (!WorldShaderSession.drawSkyStage(RenderStage.MOON, () -> original.call(mesh))) mesh.close();
+    }
+
+    /** Both the depth-only and the colour draw of fancy clouds; the colour mask comes from the render type. */
+    @WrapOperation(method = "renderClouds", at = @At(value = "INVOKE", target = BUFFER_DRAW))
+    private void vsdh$clouds(VertexBuffer buffer, Matrix4f view, Matrix4f projection, ShaderInstance shader, Operation<Void> original) {
+        WorldShaderSession.drawSkyStage(RenderStage.CLOUDS, () -> original.call(buffer, view, projection, shader));
     }
 
     @WrapOperation(method = "renderEndSky", at = @At(value = "INVOKE", target = IMMEDIATE_DRAW))

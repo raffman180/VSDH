@@ -34,8 +34,12 @@ public abstract class Queue {
     }
 
     Queue(MemoryStack stack, int familyIndex, boolean initCommandPool) {
+        this(stack, familyIndex, initCommandPool, 0);
+    }
+
+    Queue(MemoryStack stack, int familyIndex, boolean initCommandPool, int queueIndex) {
         PointerBuffer pQueue = stack.mallocPointer(1);
-        vkGetDeviceQueue(DeviceManager.vkDevice, familyIndex, 0, pQueue);
+        vkGetDeviceQueue(DeviceManager.vkDevice, familyIndex, queueIndex, pQueue);
         this.queue = new VkQueue(pQueue.get(0), DeviceManager.vkDevice);
 
         if (initCommandPool)

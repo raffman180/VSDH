@@ -1,10 +1,132 @@
-# Fortsetzungs-Prompt — VSDH 0.25
+# Fortsetzungs-Prompt — VSDH 0.26
 
 Arbeite in `C:/Users/Stranger/Documents/Meine Mods/VSDH` auf
 `codex/renderer-shaders`. Der Nutzer will autonome Weiterarbeit bis zum
-Gesamtziel und gemessene FPS. Siehe AGENTS.md, README und den Bericht
-`dist/0.25.0-dev/verification.json`. Java 21 und NeoForge 21.1.264 bleiben
-fest. Nur isolierte Spielwelten verwenden.
+Gesamtziel und gemessene FPS. Er kommuniziert auf Deutsch und möchte
+Entscheidungen zu Aussehen, Kompatibilität und größeren Leistungsabwägungen
+selbst treffen. Siehe AGENTS.md, README, `docs/PERFORMANCE.md` und den
+neuesten Bericht unter `dist/`. Java 21 und NeoForge 21.1.264 bleiben fest.
+Nur isolierte Spielwelten verwenden.
+
+## Stand 0.26 abends (Iris-Abgleich, 11.11.2026)
+
+Die Pack-Kette arbeitet in GL-Ausrichtung (siehe AGENTS.md, NATIVE_PACK_FEATURES.md
+„Iris parity fixes“): keine Y-gespiegelten Matrizen mehr, Bilder zeilenweise von
+unten, gespiegeltes Blit nur am Ende, `Renderer.setMainTargetRowsBottomUp` für
+Vanilla-Zeichnungen in die Pack-Szene, DH-Tiefenleser spiegelt. Neu: `vignette`/
+`underwaterOverlay` wie Iris, `HIGHER_SHADOWCOLOR`/`BLOCK_EMISSION_ATTRIBUTE`/
+`ENTITY_TRANSLUCENT`, `shadowcolorimgN`, `indirect.<pass>`, Terrainprogramme je
+Schicht. Prüf-Packs (nur Test, nie ausliefern): `build/reference/packs-debug/
+zzUniformProbe.zip` (Uniforms als Farbbalken; Vergleich mit Iris über
+`run-vsdh-026-compare.ps1 -Only zzUniformProbe` nach Kopie nach `packs/`) und
+`zzIndirectProbe.zip` (grün = indirekter Dispatch korrekt). Testszenen blenden die
+GUI aus (Iris-Referenz ebenso); `-PtestShowGui` zeigt sie. `run-vsdh-026-single.ps1`
+kennt `-Options '{"NAME":"wert"}'`, `-Profile`, `-Jar <Datei>` (A/B mit alter JAR).
+Vorsicht beim Bildvergleich: Wassertextur-Animation, DH-Erzeugungsfortschritt
+(Inseln, dunkle LOD-Rechtecke im Nahbereich ohne Pack) und Sonnenglanz-Wellen
+ändern sich je Lauf; mehrere Ticks/Läufe vergleichen, bevor ein Fehler vermutet wird.
+Offen: typisierte Custom-Image-Views, reine Nachbearbeitungs-Packs ohne
+Terrainprogramm, `frustum.culling`, `beacon.beam.depth`. Fenster-Present: seit 12.11. eigene
+D3D12-Ausgabe auf NVIDIA (keine Treibereinstellung nötig; Treibereinstellungen nie selbst ändern).
+
+## Laufende Arbeit (11.11.2026 nachts, Nutzer: „Refine the mod until 5:15“)
+
+Ziel: maximale Leistung ohne Bildverlust, dann offene Punkte. Erledigt (22:55):
+Hardware-Sinus Standard (`-Dvsdh.reduceTrig=true` für alt), 14-Pack-Bildvergleich,
+Smoke 3/3, Matrix 6/6, Bench (Vollbild +10–17 %, Fenster gleichauf, Tabelle
+`docs/PERFORMANCE.md`), dist-JARs 72abd8c3…/0d82df0b…. Verworfen: Teil-Submits,
+Present-Thread, MAILBOX. Weitere Ideen: GPU-Pausen ~0,6 ms (Treiber-Präsentation),
+Mipmaps per Compute, Pass-Vergleich `run-pass-compare.ps1`. Nutzer will bis 5:15
+weiter verfeinern lassen (dann Bericht auf Deutsch, getrennt nach geprüft/kompiliert/
+im Spiel getestet).
+
+Nachts (12.11.2026, bis 5:15): GPU-Pause zwischen Frames vermessen (`GPU_GAP`, Acquire,
+`-Dvsdh.debugCpuDelayUs`): reine Treiber-Präsentation, nicht behebbar. Umgesetzt: Upload-Batch
+im selben Submit wie der Frame, gebündelte Mip-Ketten, echte 3D-Texturen für Pack-Volumen
+(`-Dvsdh.flatVolumes=true` = alter Atlas), Test `NativeVolumeTest`. Diagnose-Hilfen:
+`-PtestSysProps=a=b,c=d` im Testclient (`release-client-026-packs/build.gradle`).
+Befund: derselbe Shader läuft unter Vulkan 10–20 % langsamer als unter OpenGL (NVIDIA-Treiber,
+Mess-Pack, gleicher Takt); Debug-Infos/Denormals sind es nicht. Pass-Zeiten echter Packs zwischen
+Läufen nur als Näherung lesen (Profilfenster decken andere Szenenabschnitte ab). Ergebnis
+1440p: Vollbild +9 bis +18 % vor Iris, Fenster −0,7 bis +6 % (`docs/PERFORMANCE.md`).
+`shadowtex1` wird nur kopiert, wenn gelesen. Paket: `dist/0.26.0-dev-perf` (SHA-256
+1bb69c41… Haupt-JAR, 6aa78531… dh330), identisch mit den in Smoke 3/3 und Matrix 6/6 (02:44)
+geprüften JARs; `dist/0.26.0-dev-compat` bleibt der Abendstand zum Vergleich.
+
+Morgens (12.11.): Nutzerwunsch „jeder Spieler ohne Umstellen“ → eigene DXGI-Ausgabe gebaut
+(`net.vulkanmod.vulkan.present`). D3D11-Interop war langsamer (nur noch `-Dvsdh.dxgiPresent=d3d11`).
+Mittags auf Nutzerwunsch D3D12 (`D3d12Presenter`): im Fenster schneller (Photon 159–163 statt
+149–153 FPS), im Vollbild langsamer (145–150 statt 166–171) → Standard „auto“: D3D12 nur im Fenster
+und nur auf NVIDIA, Vollbild Vulkan, Wechsel bei F11. Fünf Packs im Fenster jetzt +5 bis +14 % vor
+Iris. Kopier-Queue verworfen (Gerät entfernt), Vorwärmen wirkungslos. Geprüft: 95 Unit-Tests, Smoke 3/3,
+Matrix 6/6, F11/Größenwechsel, Desktop-Bildschirmfoto. Paket `dist/0.26.0-dev-d3d12`. Nicht getestet:
+AMD/Intel (dort bleibt Vulkan), VSync an, Mehrmonitor, HDR. Windows-SDK-Header lagen nur im Scratchpad.
+Nichts committet.
+
+Abends (12.11.): Nutzer „Refine it to the best you can do for anyone to use“ → Seite **Shader** in den
+Videoeinstellungen (Pack, Profil, DH-Schalter, Ordner öffnen), Wechsel ohne Neustart (Hauptmenü sofort,
+in der Welt beim Verlassen), Einstellungen je Pack gemerkt, Unverträglichkeit mit Iris/Oculus/Sodium/
+Embeddium deklariert, übersetzte Meldungen. D3D12-Rückfall und Frame-Guard bestanden schon. Geprüft:
+95 Unit-Tests, Menü- und Weltwechseltest, Smoke 3/3, Matrix 6/6. Paket `dist/0.26.0-dev-menu`.
+Nutzerentscheidung 12.11. abends (korrigiert): DH ist optional; VSDH muss auch ohne DH starten (Vulkan-Renderer + Shader).
+Offen: NeoForge-Version ist exakt 21.1.264 gepinnt. Pack-Optionen einzeln gibt es nur in `vsdh.json` (keine Optionsseite je Pack).
+Nichts committet.
+
+Nachts (13.11., Nutzer schläft, „arbeite selber weiter bis 5:15“; Ziel: DH, Shader und Vulkan
+„bestmöglich und smooth“ kombinieren; DH ausdrücklich nicht Pflicht): DH optional gemacht und ohne DH
+getestet; Flug-Messung für Glätte gebaut (VSDH vs Iris, Median 208/188 FPS, 18/33 verpasste Takte pro s);
+Ursachen der Ruckler vermessen (G1-Pausen durch Server/DH-Allokation, Present-Takt; GPU konstant);
+DH-/VBO-Uploads in den Frame-Batch, Render-Thread-Allokationen gesenkt. ZGC hilft VSDH nicht.
+Offen: Lauf-Schwankung (168–227 FPS) ungeklärt, `composite1` 0,15 ms langsamer als Iris (Treiber).
+Außerdem: Seite „Pack-Optionen“ (alle Optionen der Pack-Seiten, Beschriftungen aus dessen Sprachdatei,
+Neuladen ohne Neustart), Optionsindex liest auch per #include eingebundene Dateien (Miniature: 13 → 82
+Optionen). Weiter offen: Ersatz-Terrainprogramm für reine Nachbearbeitungs-Packs, AMD/Intel-Test
+(Testrechner: AMD-iGPU kann das Fenster nicht darstellen), NeoForge exakt 21.1.264 gepinnt (Nutzerfrage).
+Paket der Nacht: `dist/0.26.0-dev-night` (siehe MIGRATION_STATUS „Stand 13.11.2026 nachts“). Nichts committet.
+
+## Stand 0.26 abends (1440p gegen Iris)
+
+Nutzerziel: mehr FPS als Iris bei 2560×1440. Erreicht im Vollbild (alle fünf
+Mess-Packs vorn, `docs/PERFORMANCE.md`). Im Fenster fehlt ~1 ms pro Frame durch die
+Vulkan-Present-Kopie des NVIDIA-Treibers; Nutzer-Abhilfe: Vollbild oder
+NVIDIA-Einstellung „Bevorzugt geschichtet auf DXGI-Swapchain“ (vom Nutzer zu setzen,
+danach neu messen). Nächste Hebel, falls weiter optimiert wird: GPU-Zeiten pro Pass
+mit Iris vergleichen (beide Clients haben Profiler), Mipmaps per Compute, gebündelte
+Barrieren.
+
+## Stand 0.26 (Leistung)
+
+Gemessene Szene und Werkzeuge: `docs/PERFORMANCE.md`. 0.25: 89,4 FPS,
+0.26: 112,4 FPS (1440p, Complementary MEDIUM, DH 3.3.3, RTX 4070).
+- `ShadowCuller` + `WorldRenderer.prepareShadowDraws`: Iris-gleiche
+  Auswahl der Schattenwerfer, Bereichs- und Sektionsprüfung, indirekte
+  Schatten-Draws. Unit-Tests inklusive Strahl-Abtastung und Mutationsprobe.
+- `NativeWorldDepth`: depthtex1/2 kopieren nur den Tiefenanteil
+  (`NativeImageOps.copyDepthOnly`). `ChainGpuCheck` prüft exakte Tiefen.
+- `GraphicsQueue`/`Renderer`: Uploads des Render-Threads pro Frame in einem
+  Puffer ohne CPU-Fence; Notschalter `-Dvsdh.legacyUploadSync=true`.
+- `GpuTimestamps` (`-Dvsdh.gpuProfile=true`), `Synchronization`-Trace
+  (`-Dvsdh.syncTrace=true`). Das FPS-Profil nimmt `-PtestGpuProfile`,
+  `-PtestSyncTrace`, `-PtestJfr=<Datei>` an.
+Verbleibend: ≈ 0,9 ms GPU-Leerlauf pro Frame im Fenstermodus, der Thread
+wartet in `vkQueuePresentKHR`. Vollbild ist nicht gemessen. Iris/OpenGL in
+derselben Szene messen (Referenzclient unter build/reference/iris-client),
+bevor ein Vorsprung behauptet wird. Mipmaps (≈ 0,45 ms) ließen sich per
+Compute-Downsampler beschleunigen. Den Rest kostet die Pack-Arbeit selbst.
+DH 3.1.2: build/compat-312-probe hat optionale Texture-Einstellungen; ein
+Spieltest mit Testszene steht aus.
+
+Kompatibilität (0.26): Der Nutzer will, dass möglichst jedes Shaderpack
+fehlerfrei läuft. Vorgehen pro Pack: Spiellauf in VSDH und im Iris-Client
+(`build/reference/iris-client`, gleicher Seed 825765032, Kamera 0/100/0,
+Blick 45/35, Sichtweite 4, gleiche DH-Konfiguration), Screenshots
+vergleichen und Abweichungen per Gegentest eingrenzen. Behoben: Bliss-Kacheln
+durch DH-Pack-Culling und Bliss ohne DH-Programme. Offen: Photon
+(`deferred4_a` als Compute-Pass), weitere Packs nur nach Freigabe des Nutzers
+herunterladen. Testschalter im Bliss-Profil: `-PtestRemoveKelp`,
+`-PtestSkipDistantWater` (nur QA-Mod, nicht im Produkt).
+
+## Stand 0.25
 
 0.25 ergänzt den Legacy-Adapter für DH 3.2.0-b. Das offizielle Artefakt
 hat SHA-1 df25e8cfe06917963778723a1d9a60610dd21bec. Weiter mit DH 3.1.2.
@@ -31,6 +153,22 @@ und fertige LODs in einer isolierten Küstenwelt. Der Lauf liegt unter
 build/reference/release-client-025-fps. Nutze bei einer Wiederholung
 35 Sekunden Aufwärmen und drei 10-Sekunden-Proben. Keine parallelen
 Spielinstanzen während der Messung.
+
+## Stand nach dem 0.25-Paketabschluss (10.11.2026)
+
+`dist/0.25.0-dev` enthält jetzt verification.json, SHA256SUMS.txt und
+verification-logs.zip (Skript: build/reference/package-vsdh-025.ps1,
+läuft unter Windows PowerShell 5.1). Der Neuaufbau aus dem Quellarchiv
+unterscheidet sich nur durch CRLF/LF in 230 Textressourcen und durch
+MethodParameters-Namen in NativeGraphicsProgram$1.class. Die Befehle
+sind laut javap identisch. Der Bericht führt beides einzeln auf.
+
+DH 3.1.2: build/compat-312-probe macht Texture-Einstellungen optional
+und erweitert versionRange. Der Probeclient erreichte das Hauptmenü.
+Dem Profil release-client-026-dh312-probe fehlt src/ der Testszene,
+deshalb startete keine Welt. Das ist noch kein Spieltest.
+
+Leistung: In 0.26 umgesetzt, siehe oben und `docs/PERFORMANCE.md`.
 
 ## Historischer Stand 0.24
 
@@ -452,3 +590,68 @@ Pins und Lizenzen stehen in AGENTS.md, NOTICE und docs/upstream. Keine Original-
 Packdateien, übersetzten Packquellen oder privaten dekompilierten Referenzen in
 Lieferungen übernehmen. Vor dem Ende HANDOFF, Prüfbericht und diesen Prompt auf
 den tatsächlich geprüften Stand bringen. Weiter implementieren und testen.
+
+## Stand 2026-11-11 (Kompatibilitätsschritt 0.26)
+- Neue Fähigkeiten und Grenzen: docs/NATIVE_PACK_FEATURES.md. Status: docs/MIGRATION_STATUS.md oben.
+- Alle 14 Testpacks in build/reference/packs bestehen die CPU-Vorbereitung mit MEDIUM und Standardprofil
+  (run-vsdh-026-pack-audit.ps1 -Profile 'MEDIUM' bzw. ''), 85 Unit-Tests. Der CPU-Audit baut keine
+  GPU-Programme: Laufzeitprüfungen (Stufen, Bildnamen) zeigen sich erst im Spiel.
+- Im Spiel gegen Iris (build/reference/compare-026; run-vsdh-026-compare.ps1 -ReuseIris [-Only ...],
+  run-vsdh-026-single.ps1 -Pack X [-Dump programmEndung] [-ShotTick 1600]; pair.ps1 im Scratchpad):
+  Photon, Eclipse Unstable, Bliss, Complementary R/U, Miniature gleich; Solas, Rethinking Voxels nahe.
+  BSL: Volumenwolken aus deferred1 fehlen (Uniforms per Dump plausibel; als Nächstes Zwischenbilder
+  von deferred1 per Frame-Observer oder GPU-Readback prüfen). DH-Landschaft wird in frischen Welten
+  langsam erzeugt: fehlende ferne Inseln bei Tick 800 sind kein Renderfehler (ShotTick 1600 nutzen).
+- Bekannte Lücken: Entity-Schattenwerfer mit Geometry-Stufe (entityId/entityColor im GS ohne Array),
+  typisierte Custom-Image-Views, indirect.*, shadowcolorimgN, shadowcomp-Vollbildprogramme.
+  Laufzeitfehler beim Zeichnen (nicht beim Graphaufbau) beenden das Spiel noch.
+- Vor einer Veröffentlichung: Smoke (run-vsdh-026-smoke.ps1), Release-Matrix, Benchmark erneut, dist-Paket.
+- Review durch Fable-Subagent (11.11.): umgesetzt sind Barrieren mit ALL_GRAPHICS|COMPUTE, drei
+  Frame-Phasen-Barrieren in WorldShaderSession.storageBarrier (nach Schatten, vor DEFERRED, vor COMPOSITE),
+  Layout im ImageDescriptor.State (Layoutwechsel schreibt Deskriptor neu), Entfernen pack-eigener
+  binding=/set= bei Samplern/Bildern. Die DhApi-renderingEnabled-Abschaltung wurde wieder entfernt
+  (Iris macht das nicht; AstraLex/Insanity-Kante bleibt offen: DH-Engine zeichnet dort bereits nichts,
+  frameReady=false; Ursache in Sky/Fog des Packs suchen).
+- Offen aus dem Review: (1) Frame-Guard gegen Laufzeitfehler beim Zeichnen (Entwurf: alle per-Frame-
+  Einstiege in WorldShaderSession über guarded(...), abortFrame: endRenderPass, active=false, delegate
+  rebinden, Graph erst im nächsten beginWorld freigeben); (2) robustere Umbenennung (auf vorverarbeitetem
+  Text, `out flat`, `.name` ausschließen) und Prüfung doppelter Input-Locations nach linkStages;
+  (3) Barriere nur bei schreibenden SSBO-Programmen (NonWritable erkennen); (4) Validierungslauf mit
+  VK_LAYER_KHRONOS_validation.
+- BSL-Wolken: Debugbild zeigt, dass fernes DH-Wasser unter VSDH nicht nach deferred1 über dem Bild liegt
+  (unter Iris schon). Prüfen: Reihenfolge dh_water vs. deferred (NativeDistantTerrain/flushDistantDraws)
+  und dhDepthTex0-Inhalt am Himmel (BSL: isSky = z==1 && dhZ==1).
+
+## Stand 2026-11-11 nachmittags (Fortsetzung 0.26)
+- Lies zuerst docs/MIGRATION_STATUS.md (oberster Abschnitt) und docs/PERFORMANCE.md.
+- Erledigt und im Spiel geprüft: DH-Generic-Objekte (VkGenericRenderer/VkGenericObjectVboContainer,
+  NativeDistantTerrain.enqueueGeneric, DistantPackPlan.generic/clouds, ChainPlan dh_generic),
+  SkyHorizon (AstraLex/Insanity), near aus der Projektion, Frame-Guard, Uniform-Cache (PER_DRAW).
+- Testclient-Falle: DH-Konfiguration nie aus Code schreiben. Alle Skripte setzen rendererMode zurück;
+  Bench-Zusammenfassung nennt "DH land draws" — 0 bei DH-Packs heißt: Lauf ungültig.
+- Werkzeuge: run-vsdh-026-bench.ps1 [-HighResolution] (Packnamen ohne "dbg"), run-vsdh-026-bench-noshader.ps1,
+  run-vsdh-026-profile.ps1 -Pack X [-NoJfr] (GPU_PROFILE + JFR; Render-Thread-Wartezeit nur in
+  jdk.NativeMethodSample sichtbar), run-vsdh-026-single.ps1 -Pack X [-Extra '-PtestGenericTrace'].
+  Debug-Packs nur befristet nach build/reference/packs legen (Präfix-Kollision mit echten Packs).
+- Nächste sinnvolle Schritte: (1) GPU-Abstand zu Iris mit Shaderpack: gleiche Szene in RenderDoc/Nsight
+  für Iris und VSDH, teuerste Pässe (Bliss composite3, dhWater, translucent) vergleichen; (2) BSL-Inselbäume;
+  (3) DH-Wolken im Standardrenderer im Bild prüfen; (4) Validierungslauf mit VK_LAYER_KHRONOS_validation.
+- Fable-Subagent (read-only) ist für schwierige Analysen fortsetzbar; er liest JARs nur per javap.
+
+## Stand 2026-11-13 vormittags (Leistung, `dist/0.26.0-dev-perf`)
+- Nutzerwunsch: „komplett ohne Hänger und mehr FPS ohne Grafikverlust“. Gemessen: spürbare Hänger im Flug
+  1–3 je 30 s (G1-Pause ≈ 25 ms, Present-Wartezeit im Fenster 26–53 ms). Allokationsfixes (Weltgen-Schleifen,
+  DH-Warteschleife) wirken auf Speicher, nicht messbar auf FPS/Hänger. Java-Optionen: keine Empfehlung.
+- GPU gleicher Flug: VSDH 4,51 ms, Iris ≈ 4,9 ms. Offen: Complementary `composite1` (+0,2 ms) und
+  `deferred1` samt Mip-Abschnitt (+0,15 ms) gegenüber Iris — nächster sinnvoller Leistungsschritt, z. B.
+  mit Nsight/RenderDoc denselben Pass in beiden Clients vergleichen (Registerdruck, Sampler, Präzision).
+- Weitere Hänger-Quelle: Present im Fenster (D3D12-Interop). Im Vollbild nach dieser Änderung nicht gemessen.
+- Offene Nutzerfragen: DH-Schalter umbenennen + Tooltip erweitern (nur Sprachdateien); NeoForge-Pin A/B.
+- Nachtrag 13.11. mittags: Vollbild gegen Iris gemessen (PERFORMANCE.md). Lange VSDH-Frames = G1 (Remark mit
+  Class Unloading 10–32 ms) + Treiber-Present 20–25 ms. Spieler-Empfehlung `-XX:-ClassUnloadingWithConcurrentMark`
+  (Remark ≈ 1 ms). Offen: einzelne nicht zugeordnete Render-Thread-Spitzen (z. B. 42,8 ms), Iris mit derselben
+  Option, GPU-Abstand composite1/deferred1.
+- Nachtrag 13.11. nachmittags: Lange Vollbild-Frames sind meist Treiber-Present (20–25 ms). FPS-Grenze 160 bei
+  165 Hz: VSDH 0 Frames > 25 ms (Iris 2–3). Testclients kennen `-PtestFlightFps=<n>` und `-PtestJfrSettings=<jfc>`
+  (1-ms-Sampling hilft unter Windows kaum). GPU-Abstand composite1/deferred1: ohne Nsight/RenderDoc keine Spur;
+  Download nur mit Erlaubnis des Nutzers.

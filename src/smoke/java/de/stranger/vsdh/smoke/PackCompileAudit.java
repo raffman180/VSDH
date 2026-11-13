@@ -50,7 +50,9 @@ public final class PackCompileAudit {
                         units.put(entry.getKey(), expander.expand(pack.source().file(entry.getValue()).orElseThrow()));
                     var inputs = bare.equals("gbuffers_line") ? VertexInputs.LINES
                             : fullscreen ? VertexInputs.FULLSCREEN : VertexInputs.WORLD;
-                    var translated = ProgramTranslator.translate(units, inputs, bare);
+                    if (units.containsKey(ProgramStage.COMPUTE) && units.size() > 1) units.remove(ProgramStage.COMPUTE);
+                    var translated = ProgramTranslator.translate(units, inputs, inputs.elements(), dev.vitrail.pack.model.AlphaTest.OFF,
+                            false, bare, de.stranger.vsdh.shader.PackProgramSource.volumes(pack));
                     var layout = new Std140Layout(translated.uniforms());
                     var result = VulkanProgramCompiler.compile(name, translated);
                     for (var stage : result.sources().entrySet()) {

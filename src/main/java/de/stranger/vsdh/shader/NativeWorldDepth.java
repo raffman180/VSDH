@@ -4,7 +4,10 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.vulkanmod.vulkan.texture.VulkanImage;
 import static org.lwjgl.vulkan.VK10.*;
 
-/** Borrows the world's depth image; owns only the two optional, exact-format snapshots. */
+/**
+ * Borrows the world's depth image; owns only the two optional, exact-format snapshots. Packs read
+ * them through depth views only, so the stencil plane of a combined format is not copied.
+ */
 public final class NativeWorldDepth implements AutoCloseable {
     private final VulkanImage world;
     private final VulkanImage preHand, preTranslucent;
@@ -50,14 +53,14 @@ public final class NativeWorldDepth implements AutoCloseable {
         if (preHand == null) return;
         if (capturedHand || capturedTranslucent && preTranslucent != null)
             throw new IllegalStateException("Pre-hand depth captured at the wrong boundary");
-        NativeImageOps.copyBase(world, preHand);
+        NativeImageOps.copyDepthOnly(world, preHand);
         capturedHand = true;
     }
     public void capturePreTranslucent() {
         requireFrame();
         if (preTranslucent == null) return;
         if (!capturedHand || capturedTranslucent) throw new IllegalStateException("Pre-translucent depth captured at the wrong boundary");
-        NativeImageOps.copyBase(world, preTranslucent);
+        NativeImageOps.copyDepthOnly(world, preTranslucent);
         capturedTranslucent = true;
     }
     public void endFrame() {

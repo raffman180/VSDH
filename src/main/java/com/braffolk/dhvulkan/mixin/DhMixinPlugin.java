@@ -16,12 +16,35 @@ public final class DhMixinPlugin implements IMixinConfigPlugin {
     private static final String REPOSITORY = "com.seibel.distanthorizons.core.sql.repo.FullDataSourceV2Repo";
     private Boolean regenerationQueue;
 
+    /** Distant Horizons is optional: without it none of the DH hooks may load (their targets are missing). */
+    public static boolean distantHorizonsInstalled() {
+        return FMLLoader.getLoadingModList().getModFileById("distanthorizons") != null;
+    }
+
     @Override public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        // Every hook here (dh3.* and the DH composite in shared.*) serves DH; without DH none may load.
+        if (!distantHorizonsInstalled()) return false;
         return switch (mixinClassName.substring(mixinClassName.lastIndexOf('.') + 1)) {
             case "MixinRegenQueryScope", "MixinUpdatePropagatorShutdown" -> hasRegenerationQueue();
             case "MixinLegacyUpdateQueryScope", "MixinLegacyUpdatePropagatorShutdown" -> !hasRegenerationQueue();
+            // The busy loop exists only where DH runs its own chunk update thread (3.3.x, not 3.2.0-b).
+            case "MixinChunkUpdateQueueBackoff" -> !"false".equals(System.getProperty("vsdh.dhQueueBackoff"))
+                    && dhClassHasMethod("com.seibel.distanthorizons.core.api.internal.chunkUpdating.ChunkUpdateQueueManager", "runQueueingLoop");
             default -> true;
         };
+    }
+
+    private static boolean dhClassHasMethod(String className, String method) {
+        var mod = FMLLoader.getLoadingModList().getModFileById("distanthorizons");
+        var path = mod.getFile().findResource(className.replace('.', '/') + ".class");
+        if (!Files.exists(path)) return false;
+        try (var stream = Files.newInputStream(path)) {
+            var node = new ClassNode();
+            new ClassReader(stream).accept(node, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+            return node.methods.stream().anyMatch(candidate -> candidate.name.equals(method));
+        } catch (IOException failure) {
+            throw new IllegalStateException("Cannot inspect the installed DH class " + className, failure);
+        }
     }
 
     private boolean hasRegenerationQueue() {

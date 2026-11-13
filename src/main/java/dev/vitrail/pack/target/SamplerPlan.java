@@ -211,6 +211,12 @@ public final class SamplerPlan {
 			return Kind.CUSTOM_IMAGE;
 		}
 
+		// A volume the translation kept three dimensional for a backend that binds real volumes:
+		// the forged name says the pack's own file stands behind it.
+		if (name.startsWith(FORGED) && "3D".equals(SamplerTypes.shapeOf(type == null ? "" : type))) {
+			return Kind.PACK_TEXTURE;
+		}
+
 		if (type != null && SamplerTypes.refused(type)) {
 			return Kind.UNBINDABLE;
 		}

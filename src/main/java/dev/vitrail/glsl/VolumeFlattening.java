@@ -175,18 +175,25 @@ final class VolumeFlattening {
 		}
 
 		String forged = SamplerPlan.forged(name);
+		boolean nativeVolume = GlslTranslator.nativeVolumes();
 		for (int declaration : declarations) {
-			this.tokens.replace(this.tokens.significantBefore(declaration), "sampler2D");
+			// A backend with real volumes keeps the type and only takes the name, which is what
+			// tells the binding side the pack's file stands behind it.
+			if (!nativeVolume) {
+				this.tokens.replace(this.tokens.significantBefore(declaration), "sampler2D");
+			}
 			this.tokens.replace(declaration, forged);
 		}
 
 		lookups.forEach((argument, callee) -> {
-			this.tokens.replace(callee, VOLUME_LOOKUP + name);
+			if (!nativeVolume) {
+				this.tokens.replace(callee, VOLUME_LOOKUP + name);
+			}
 			this.tokens.replace(argument, forged);
 		});
 
 		this.volumeLookups += lookups.size();
-		if (!lookups.isEmpty()) {
+		if (!lookups.isEmpty() && !nativeVolume) {
 			this.readVolumes.put(name, atlas);
 		}
 	}

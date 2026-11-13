@@ -173,7 +173,11 @@ public final class SmokeScene {
             LOGGER.info("REAL TERRAIN WORLD PASS: world={} stride={} uploadedBytes={}", worldNumber, expectedStride, uploadedBytes);
             long draws = ((VulkanRenderEngine) ApiDhIntegration.getInstance().getBackend()).getTotalTerrainDrawCalls();
             LOGGER.info("Smoke world {}: {} terrain draw commands recorded", worldNumber, draws);
-            if (draws <= drawsBeforeReload) throw new IllegalStateException("Smoke scene recorded no new DH draws");
+            // A shader session whose pack has no dh_terrain/dh_water draws no LODs, as under Iris.
+            var shaderSession = de.stranger.vsdh.shader.WorldShaderSession.current();
+            boolean lodsExpected = shaderSession == null || shaderSession.packHasDistantPrograms();
+            if (lodsExpected && draws <= drawsBeforeReload) throw new IllegalStateException("Smoke scene recorded no new DH draws");
+            if (!lodsExpected) LOGGER.info("Smoke world {}: pack without DH programs, no LOD draws expected", worldNumber);
             Screenshot.grab(mc.gameDirectory, "vsdh-smoke-world-" + worldNumber + ".png", mc.getMainRenderTarget(),
                     component -> LOGGER.info("Screenshot: {}", component.getString()));
         }

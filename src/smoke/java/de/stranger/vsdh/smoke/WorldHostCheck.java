@@ -80,7 +80,9 @@ final class WorldHostCheck {
             }
             if(populated<32)throw new AssertionError("No actual world normals in shader MRT: "+populated);
             var output=session.presentationImage();
-            ImageUtil.downloadTextureRegion(output,MemoryUtil.memAddress(bytes),0,0,1,1,output.aspect,output.formatSize);
+            // texcoord (0,0) is the bottom-left corner (GL orientation, as under Iris); the
+            // presentation image itself is stored top-down, so that is its last row.
+            ImageUtil.downloadTextureRegion(output,MemoryUtil.memAddress(bytes),0,output.height-1,1,1,output.aspect,output.formatSize);
             // The actual presentation target is BGRA8 on this pinned Vulkan swapchain.
             int[] expected=output.format==org.lwjgl.vulkan.VK10.VK_FORMAT_B8G8R8A8_UNORM
                     || output.format==org.lwjgl.vulkan.VK10.VK_FORMAT_B8G8R8A8_SRGB ? new int[]{191,128,64,255}:new int[]{64,128,191,255};

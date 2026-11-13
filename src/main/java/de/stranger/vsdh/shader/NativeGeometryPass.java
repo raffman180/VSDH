@@ -9,10 +9,16 @@ import java.util.function.Consumer;
 
 /** Draws an existing Minecraft mesh with a pack program and its targets. */
 final class NativeGeometryPass extends NativeGraphicsProgram {
-    private final NativeShaderChain.View target;
+    /** Looked up per draw: the chain's target halves swap roles between frames. */
+    private final java.util.function.Supplier<NativeShaderChain.View> target;
     private final NativeBlend blend;
 
     NativeGeometryPass(PackProgramSource.Prepared source, VertexFormat format, NativeShaderChain.View target, NativeBlend blend) {
+        this(source, format, () -> target, blend);
+    }
+
+    NativeGeometryPass(PackProgramSource.Prepared source, VertexFormat format,
+                       java.util.function.Supplier<NativeShaderChain.View> target, NativeBlend blend) {
         super(source.path(), source.translated(), source.compiled(), format);
         this.target = target;
         this.blend = blend;
@@ -24,13 +30,15 @@ final class NativeGeometryPass extends NativeGraphicsProgram {
             case SUNSET -> DefaultVertexFormat.POSITION_COLOR;
             case CELESTIAL -> DefaultVertexFormat.POSITION_TEX;
             case END -> DefaultVertexFormat.POSITION_TEX_COLOR;
+            case CLOUDS -> DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL;
         };
     }
 
-    net.vulkanmod.vulkan.texture.VulkanImage colorAttachment() { return target.framebuffer().getColorAttachment(); }
+    net.vulkanmod.vulkan.texture.VulkanImage colorAttachment() { return target.get().framebuffer().getColorAttachment(); }
 
     void render(Consumer<GraphicsPipeline> geometry) {
-        var state = blend.apply(PipelineState.getCurrentPipelineState(target.pass()));
-        renderDraw(target.framebuffer(), target.pass(), state, command -> geometry.accept(pipeline));
+        var view = target.get();
+        var state = blend.apply(PipelineState.getCurrentPipelineState(view.pass(), true));
+        renderDraw(view.framebuffer(), view.pass(), state, command -> geometry.accept(pipeline));
     }
 }

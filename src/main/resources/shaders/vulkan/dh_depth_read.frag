@@ -14,6 +14,8 @@ layout(binding = 0) uniform DummyUBO {
 layout(binding = 1) uniform sampler2D gMcDepthTexture;
 
 void main() {
-    float d = texture(gMcDepthTexture, TexCoord).r;
+    // uDummy != 0: the MC depth is stored rows bottom-up (VSDH shaderpack frame); read it flipped.
+    vec2 uv = uDummy != 0 ? vec2(TexCoord.x, 1.0 - TexCoord.y) : TexCoord;
+    float d = texture(gMcDepthTexture, uv).r;
     fragColor = vec4(d, 0.0, 0.0, 1.0);
 }

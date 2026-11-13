@@ -40,7 +40,10 @@ final class RealPackCloudProbe {
             var from=source.uniforms().duplicate();from.clear();var to=program.uniforms().duplicate();to.clear();to.put(from);
             for(String sampler:program.requiredSamplers())program.bindImage(sampler,source.boundImage(sampler));
             program.render(framebuffer,pass);
-            ImageUtil.downloadTextureRegion(framebuffer.getColorAttachment(),MemoryUtil.memAddress(bytes),output.width/2,output.height*4/5,1,1,VK_IMAGE_ASPECT_COLOR_BIT,16);
+            var target=framebuffer.getColorAttachment();
+            // A pixel low on the screen; the pass stores rows bottom-up (GL orientation).
+            int row=target.isRowsBottomUp()?output.height-1-output.height*4/5:output.height*4/5;
+            ImageUtil.downloadTextureRegion(target,MemoryUtil.memAddress(bytes),output.width/2,row,1,1,VK_IMAGE_ASPECT_COLOR_BIT,16);
             LoggerFactory.getLogger("VSDH-Smoke").info("REAL PACK CLOUD GPU VALUES: bottomRayY={}, cloudAltitude={}, derivedCloudHeight={}, cameraY={}",bytes.getFloat(0),bytes.getFloat(4),bytes.getFloat(8),bytes.getFloat(12));
             if(!(bytes.getFloat(0)<-.5f)||Math.abs(bytes.getFloat(4)-192)>.001f||Math.abs(bytes.getFloat(8)-192)>.001f)
                 throw new AssertionError("Actual pack reconstructs the down-looking scene incorrectly");

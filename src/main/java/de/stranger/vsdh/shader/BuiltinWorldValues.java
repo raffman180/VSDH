@@ -28,7 +28,7 @@ public final class BuiltinWorldValues {
     public static final Set<String> NAMES=Set.of("atlasSize","blindness","darknessFactor","nightVision","isEyeInWater",
             "eyeBrightness","eyePosition","relativeEyePosition","playerLookVector","cameraPositionInt","cameraPositionFract",
             "previousCameraPositionInt","previousCameraPositionFract","cloudHeight","moonPhase","sunAngle","screenBrightness","of_Fog",
-            "bedrockLevel", "heightLimit", "sunPosition", "upPosition", "isRightHanded", "is_hurt", "thunderStrength", "currentPlayerHealth", "maxPlayerHealth",
+            "bedrockLevel", "heightLimit", "sunPosition", "upPosition", "moonPosition", "shadowLightPosition", "shadowAngle", "isRightHanded", "is_hurt", "thunderStrength", "currentPlayerHealth", "maxPlayerHealth",
             "lightningBoltPosition");
     private final int[] cameraInt=new int[3],previousInt=new int[3],eyeLight=new int[2],pair=new int[2],oneInt=new int[1];
     private final float[] cameraFract=new float[3],previousFract=new float[3],eye=new float[3],relativeEye=new float[3],look=new float[3],one=new float[1];
@@ -45,7 +45,12 @@ public final class BuiltinWorldValues {
     private boolean lightningCaptured;
     private final Matrix4f celestialView = new Matrix4f();
     private final Vector3f sun = new Vector3f();
-    private final float[] sunPosition = new float[3], upPosition = new float[3];
+    private final float[] sunPosition = new float[3], upPosition = new float[3], moonPosition = new float[3], shadowLightPosition = new float[3];
+    private float shadowAngle;
+
+    public float blindness() { return blindness; }
+    public float sunAngle() { return sunAngle; }
+    public float waterDensity() { return waterDensity; }
 
     public void capture(Camera camera,WorldMatrices matrices,float partialTick,float sunPathRotation) {
         var mc=Minecraft.getInstance();var entity=camera.getEntity();var position=camera.getPosition();
@@ -89,6 +94,13 @@ public final class BuiltinWorldValues {
         sunPosition[0] = sun.x;
         sunPosition[1] = sun.y;
         sunPosition[2] = sun.z;
+        // Iris: the moon sits opposite, and the shadow light is the sun while sunAngle <= 0.5.
+        moonPosition[0] = -sun.x;
+        moonPosition[1] = -sun.y;
+        moonPosition[2] = -sun.z;
+        boolean day = sunAngle <= .5f;
+        System.arraycopy(day ? sunPosition : moonPosition, 0, shadowLightPosition, 0, 3);
+        shadowAngle = day ? sunAngle : sunAngle - .5f;
         // The fixed sky Y rotation leaves the up axis unchanged.
         matrices.view.transformDirection(sun.set(0, 100, 0));
         upPosition[0] = sun.x;
@@ -154,6 +166,9 @@ public final class BuiltinWorldValues {
             case "isRightHanded" -> out.set(rightHanded);
             case "sunPosition" -> out.set(sunPosition[0], sunPosition[1], sunPosition[2]);
             case "upPosition" -> out.set(upPosition[0], upPosition[1], upPosition[2]);
+            case "moonPosition" -> out.set(moonPosition[0], moonPosition[1], moonPosition[2]);
+            case "shadowLightPosition" -> out.set(shadowLightPosition[0], shadowLightPosition[1], shadowLightPosition[2]);
+            case "shadowAngle" -> out.set(shadowAngle);
             case "currentPlayerHealth" -> out.set(health);
             case "maxPlayerHealth" -> out.set(maxHealth);
             case "thunderStrength" -> out.set(thunder);
@@ -180,6 +195,8 @@ public final class BuiltinWorldValues {
             case "eyeBrightness"->layout.putInts(destination,name,0,eyeLight);
             case "sunPosition" -> layout.putFloats(destination, name, 0, sunPosition);
             case "upPosition" -> layout.putFloats(destination, name, 0, upPosition);
+            case "moonPosition" -> layout.putFloats(destination, name, 0, moonPosition);
+            case "shadowLightPosition" -> layout.putFloats(destination, name, 0, shadowLightPosition);
             case "lightningBoltPosition" -> layout.putFloats(destination, name, 0, lightningPosition());
             case "isRightHanded", "is_hurt" -> {
                 oneInt[0] = (name.equals("isRightHanded") ? rightHanded : hurt) ? 1 : 0;
@@ -206,7 +223,8 @@ public final class BuiltinWorldValues {
             default->{
                 one[0]=switch(name){case "blindness"->blindness;case "darknessFactor"->darkness;case "nightVision"->nightVision;
                     case "cloudHeight"->cloudHeight;case "sunAngle"->sunAngle;case "screenBrightness"->gamma;
-                    case "currentPlayerHealth" -> health; case "maxPlayerHealth" -> maxHealth; case "thunderStrength" -> thunder; default->throw new AssertionError(name);};
+                    case "currentPlayerHealth" -> health; case "maxPlayerHealth" -> maxHealth; case "thunderStrength" -> thunder;
+                    case "shadowAngle" -> shadowAngle; default->throw new AssertionError(name);};
                 layout.putFloats(destination,name,0,one);
             }
         }

@@ -6,10 +6,10 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ShadowCameraTest {
-    @Test void orthographicBoundariesHaveOneNativeYAndOneDeferredDepthConversion() {
+    @Test void orthographicBoundariesKeepGlYAndOneDeferredDepthConversion() {
         var camera=new ShadowCamera();camera.capture(.25f,128,-100.05f,156,0,0,0,0,0);
         assertEquals(1,camera.projection.transform(new Vector4f(128,0,0,1)).x,1e-6);
-        assertEquals(-1,camera.projection.transform(new Vector4f(0,128,0,1)).y,1e-6);
+        assertEquals(1,camera.projection.transform(new Vector4f(0,128,0,1)).y,1e-6);
         assertEquals(-1,camera.projection.transform(new Vector4f(0,0,100.05f,1)).z,1e-6);
         assertEquals(1,camera.projection.transform(new Vector4f(0,0,-156,1)).z,1e-6);
     }

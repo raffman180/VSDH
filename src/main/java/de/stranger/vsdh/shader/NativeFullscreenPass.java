@@ -26,7 +26,7 @@ public final class NativeFullscreenPass extends NativeGraphicsProgram {
     }
     public void prepare(RenderPass pass) { super.prepare(state(pass)); }
     public void render(Framebuffer target, RenderPass pass) {
-        renderDraw(target, pass, state(pass), command -> vkCmdDraw(command, 3, 1, 0, 0));
+        renderDraw(target, pass, state(pass), command -> vkCmdDraw(command, 6, 1, 0, 0));
     }
     private PipelineState state(RenderPass pass) {
         int assembly = PipelineState.AssemblyRasterState.encode(false, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_POLYGON_MODE_FILL);

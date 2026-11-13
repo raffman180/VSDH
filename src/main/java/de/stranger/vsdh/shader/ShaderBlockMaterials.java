@@ -27,7 +27,9 @@ public final class ShaderBlockMaterials implements ToIntFunction<BlockState> {
     /** Build once after registry/tag binding. Rebuild alongside meshes when the pack or tags change. */
     public static ShaderBlockMaterials read(OpenedPack pack) throws IOException {
         var parsed = BlockIds.read(pack.source(), pack.settings().globalDefines(pack.options()));
-        if (!parsed.problems().isEmpty()) throw new IOException("Invalid block.properties: " + parsed.problems());
+        // Iris warns about an entry it cannot fully read and keeps the rest of the table.
+        parsed.problems().forEach(problem -> org.slf4j.LoggerFactory.getLogger("VSDH")
+                .warn("block.properties of {}: {}", pack.packPath().getFileName(), problem));
         return resolve(parsed.entries());
     }
 
@@ -35,7 +37,11 @@ public final class ShaderBlockMaterials implements ToIntFunction<BlockState> {
         Map<BlockState, Integer> ids = new IdentityHashMap<>();
         for (var entry : entries) {
             ResourceLocation name = ResourceLocation.tryParse(entry.name());
-            if (name == null) throw new IllegalArgumentException("Invalid block material name: " + entry.name());
+            if (name == null) {
+                // A name no registry can hold matches no block, which is also how Iris treats it.
+                org.slf4j.LoggerFactory.getLogger("VSDH").warn("Ignoring invalid block material name: {}", entry.name());
+                continue;
+            }
             if (entry.tag()) {
                 var tag = TagKey.create(Registries.BLOCK, name);
                 for (Block block : BuiltInRegistries.BLOCK) {

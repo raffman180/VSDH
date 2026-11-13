@@ -109,6 +109,10 @@ public class Renderer {
     private int viewportLogicalHeight = 0;
 
     private static int currentFrame = 0;
+    /** Troubleshooting switch: {@code -Dvsdh.legacyUploadSync=true} restores per-upload CPU fences. */
+    private static final long DEBUG_CPU_DELAY_NANOS = Long.getLong("vsdh.debugCpuDelayUs", 0) * 1000;
+    private static final boolean FRAME_UPLOAD_BATCH =!Boolean.getBoolean("vsdh.legacyUploadSync");
+    private boolean frameUploadBatch;
     private static int imageIndex;
     private final FramePreparationState framePreparation = new FramePreparationState();
     private VkCommandBuffer currentCmdBuffer;
@@ -158,9 +162,24 @@ public class Renderer {
         createSyncObjects();
     }
 
+    /**
+     * -Dvsdh.splitSubmit=true: lets callers hand a frame to the GPU in parts (submitPartial).
+     * Measured without gain at 1440p (the idle between frames is presentation work, not CPU
+     * recording), so nothing calls it by default; kept for experiments.
+     */
+    public static final boolean SPLIT_SUBMIT = "true".equals(System.getProperty("vsdh.splitSubmit"));
+    private static final int EXTRA_SUBMITS = 3;
+    private VkCommandBuffer[][] extraCommandBuffers;
+    private int extraUsed;
+
     private void allocateCommandBuffers() {
         if (commandBuffers != null) {
             commandBuffers.forEach(commandBuffer -> vkFreeCommandBuffers(device, Vulkan.getCommandPool(), commandBuffer));
+        }
+        if (extraCommandBuffers != null) {
+            for (var slot : extraCommandBuffers) for (var commandBuffer : slot)
+                vkFreeCommandBuffers(device, Vulkan.getCommandPool(), commandBuffer);
+            extraCommandBuffers = null;
         }
 
         commandBuffers = new ArrayList<>(framesNum);
@@ -183,7 +202,57 @@ public class Renderer {
             for (int i = 0; i < framesNum; i++) {
                 commandBuffers.add(new VkCommandBuffer(pCommandBuffers.get(i), device));
             }
+
+            allocInfo.commandBufferCount(framesNum * EXTRA_SUBMITS);
+            PointerBuffer pExtra = stack.mallocPointer(framesNum * EXTRA_SUBMITS);
+            vkResult = vkAllocateCommandBuffers(device, allocInfo, pExtra);
+            if (vkResult != VK_SUCCESS) {
+                throw new RuntimeException("Failed to allocate command buffers: %s".formatted(VkResult.decode(vkResult)));
+            }
+            extraCommandBuffers = new VkCommandBuffer[framesNum][EXTRA_SUBMITS];
+            for (int i = 0; i < framesNum; i++)
+                for (int j = 0; j < EXTRA_SUBMITS; j++)
+                    extraCommandBuffers[i][j] = new VkCommandBuffer(pExtra.get(i * EXTRA_SUBMITS + j), device);
         }
+    }
+
+    /**
+     * Hands what this frame recorded so far to the GPU without waiting and continues in a fresh
+     * command buffer of the same frame slot. The frame's fence on the final submit also covers
+     * these earlier submissions (fence signal operations include all earlier work in submission
+     * order), so the slot's command buffers are free again once that fence was waited.
+     */
+    public boolean submitPartial() {
+        if (!SPLIT_SUBMIT || !this.recordingCmds || skipRendering || swapChainUpdate
+                || extraCommandBuffers == null || extraUsed >= EXTRA_SUBMITS) return false;
+        RenderingState saved = captureRenderingState();
+        try (MemoryStack stack = stackPush()) {
+            this.endRenderPass(currentCmdBuffer);
+            vkEndCommandBuffer(currentCmdBuffer);
+            this.recordingCmds = false;
+
+            VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack);
+            submitInfo.sType(VK_STRUCTURE_TYPE_SUBMIT_INFO);
+            submitInfo.pCommandBuffers(stack.pointers(currentCmdBuffer));
+            attachAcquireWait(submitInfo, stack, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+
+            // Batched uploads recorded so far must precede this part on the queue.
+            DeviceManager.getGraphicsQueue().flushBatch();
+            Synchronization.INSTANCE.waitFences();
+
+            int vkResult = vkQueueSubmit(DeviceManager.getGraphicsQueue().queue(), submitInfo, VK_NULL_HANDLE);
+            if (vkResult != VK_SUCCESS)
+                throw new RuntimeException("Failed to submit partial frame: %s".formatted(VkResult.decode(vkResult)));
+            this.acquiredImageWaitPending = false;
+
+            VkCommandBuffer next = extraCommandBuffers[currentFrame][extraUsed++];
+            vkResetCommandBuffer(next, 0);
+            currentCmdBuffer = next;
+            beginCommandBuffer(stack);
+            net.vulkanmod.vulkan.queries.GpuTimestamps.continueIn(next);
+            saved.resume(this, stack);
+        }
+        return true;
     }
 
     private void createSyncObjects() {
@@ -262,16 +331,31 @@ public class Renderer {
 
         preInitFrame();
         currentCmdBuffer = commandBuffers.get(currentFrame);
+        extraUsed = 0;
         vkResetCommandBuffer(currentCmdBuffer, 0);
 
         try (MemoryStack stack = stackPush()) {
+
+            if (Vulkan.getSwapChain().isDxgi()) {
+                if (swapChainUpdate) {
+                    skipRendering = true;
+                    beginFrame();
+                    return;
+                }
+                // DXGI presentation: the next shared image; the GPU waits for its last copy (attachAcquireWait).
+                imageIndex = Vulkan.getSwapChain().dxgiAcquire();
+                this.acquiredImageWaitPending = true;
+                this.beginRenderPass(stack);
+                replayResizeClears();
+                return;
+            }
 
             IntBuffer pImageIndex = stack.mallocInt(1);
 
             long acquireStart = System.nanoTime();
             int vkResult = vkAcquireNextImageKHR(device, Vulkan.getSwapChain().getId(), VUtil.UINT64_MAX,
                     imageAvailableSemaphores.get(currentFrame), VK_NULL_HANDLE, pImageIndex);
-            net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordGpuWait(System.nanoTime() - acquireStart);
+            net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordAcquireWait(System.nanoTime() - acquireStart);
 
             if (vkResult == VK_SUBOPTIMAL_KHR || vkResult == VK_ERROR_OUT_OF_DATE_KHR || swapChainUpdate) {
                 swapChainUpdate = true;
@@ -355,6 +439,7 @@ public class Renderer {
 
     private void beginRenderPass(MemoryStack stack) {
         beginCommandBuffer(stack);
+        net.vulkanmod.vulkan.queries.GpuTimestamps.beginFrame(currentCmdBuffer, currentFrame);
         mainPass.begin(currentCmdBuffer, stack);
         resetDynamicState(currentCmdBuffer);
     }
@@ -381,9 +466,12 @@ public class Renderer {
         if (skipRendering || !recordingCmds)
             return false;
 
+        net.vulkanmod.vulkan.queries.GpuTimestamps.endFrame();
+        if (DEBUG_CPU_DELAY_NANOS > 0) { long until = System.nanoTime() + DEBUG_CPU_DELAY_NANOS; while (System.nanoTime() < until) Thread.onSpinWait(); }
+        net.vulkanmod.vulkan.queue.CommandPool.CommandBuffer uploads = detachFrameUploadBatch();
         mainPass.end(currentCmdBuffer);
 
-        boolean presented = submitFrame();
+        boolean presented = submitFrame(uploads);
         recordingCmds = false;
 
         long duration = System.nanoTime() - net.vulkanmod.compat.observer.CompatProfiler.cpuFrameStart;
@@ -399,9 +487,16 @@ public class Renderer {
         return presented;
     }
 
-    private boolean submitFrame() {
-        if (swapChainUpdate)
+    /**
+     * {@code uploads}: the frame's detached upload batch. It goes ahead of the frame's command
+     * buffer in the same vkQueueSubmit, which saves the GPU the gap between two submissions
+     * (~0.12 ms per frame measured); the order on the queue stays the same.
+     */
+    private boolean submitFrame(net.vulkanmod.vulkan.queue.CommandPool.CommandBuffer uploads) {
+        if (swapChainUpdate) {
+            if (uploads != null) DeviceManager.getGraphicsQueue().submitDetached(uploads);
             return false;
+        }
 
         try (MemoryStack stack = stackPush()) {
             int vkResult;
@@ -409,11 +504,26 @@ public class Renderer {
             VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack);
             submitInfo.sType(VK_STRUCTURE_TYPE_SUBMIT_INFO);
 
-            attachAcquireWait(submitInfo, stack, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-
-            submitInfo.pSignalSemaphores(stack.longs(renderFinishedSemaphores.get(currentFrame)));
-
-            submitInfo.pCommandBuffers(stack.pointers(currentCmdBuffer));
+            net.vulkanmod.vulkan.framebuffer.SwapChain swapChain = Vulkan.getSwapChain();
+            boolean dxgi = swapChain.isDxgi();
+            long renderValue = 0;
+            if (dxgi) {
+                // Wait for DXGI's last copy out of this image, signal the render timeline D3D11 waits for.
+                renderValue = ++dxgiRenderValue;
+                var timeline = VkTimelineSemaphoreSubmitInfo.calloc(stack).sType$Default();
+                if (this.acquiredImageWaitPending) {
+                    submitInfo.waitSemaphoreCount(1);
+                    submitInfo.pWaitSemaphores(stack.longs(swapChain.dxgiCopySemaphore()));
+                    submitInfo.pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT));
+                    timeline.pWaitSemaphoreValues(stack.longs(swapChain.dxgiWaitValue(imageIndex)));
+                }
+                submitInfo.pSignalSemaphores(stack.longs(swapChain.dxgiRenderSemaphore()));
+                timeline.pSignalSemaphoreValues(stack.longs(renderValue));
+                submitInfo.pNext(timeline);
+            } else {
+                attachAcquireWait(submitInfo, stack, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+                submitInfo.pSignalSemaphores(stack.longs(renderFinishedSemaphores.get(currentFrame)));
+            }
 
             vkResetFences(device, inFlightFences.get(currentFrame));
 
@@ -425,15 +535,34 @@ public class Renderer {
                 AdaptiveChunkUploadBudget.recordGpuBackpressure(transferWaitNanos);
             }
 
+            if (uploads != null) {
+                vkEndCommandBuffer(uploads.getHandle());
+                submitInfo.pCommandBuffers(stack.pointers(uploads.getHandle(), currentCmdBuffer));
+                MemoryManager.getInstance().addFrameOp(uploads::reset);
+            } else {
+                submitInfo.pCommandBuffers(stack.pointers(currentCmdBuffer));
+            }
+
             if ((vkResult = vkQueueSubmit(DeviceManager.getGraphicsQueue().queue(), submitInfo, inFlightFences.get(currentFrame))) != VK_SUCCESS) {
                 vkResetFences(device, inFlightFences.get(currentFrame));
                 throw new RuntimeException("Failed to submit draw command buffer: %s".formatted(VkResult.decode(vkResult)));
             }
             this.acquiredImageWaitPending = false;
-
-
+            net.vulkanmod.vulkan.queries.GpuTimestamps.submitted(currentFrame);
 
             framePreparation.submitted();
+
+            if (dxgi) {
+                long presentStart = System.nanoTime();
+                boolean presented = swapChain.dxgiPresent(imageIndex, renderValue);
+                net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordPresentWait(System.nanoTime() - presentStart);
+                if (!presented) {
+                    swapChainUpdate = true; // recreated without DXGI
+                    return false;
+                }
+                currentFrame = (currentFrame + 1) % framesNum;
+                return true;
+            }
 
             VkPresentInfoKHR presentInfo = VkPresentInfoKHR.calloc(stack);
             presentInfo.sType(VK_STRUCTURE_TYPE_PRESENT_INFO_KHR);
@@ -485,6 +614,8 @@ public class Renderer {
             submitInfo.pCommandBuffers(stack.pointers(currentCmdBuffer));
             attachAcquireWait(submitInfo, stack, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
+            // Batched uploads recorded so far must precede the partial frame on the queue.
+            DeviceManager.getGraphicsQueue().flushBatch();
             vkResetFences(device, inFlightFences.get(currentFrame));
 
             Synchronization.INSTANCE.waitFences();
@@ -515,8 +646,20 @@ public class Renderer {
         }
     }
 
+    /** Render timeline value of the last frame handed to DXGI (monotonic for the session). */
+    private long dxgiRenderValue;
+
     private void attachAcquireWait(VkSubmitInfo submitInfo, MemoryStack stack, int stageMask) {
         if (!this.acquiredImageWaitPending) return;
+        net.vulkanmod.vulkan.framebuffer.SwapChain swapChain = Vulkan.getSwapChain();
+        if (swapChain.isDxgi()) {
+            submitInfo.waitSemaphoreCount(1);
+            submitInfo.pWaitSemaphores(stack.longs(swapChain.dxgiCopySemaphore()));
+            submitInfo.pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT));
+            submitInfo.pNext(VkTimelineSemaphoreSubmitInfo.calloc(stack).sType$Default()
+                    .pWaitSemaphoreValues(stack.longs(swapChain.dxgiWaitValue(imageIndex))));
+            return;
+        }
         submitInfo.waitSemaphoreCount(1);
         submitInfo.pWaitSemaphores(stack.longs(imageAvailableSemaphores.get(currentFrame)));
         submitInfo.pWaitDstStageMask(stack.ints(stageMask));
@@ -728,6 +871,8 @@ public class Renderer {
         if (!framePreparation.needsPreparation(currentFrame, recordingCmds))
             return;
 
+        // Uploads still batched for this slot reference its staging memory: submit them first.
+        closeFrameUploadBatch();
         net.vulkanmod.compat.observer.CompatProfiler.cpuFrameStart = System.nanoTime();
 
         if (framePreparation.needsIdleWait(currentFrame)) {
@@ -766,6 +911,38 @@ public class Renderer {
         }
         net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordUploadPhase(uploadPhaseNanos);
         framePreparation.preparationCompleted(currentFrame);
+        openFrameUploadBatch();
+    }
+
+    /**
+     * Texture uploads and layout changes of this frame share one graphics-queue command buffer that
+     * is submitted right before the frame. Same-queue submission order plus the upload barriers order
+     * them before the frame's reads, as the former per-upload submissions were; dropping their
+     * fences removes the CPU wait in {@link #submitFrame} that stalled the GPU between frames.
+     */
+    private void openFrameUploadBatch() {
+        if (this.frameUploadBatch || !FRAME_UPLOAD_BATCH) return;
+        DeviceManager.getGraphicsQueue().startRecording();
+        this.frameUploadBatch = true;
+        if (net.vulkanmod.vulkan.queries.GpuTimestamps.ENABLED)
+            net.vulkanmod.vulkan.queries.GpuTimestamps.beginBatch(DeviceManager.getGraphicsQueue().getCommandBuffer().getHandle(), currentFrame);
+    }
+
+    /** Ends this frame's upload batch for {@link #submitFrame}; null if none (or still nested). */
+    private net.vulkanmod.vulkan.queue.CommandPool.CommandBuffer detachFrameUploadBatch() {
+        if (!this.frameUploadBatch) return null;
+        if (net.vulkanmod.vulkan.queries.GpuTimestamps.ENABLED)
+            net.vulkanmod.vulkan.queries.GpuTimestamps.endBatch(DeviceManager.getGraphicsQueue().getCommandBuffer().getHandle(), currentFrame);
+        this.frameUploadBatch = false;
+        return DeviceManager.getGraphicsQueue().detachBatch();
+    }
+
+    private void closeFrameUploadBatch() {
+        if (!this.frameUploadBatch) return;
+        if (net.vulkanmod.vulkan.queries.GpuTimestamps.ENABLED)
+            net.vulkanmod.vulkan.queries.GpuTimestamps.endBatch(DeviceManager.getGraphicsQueue().getCommandBuffer().getHandle(), currentFrame);
+        this.frameUploadBatch = false;
+        DeviceManager.getGraphicsQueue().endRecordingAndSubmit();
     }
 
     public void addUsedPipeline(Pipeline pipeline) {
@@ -808,6 +985,7 @@ public class Renderer {
 
     @SuppressWarnings("UnreachableCode")
     private void recreateSwapChain() {
+        closeFrameUploadBatch();
         UploadManager.INSTANCE.submitUploads();
         Synchronization.INSTANCE.waitFences();
         Vulkan.waitIdle();
@@ -1093,9 +1271,13 @@ public class Renderer {
     }
 
 
+    /** While a VSDH shaderpack frame owns the main target, it is stored GL-oriented (rows bottom-up). */
+    private static boolean mainTargetRowsBottomUp;
+    public static void setMainTargetRowsBottomUp(boolean bottomUp) { mainTargetRowsBottomUp = bottomUp; }
+
     public static void setGlViewport(int x, int y, int width, int height) {
         GlFramebuffer target = GlFramebuffer.getBoundFramebuffer();
-        if (target != null && !target.usesMainTargetOrientation())
+        if (target != null && !target.usesMainTargetOrientation() || mainTargetRowsBottomUp)
             setInvertedViewport(x, y, width, height);
         else
             setViewport(x, y, width, height);

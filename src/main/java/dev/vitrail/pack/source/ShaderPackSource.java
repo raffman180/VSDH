@@ -179,12 +179,36 @@ public final class ShaderPackSource implements AutoCloseable {
 	public OptionIndex options() throws IOException {
 		return derived(OptionIndex.class, () -> {
 			OptionIndex.Reader reader = new OptionIndex.Reader();
-			for (Path file : sourceFiles()) {
+			for (Path file : optionSourceFiles()) {
 				reader.read(rel(file), readLines(file));
 			}
 
 			return reader.index();
 		});
+	}
+
+	private static final java.util.regex.Pattern INCLUDE_LINE =
+			java.util.regex.Pattern.compile("^\\s*#\\s*include\\s+[\"<]([^\">]+)[\">].*");
+
+	/**
+	 * The source files plus every file they {@code #include}, whatever its extension. Iris finds
+	 * settings by walking the includes, so a pack keeping them in {@code shader.h} (Miniature)
+	 * offers them there too; the extension list alone missed all but 13 of its options.
+	 */
+	private List<Path> optionSourceFiles() throws IOException {
+		var files = new java.util.LinkedHashSet<Path>(sourceFiles());
+		var queue = new java.util.ArrayDeque<Path>(files);
+		while (!queue.isEmpty()) {
+			Path file = queue.poll();
+			for (String line : readLines(file)) {
+				var include = INCLUDE_LINE.matcher(line);
+				if (!include.matches()) continue;
+				String spec = include.group(1).trim();
+				Optional<Path> target = spec.startsWith("/") ? resolveInsideShaders(spec) : resolveRelativeTo(file, spec);
+				if (target.isPresent() && Files.isRegularFile(target.get()) && files.add(target.get())) queue.add(target.get());
+			}
+		}
+		return List.copyOf(files);
 	}
 
 	public static ShaderPackSource open(Path packPath) throws IOException {

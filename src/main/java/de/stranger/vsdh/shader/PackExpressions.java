@@ -26,12 +26,25 @@ public final class PackExpressions {
                 "sunPosition", "upPosition")) inputs.put(name, UniformShape.VEC3);
         inputs.put("lightningBoltPosition", UniformShape.VEC4);
         inputs.put("is_hurt", UniformShape.BOOL);
-        for (String name : List.of("gbufferProjection", "gbufferModelViewInverse", "shadowModelView"))
+        for (String name : List.of("gbufferProjection", "gbufferProjectionInverse", "gbufferModelView", "gbufferModelViewInverse",
+                "gbufferPreviousProjection", "gbufferPreviousModelView", "shadowModelView", "shadowModelViewInverse",
+                "shadowProjection", "shadowProjectionInverse"))
             inputs.put(name, UniformShape.MAT4);
         inputs.put("cameraPositionInt", UniformShape.IVEC3); inputs.put("previousCameraPositionInt", UniformShape.IVEC3);
         inputs.put("eyeBrightness", UniformShape.IVEC2); inputs.put("eyeBrightnessSmooth", UniformShape.IVEC2);
+        for (String name : List.of("moonPosition", "shadowLightPosition")) inputs.put(name, UniformShape.VEC3);
+        inputs.put("shadowAngle", UniformShape.FLOAT);
+        inputs.put("dhNearPlane", UniformShape.FLOAT); inputs.put("dhFarPlane", UniformShape.FLOAT);
+        inputs.put("dhRenderDistance", UniformShape.INT);
+        // Iris offers its whole standard set to pack formulas, constants such as pi included.
+        IrisStandardValues.SHAPES.forEach(inputs::putIfAbsent);
         INPUTS = Map.copyOf(inputs);
     }
+
+    /** Iris BiomeCategories in ordinal order; IrisStandardValues.category answers with these ordinals. */
+    static final List<String> CATEGORIES = List.of("NONE", "TAIGA", "EXTREME_HILLS", "JUNGLE", "MESA", "PLAINS",
+            "SAVANNA", "ICY", "THE_END", "BEACH", "FOREST", "OCEAN", "DESERT", "RIVER", "SWAMP", "MUSHROOM",
+            "NETHER", "MOUNTAIN", "UNDERGROUND");
 
     private PackExpressions() {}
 
@@ -75,6 +88,11 @@ public final class PackExpressions {
             var inputs=UniformCatalog.builder();
             INPUTS.forEach((name,shape)->inputs.add(name,shape,(frame,out)->frame.read(name,out)));
             biomes.forEach((name,id)->inputs.add(name,UniformShape.INT,(frame,out)->out.set(id)));
+            // Iris' expression parser knows every biome category as CAT_<NAME> = ordinal.
+            for(int category=0;category<CATEGORIES.size();category++) {
+                int id=category;
+                inputs.add("CAT_"+CATEGORIES.get(category),UniformShape.INT,(frame,out)->out.set(id));
+            }
             var builder=CustomUniforms.builder();
             declarations.forEach(d->builder.declare(d.name(),d.type(),d.expression(),d.exposed()));
             var found=new ArrayList<String>(); graph=builder.build(inputs.build(),found); problems=List.copyOf(found);

@@ -279,6 +279,22 @@ public final class GlslTranslator {
 	private static volatile boolean reduceTrig = true;
 
 	/**
+	 * Whether a volume the pack ships stays a {@code sampler3D} (under its forged name) for a
+	 * backend that binds real 3D images, rather than being laid out as a 2D atlas behind a helper.
+	 * The hardware then filters in all three dimensions, as GL does under Iris, and the texel keeps
+	 * the blob's own channel count. Set at the head of a pack load like {@link #reduceTrig}.
+	 */
+	private static volatile boolean nativeVolumes = false;
+
+	public static void nativeVolumes(boolean on) {
+		nativeVolumes = on;
+	}
+
+	public static boolean nativeVolumes() {
+		return nativeVolumes;
+	}
+
+	/**
 	 * The call sites matched since the switch was last set, added up over every unit translated.
 	 * <p>
 	 * Matched and not substituted, which is the point of it: a reading taken with the driver's own
@@ -842,7 +858,8 @@ public final class GlslTranslator {
 		return (reduceTrig ? "trig-reduced" : "trig-driver")
 				+ (softCompare() ? " compare-in-shader" : " compare-on-sampler")
 				+ " shadow-chain-" + (shadowChainZero ? '1' : '0') + (shadowChainOne ? '1' : '0')
-				+ " custom-views-v1:" + CustomImages.key();
+				+ " custom-views-v1:" + CustomImages.key()
+				+ (nativeVolumes ? " volumes-native" : " volumes-flat");
 	}
 
 	private void rewrite() {
@@ -1482,6 +1499,29 @@ public final class GlslTranslator {
 	 * block twice, once by the lift and once as a name nobody had declared, and the compiler
 	 * refuses a member declared twice.
 	 */
+	/**
+	 * Whether the unit declares {@code name} as a variable of any type, opaque types included,
+	 * outside the preprocessor. {@link #declaredNames} counts the built-in value types only, and a
+	 * pack's own {@code uniform sampler2D texture} is exactly the declaration this has to see.
+	 */
+	private boolean declaresVariable(String name) {
+		for (int index = 0; index < this.tokens.size(); index++) {
+			Token token = this.tokens.get(index);
+			if (token.kind() != Kind.IDENTIFIER || token.directive() != null || !token.text().equals(name)) {
+				continue;
+			}
+			int before = this.tokens.significantBefore(index);
+			if (before < 0) {
+				continue;
+			}
+			String type = this.tokens.get(before).text();
+			if (LegacyGlsl.TYPE_NAMES.contains(type) || type.matches("[iu]?(?:sampler|image)\\w+")) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private void collectDeclarations() {
 		for (int index = 0; index < this.tokens.size(); index++) {
 			Token token = this.tokens.get(index);
@@ -1883,6 +1923,9 @@ public final class GlslTranslator {
 	 * not told apart is a local named like the instance whose own field is named like a member,
 	 * which no pack of the corpus writes.
 	 */
+	/** Prefix of a tessellation control stage's flattened output members (see SpirvInterface). */
+	public static final String TESSELLATION_OUTPUT = "ofTcOut_";
+
 	private void flattenInterfaceBlocks() {
 		int[] lines = this.tokens.lineNumbers();
 		List<TokenStream.Insertion> insertions = new ArrayList<>();
@@ -1917,8 +1960,12 @@ public final class GlslTranslator {
 				end = this.tokens.significantAfter(after);
 				// A geometry stage reads its inputs one corner at a time, as an array of the
 				// block, and it is the one arrayed block read here: the fold reads that stage.
-				if (end >= 0 && this.tokens.get(end).operator("[") && token.identifier("in")
-						&& this.stage == ProgramStage.GEOMETRY) {
+				// The tessellation stages read their corners the same way, and the control stage
+				// also writes one element per output vertex (VSDH binds both stages natively).
+				boolean arrayed = this.stage == ProgramStage.GEOMETRY && token.identifier("in")
+						|| this.stage == ProgramStage.TESSELLATION_CONTROL
+						|| this.stage == ProgramStage.TESSELLATION_EVALUATION && token.identifier("in");
+				if (end >= 0 && this.tokens.get(end).operator("[") && arrayed) {
 					int closing = this.tokens.matchingBracket(end);
 					if (closing < 0) {
 						index = close;
@@ -2014,6 +2061,8 @@ public final class GlslTranslator {
 			}
 
 			String storage = token.text();
+			// A control stage's output array keeps the input array's name here so that the varying
+			// analysis pairs it with the evaluation stage; the compiler renames it afterwards.
 			String prefix = instance == null ? "" : "of_" + this.tokens.get(name).text() + "_";
 			List<String> names = new ArrayList<>();
 			for (BlockMember member : members) {
@@ -2553,10 +2602,14 @@ public final class GlslTranslator {
 			// {@code #if defined} is a question about a macro rather than code, and renaming it
 			// would ask about a name nobody defines. The macro's OWN name is already out, being a
 			// naming directive's first identifier.
+			// Only where the unit really declares the reserved word as a name of its own. Photon
+			// writes #define BLOOM_UPSAMPLING_FILTER texture to alias the BUILTIN, and renaming that
+			// body left every bloom pass calling an ofTexture nothing declares.
 			String named = LegacyGlsl.RESERVED_NAMES.get(name);
 			if (named != null && "define".equals(directive)
 					&& !this.macroParameterTokens.contains(index)
-					&& this.tokens.callOpener(index) < 0) {
+					&& this.tokens.callOpener(index) < 0
+					&& declaresVariable(name)) {
 				this.tokens.replace(index, named);
 				continue;
 			}
@@ -4063,6 +4116,8 @@ public final class GlslTranslator {
 		}
 
 		int[] lines = this.tokens.lineNumbers();
+		// Slots a gl_FragData subscript or gl_FragColor claimed before any declaration is read.
+		boolean legacyWrites = this.maxFragmentOutput >= 0;
 		for (int index = 0; index < this.tokens.size(); index++) {
 			Token token = this.tokens.get(index);
 			if (!token.identifier("out") || token.directive() != null) {
@@ -4071,6 +4126,22 @@ public final class GlslTranslator {
 
 			if (this.unit.isLive(lines[index]) && opensDeclaration(index)) {
 				liftOutput(index);
+			}
+		}
+
+		// An output declared without a location takes the lowest location no other output holds,
+		// in the order the file declares them: what a GL linker gives it, and what Iris leaves to
+		// the driver. shaderc would instead number it from nought and collide with an explicit
+		// location nought, as Super Duper Vanilla's composite1 declares beside an unplaced
+		// second output. Only for a stage that writes no legacy gl_FragData slot, which this
+		// could otherwise land on.
+		if (!legacyWrites) {
+			for (int index = 0; index < this.tokens.size(); index++) {
+				Token token = this.tokens.get(index);
+				if (token.identifier("out") && token.directive() == null && this.unit.isLive(lines[index])
+						&& opensDeclaration(index)) {
+					liftUnplacedOutput(index);
+				}
 			}
 		}
 
@@ -4143,6 +4214,44 @@ public final class GlslTranslator {
 		if (this.packOutputs.putIfAbsent(location, output) == null) {
 			this.tokens.blankRange(start, end);
 		}
+	}
+
+	/** A plain {@code out type name;} with no qualifier at all, placed at the lowest free location. */
+	private void liftUnplacedOutput(int keyword) {
+		int start = this.tokens.statementStart(keyword);
+		int end = this.tokens.statementEnd(keyword);
+		if (start < 0 || end < 0) {
+			return;
+		}
+
+		List<Integer> parts = this.tokens.significantRange(start, end);
+		if (parts.indexOf(keyword) != 0 || parts.size() != 4) {
+			return;
+		}
+
+		String type = this.tokens.get(parts.get(1)).text();
+		Token name = this.tokens.get(parts.get(2));
+		if (!LegacyGlsl.TYPE_NAMES.contains(type) || name.kind() != Kind.IDENTIFIER
+				|| !this.tokens.get(parts.get(3)).operator(";")) {
+			return;
+		}
+
+		for (Output existing : this.packOutputs.values()) {
+			if (existing.name().equals(name.text())) {
+				return;
+			}
+		}
+
+		int location = 0;
+		while (this.packOutputs.containsKey(location)) {
+			location++;
+		}
+		if (location >= MAX_FRAGMENT_OUTPUTS) {
+			return;
+		}
+
+		this.packOutputs.put(location, new Output(name.text(), LegacyGlsl.widened(type)));
+		this.tokens.blankRange(start, end);
 	}
 
 	/** The {@code location = n} of a layout qualifier standing before this {@code out}, or -1. */

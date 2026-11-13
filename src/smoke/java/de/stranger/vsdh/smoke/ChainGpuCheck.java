@@ -71,7 +71,7 @@ final class ChainGpuCheck {
         check(prepared.normal, 13, 9, org.lwjgl.vulkan.VK10.VK_FORMAT_D32_SFLOAT_S8_UINT);
         check(prepared.noFinal, 13, 9, org.lwjgl.vulkan.VK10.VK_FORMAT_D32_SFLOAT);
         if (prepared.complementary != null) prepareComplementary(prepared.complementary);
-        LoggerFactory.getLogger("VSDH-Smoke").info("CHAIN GPU PASS: stages, fullscreen blending, signed/unsigned sampling, scaled HDR/mips, four-frame history, rebuild/no-final, D32/D24S8/D32S8 snapshots and stencil copies");
+        LoggerFactory.getLogger("VSDH-Smoke").info("CHAIN GPU PASS: stages, fullscreen blending, signed/unsigned sampling, scaled HDR/mips, four-frame history, rebuild/no-final, exact D32/D24S8/D32S8 depth snapshots");
     }
 
     private static void check(ShaderChainPlan plan, int width, int height, int depthFormat) {
@@ -131,14 +131,10 @@ final class ChainGpuCheck {
                 NativeImageOps.clearDepth(worldDepth, 0.75f, 76);
                 chain.render(ShaderChainPlan.Stage.COMPOSITE, null, writer, external);
                 hdr(chain.targets().image(4, Side.ALT), pixels, 0.75f, 0.5f, 0.25f);
-                if (VulkanImage.hasStencilComponent(depthFormat)) {
-                    ImageUtil.downloadTextureRegion(depth.image("depthtex2"), MemoryUtil.memAddress(pixels), 0, 0, 1, 1,
-                            org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_STENCIL_BIT, 1);
-                    near(42, Byte.toUnsignedInt(pixels.get(0)), 0, "pre-hand stencil");
-                    ImageUtil.downloadTextureRegion(depth.image("depthtex1"), MemoryUtil.memAddress(pixels), 0, 0, 1, 1,
-                            org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_STENCIL_BIT, 1);
-                    near(59, Byte.toUnsignedInt(pixels.get(0)), 0, "pre-translucent stencil");
-                }
+                // Packs sample the snapshots through depth views only, so 0.26 copies the depth plane
+                // alone; the stencil copy of D32S8 cost 1.3 ms per snapshot at 2560x1440.
+                near(0.25f, snapshotDepth(depth.image("depthtex2"), depthFormat, pixels), 1e-6f, "pre-hand depth");
+                near(0.5f, snapshotDepth(depth.image("depthtex1"), depthFormat, pixels), 1e-6f, "pre-translucent depth");
                 chain.render(ShaderChainPlan.Stage.FINAL, output.getColorAttachment(), writer, external);
                 depth.endFrame();
                 ImageUtil.downloadTexture(output.getColorAttachment(), MemoryUtil.memAddress(pixels));
@@ -146,7 +142,11 @@ final class ChainGpuCheck {
                 for (int pixel = 0; pixel < width * height; pixel++) for (int channel = 0; channel < 4; channel++)
                     near(expected[channel], Byte.toUnsignedInt(pixels.get(pixel * 4 + channel)), 1, "final channel " + channel);
                 hdr(chain.targets().image(2, Side.MAIN), pixels, (frame + 1) * 0.125f, 0, 0);
-                hdr(chain.targets().image(2, Side.ALT), pixels, (frame + 1) * 0.125f, 0, 0);
+                // Iris copies the alternate half back, leaving both equal. A target that only
+                // unblended fullscreen passes write swaps the halves instead (no copy); its
+                // alternate half is overwritten before the next read, so only "main" is defined.
+                if (!de.stranger.vsdh.shader.NativeShaderChain.swappable(chain.plan()).contains(2))
+                    hdr(chain.targets().image(2, Side.ALT), pixels, (frame + 1) * 0.125f, 0, 0);
             }
             if (chain.framesCompleted() != 4) throw new AssertionError("Wrong completed frame count");
         } finally { MemoryUtil.memFree(pixels); output.cleanUp(); worldDepth.free(); }
@@ -192,6 +192,16 @@ final class ChainGpuCheck {
     private static void expectThrows(Runnable call) {
         try { call.run(); } catch (IllegalStateException expected) { return; }
         throw new AssertionError("Invalid frame/stage transition was accepted");
+    }
+    /** First texel of a depth snapshot as a 0..1 value, decoded for the formats this check uses. */
+    private static float snapshotDepth(VulkanImage image, int format, ByteBuffer pixels) {
+        ImageUtil.downloadTextureRegion(image, MemoryUtil.memAddress(pixels), 0, 0, 1, 1,
+                org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_DEPTH_BIT, 4);
+        return switch (format) {
+            case org.lwjgl.vulkan.VK10.VK_FORMAT_D32_SFLOAT, org.lwjgl.vulkan.VK10.VK_FORMAT_D32_SFLOAT_S8_UINT -> pixels.getFloat(0);
+            case org.lwjgl.vulkan.VK10.VK_FORMAT_D24_UNORM_S8_UINT -> (pixels.getInt(0) & 0xFFFFFF) / 16777215f;
+            default -> throw new AssertionError("Unexpected snapshot format " + format);
+        };
     }
     private static void near(float expected, float actual, float tolerance, String what) {
         if (!Float.isFinite(actual) || Math.abs(expected - actual) > tolerance)

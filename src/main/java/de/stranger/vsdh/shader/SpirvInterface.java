@@ -29,8 +29,60 @@ public final class SpirvInterface {
 
     /** Legacy GLSL matches implicit varyings by name. Vulkan matches numeric locations. */
     static void linkGraphics(byte[] vertex, byte[] fragment, String fragmentSource) {
+        link(vertex, fragment, fragmentSource);
+    }
+
+    /** The prefix a geometry stage's colliding outputs take; the fragment stage reads the bare name. */
+    static final String GEOMETRY_OUTPUT = "ofGsOut_";
+    private static final String QUALIFIERS = "(?:(?:flat|smooth|noperspective|centroid|sample|invariant|highp|mediump|lowp)\\s+)*";
+    private static final Pattern GEOMETRY_INPUT_DECLARATION = Pattern.compile(
+            "\\b" + QUALIFIERS + "in\\s+" + QUALIFIERS + "\\w+\\s+(\\w+)\\s*\\[");
+    private static final Pattern GEOMETRY_OUTPUT_DECLARATION = Pattern.compile(
+            "\\b" + QUALIFIERS + "out\\s+" + QUALIFIERS + "\\w+\\s+(\\w+)\\s*;");
+
+    /**
+     * A geometry (or tessellation evaluation) stage reads its corners as arrays and writes plain
+     * outputs. Flattened blocks give both the same name; every output whose name an input array also
+     * has is renamed, at each use that is neither an array access nor a member access.
+     */
+    static String renameGeometryOutputs(String source) {
+        Set<String> inputs = new HashSet<>();
+        var in = GEOMETRY_INPUT_DECLARATION.matcher(source);
+        while (in.find()) inputs.add(in.group(1));
+        Set<String> clashing = new HashSet<>();
+        var out = GEOMETRY_OUTPUT_DECLARATION.matcher(source);
+        while (out.find()) if (inputs.contains(out.group(1))) clashing.add(out.group(1));
+        for (String name : clashing)
+            source = source.replaceAll("(?<![.\\w])" + Pattern.quote(name) + "\\b(?!\\s*\\[)", GEOMETRY_OUTPUT + name);
+        return source;
+    }
+
+    /** The next stage's inputs take the locations of the previous stage's outputs of the same unprefixed name. */
+    static void linkStages(byte[] previous, byte[] next, String nextSource) {
+        link(previous, next, nextSource);
+    }
+
+    private static String unprefixed(String name) {
+        if (name.startsWith(GEOMETRY_OUTPUT)) return name.substring(GEOMETRY_OUTPUT.length());
+        if (name.startsWith(dev.vitrail.glsl.GlslTranslator.TESSELLATION_OUTPUT))
+            return "of_" + name.substring(dev.vitrail.glsl.GlslTranslator.TESSELLATION_OUTPUT.length());
+        return name;
+    }
+
+    /** Fragment inputs take the locations of the geometry outputs of the same (unprefixed) name. */
+    static void linkGeometryOutputs(byte[] geometry, byte[] fragment, String fragmentSource) {
+        link(geometry, fragment, fragmentSource);
+    }
+
+    /**
+     * Patches every input of {@code next} that the previous stage writes under the same (unprefixed)
+     * name to that output's location. An input nobody writes keeps the compiler's own location, which
+     * may now coincide with a patched one; such inputs are moved past every used location, because
+     * two inputs on one location are undefined behaviour rather than a compile error.
+     */
+    private static void link(byte[] previous, byte[] next, String nextSource) {
         Set<String> explicit = new HashSet<>();
-        var declaration = INPUT_LAYOUT.matcher(fragmentSource);
+        var declaration = INPUT_LAYOUT.matcher(nextSource);
         while (declaration.find()) {
             if (!LOCATION_KEY.matcher(declaration.group(1)).find()) continue;
             for (String variable : declaration.group(2).split(",")) {
@@ -38,13 +90,24 @@ public final class SpirvInterface {
                 if (identifier.lookingAt()) explicit.add(identifier.group(1));
             }
         }
-        var outputs = stageLocations(vertex, OUTPUT);
-        var words = ByteBuffer.wrap(fragment).order(ByteOrder.LITTLE_ENDIAN);
-        stageLocations(fragment, INPUT).forEach((name, input) -> {
+        Map<String, StageLocation> outputs = new HashMap<>();
+        stageLocations(previous, OUTPUT).forEach((name, location) -> outputs.put(unprefixed(name), location));
+        var words = ByteBuffer.wrap(next).order(ByteOrder.LITTLE_ENDIAN);
+        var inputs = stageLocations(next, INPUT);
+        Set<Integer> taken = new HashSet<>();
+        Set<String> settled = new HashSet<>();
+        inputs.forEach((name, input) -> {
             var output = outputs.get(name);
-            if (output != null && !explicit.contains(name))
-                words.putInt(input.offset(), output.value());
+            if (explicit.contains(name)) { taken.add(input.value()); settled.add(name); }
+            else if (output != null) { words.putInt(input.offset(), output.value()); taken.add(output.value()); settled.add(name); }
         });
+        int free = taken.stream().mapToInt(Integer::intValue).max().orElse(-1) + 4;
+        for (var entry : inputs.entrySet()) {
+            if (settled.contains(entry.getKey()) || !taken.contains(entry.getValue().value())) continue;
+            words.putInt(entry.getValue().offset(), free);
+            taken.add(free);
+            free += 4;
+        }
     }
 
     record StageLocation(int offset, int value) {}

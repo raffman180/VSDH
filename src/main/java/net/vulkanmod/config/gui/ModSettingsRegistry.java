@@ -19,7 +19,10 @@ public class ModSettingsRegistry {
         ModSettingsEntry vulkanModSettings = new ModSettingsEntry(Component.literal("VulkanMod Reforged").withStyle(ChatFormatting.DARK_RED),
                                                                   () -> ResourceLocation.fromNamespaceAndPath("vulkanmod", "vlogo_transparent.png"),
                                                                   Options::getOptionPages,
-                                                                  () -> Initializer.CONFIG.write());
+                                                                  () -> {
+                                                                      Initializer.CONFIG.write();
+                                                                      de.stranger.vsdh.shader.ShaderSettingsPage.applied();
+                                                                  });
         this.addModEntry(vulkanModSettings);
     }
 

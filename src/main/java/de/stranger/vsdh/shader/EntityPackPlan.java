@@ -30,7 +30,8 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
     private static final Pattern RESOURCE_ID = Pattern.compile("[a-z0-9_.-]+:[a-z0-9_./-]+");
     private static final Set<String> DRAW_IMAGES = Set.of("tex", "texture", "ofTexture", "gtexture", "lightmap", "ofOverlay", "noisetex");
     private static final Set<String> SHADOW_DEPTH = Set.of("shadow", "watershadow", "shadowtex0", "shadowtex1");
-    private static final Set<String> SHADOW_COLOR = Set.of("shadowcolor", "shadowcolor0", "shadowcolor1");
+    private static final Set<String> SHADOW_COLOR = Set.of("shadowcolor", "shadowcolor0", "shadowcolor1", "shadowcolor2",
+            "shadowcolor3", "shadowcolor4", "shadowcolor5", "shadowcolor6", "shadowcolor7");
 
     public EntityPackPlan { materials = Map.copyOf(materials); }
 
@@ -150,11 +151,9 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
 
     private static void validate(PackProgramSource.Prepared source, Set<String> customUniforms, boolean shadows,
                                  boolean distant, PackTextures textures, TargetPlan targets) {
-        if (!source.compiled().stages().keySet().equals(Set.of(ProgramStage.VERTEX, ProgramStage.FRAGMENT))
-                || source.translated().stages().values().stream().anyMatch(stage -> !stage.notes().storageBlocks().isEmpty()))
-            throw new IllegalArgumentException("Unsupported entity shader stages or storage");
-        var missing = WorldUniforms.missing(source, customUniforms, distant);
-        if (!missing.isEmpty()) throw new IllegalArgumentException("Missing entity uniforms: " + missing);
+        if (!PackProgramSource.graphicsStages(source.compiled().stages().keySet()))
+            throw new IllegalArgumentException("Unsupported entity shader stages");
+        // Unprovided uniforms read as zero, as WorldUniforms writes them for every program of the plan.
         var active = new HashSet<Integer>();
         source.compiled().stages().values().forEach(bytes -> active.addAll(SpirvInterface.bindings(bytes)));
         for (var sampler : source.translated().samplers()) {
@@ -163,14 +162,19 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
             var target = TargetName.index(name);
             boolean supported = target.isPresent() && targets.allocated().contains(target.getAsInt())
                     && VulkanTargetFormat.acceptsSampler(VulkanTargetFormat.of(targets.directives().format(target.getAsInt()).used()), sampler.type());
+            // Pack textures reach entity programs through the same per-program texture plan.
+            supported |= sampler.type().equals("sampler2D") && !sampler.declaration().contains("[")
+                    && textures.resolve(TextureStage.GBUFFERS, name).filter(texture -> texture.raw().isEmpty()).isPresent();
             supported |= switch (sampler.type()) {
                 case "sampler2D" -> DRAW_IMAGES.contains(name) || PackTexturePlan.hasMaterialDefault(name)
-                        || shadows && (SHADOW_DEPTH.contains(name) || SHADOW_COLOR.contains(name));
-                case "sampler2DShadow" -> shadows && SHADOW_DEPTH.contains(name);
+                        || shadows && (SHADOW_DEPTH.contains(name) || SHADOW_COLOR.contains(name))
+                        || distant && name.matches("dhDepthTex[01]?");
+                case "sampler2DShadow" -> shadows && (SHADOW_DEPTH.contains(name) || name.matches("shadowtex[01]HW"));
                 default -> false;
             };
-            if (!supported || sampler.declaration().contains("[")
-                    || textures.resolve(TextureStage.GBUFFERS, name).isPresent())
+            // The pack's own images are bound by CustomImageBindings from the graph, any shape.
+            supported |= dev.vitrail.pack.texture.CustomImages.named(name);
+            if (!supported || sampler.declaration().contains("["))
                 throw new IllegalArgumentException("Unsupported entity texture: " + sampler.declaration());
         }
     }

@@ -1,9 +1,11 @@
-# VSDH — Entwicklungsstand 0.25.0-dev
+# VSDH — Entwicklungsstand 0.26.0-dev
 
 VSDH enthält einen **VulkanMod-Reforged-Fork**, eine native Anbindung für
 Distant Horizons und einen Vulkan-Renderer für ausgewählte Iris-Shaderpacks.
 Die Spieltests verwenden Complementary Reimagined r5.9.3, BSL 10.1 und
-Bliss 2.1.2. Verwende für dieses Profil die VSDH-JAR als Renderer.
+Bliss 2.1.2, seit dem 11.11.2026 zusätzlich Photon 1.4, Eclipse Unstable,
+Solas 3.9 und Rethinking Voxels r0.1-beta9 (siehe unten). Verwende für
+dieses Profil die VSDH-JAR als Renderer.
 
 | Bestandteil | Gebundene Version |
 |---|---|
@@ -11,14 +13,14 @@ Bliss 2.1.2. Verwende für dieses Profil die VSDH-JAR als Renderer.
 | NeoForge | 21.1.264 |
 | Java | 21 |
 | Vulkan-Renderer | in dieser VSDH-JAR enthalten; Reforged-Basis 0618965 |
-| Distant Horizons | 3.2.0-b sowie 3.3.1 bis 3.3.3 für 1.21.1 mit der regulären JAR. Für 3.3.0 die Datei mit Endung `-dh330.jar` verwenden. |
+| Distant Horizons | **optional.** Ohne DH laufen Vulkan-Renderer und Shaderpacks allein. Mit DH: 3.2.0-b sowie 3.3.1 bis 3.3.3 für 1.21.1 mit der regulären JAR; für 3.3.0 die Datei mit Endung `-dh330.jar`. |
 | Erstes Shader-Ziel | Complementary Reimagined r5.9.3, Profil MEDIUM |
 
 ## Testinstallation
 
 1. Ein separates Profil für Minecraft 1.21.1 / NeoForge 21.1.264 anlegen.
-2. Eine passende VSDH-0.25.0-dev-JAR und genau eine der oben genannten
-   DH-Versionen in dessen `mods`-Ordner legen.
+2. Eine passende VSDH-0.26.0-dev-JAR in dessen `mods`-Ordner legen, für ferne
+   Landschaften zusätzlich genau eine der oben genannten DH-Versionen (optional).
 3. Aus diesem Profil die originale Reforged-JAR und frühere VSDH-JARs entfernen.
    Die VSDH-JAR enthält den Renderer und die Anbindung für Distant Horizons.
 4. Iris, Sodium und andere Renderer-Ersatzmods aus diesem Profil herauslassen.
@@ -26,33 +28,101 @@ Bliss 2.1.2. Verwende für dieses Profil die VSDH-JAR als Renderer.
 
 ## Shader aktivieren
 
-Das Installationsbeispiel verwendet Complementary Reimagined r5.9.3 mit
-Profil MEDIUM. Die genauen Spieltests jeder Ausgabe stehen in
-`dist/0.25.0-dev/verification.json`.
+1. Die originale ZIP-Datei des Shaderpacks unverändert in den Ordner `shaderpacks`
+   des Profils legen (Optionen → Videoeinstellungen → **Shader** → Shaderpack-Ordner
+   „Öffnen“ öffnet ihn).
+2. In derselben Seite unter **Shaderpack** das Pack wählen, optional ein
+   **Pack-Profil** (z. B. LOW, MEDIUM, HIGH; „Pack-Standard“ nutzt die Werte des Packs),
+   dann **Übernehmen**.
+3. Im Hauptmenü lädt VSDH das Pack sofort (Meldung „Shaderpack wird vorbereitet“, dann
+   „Vulkan-Shaderpack bereit“). Wird die Wahl in einer Welt getroffen, gilt sie ab dem
+   nächsten Verlassen der Welt. Ein Neustart ist nicht nötig.
+4. **Shaderpack: Aus** schaltet zurück auf die Standarddarstellung.
+5. Unter **Pack-Optionen** lassen sich die Einstellungen des Packs (Schatten, Wolken, Nebel …)
+   einzeln ändern, mit den Namen aus dem Pack. „Übernehmen“ lädt das Pack neu, ohne Neustart.
 
-1. Die Originaldatei `ComplementaryReimagined_r5.9.3.zip` in den Ordner
-   `shaderpacks` des Testprofils legen.
-2. Im selben Profil in `config/vsdh.json` die folgenden Einstellungen
-   ergänzen. Den Wert für `shaderPack` auf den genauen ZIP-Namen setzen.
-3. Minecraft neu starten, im Menü auf die Meldung „Vulkan-Shaderpack bereit“
-   warten und eine Testwelt öffnen.
+Kann ein Pack nicht geladen werden, bleibt die bisherige Darstellung und die Ursache
+steht in `logs/latest.log`. Scheitert ein Pack erst in der Welt, schaltet VSDH mit
+Chat-Hinweis auf die Standarddarstellung, statt das Spiel zu beenden. Die Wahl steht in
+`config/vsdh.json`; Profil und Pack-Optionen werden je Pack gemerkt (`otherPacks`), so
+dass ein Wechsel hin und zurück nichts verliert. Einzelne Pack-Optionen stehen dort unter `shaderOptions`, zum Beispiel:
 
 ```json
 {
-  "vulkanRenderMode": 0,
   "shaderPack": "ComplementaryReimagined_r5.9.3.zip",
   "shaderProfile": "MEDIUM",
+  "shaderOptions": { "ENTITY_SHADOW": "2" },
   "shaderDistantHorizons": true
 }
 ```
 
-Ein leerer `shaderPack`-Wert aktiviert nach dem Neustart den Standardmodus.
-Bei Fehlern in Pfad oder Pack-Aufbereitung steht die Ursache in
-`logs/latest.log`. Die Wahl greift im Menü, bevor eine Welt geladen ist.
+Iris, Oculus, Sodium und Embeddium nicht zusammen mit VSDH installieren; NeoForge meldet
+sie beim Start als unverträglich. Getestet sind die unten genannten Packs auf einer
+NVIDIA RTX 4070 unter Windows 11; andere Packs und GPUs können abweichen.
 
 VSDH wird ausschließlich auf dem Client installiert. Bestehende DH-Speicherung
 und Multiplayer-Protokolle bleiben bei DH. Keine eigenen Änderungen an Inventaren
 oder Weltdaten; dedizierte Server und große Modpacks sind noch ungetestet.
+
+## Stand 0.26 — Iris-Abgleich (11.11.2026 abends)
+
+Mit einem Prüf-Pack, das Uniform-Werte als Farbbalken ausgibt, wurden VSDH und
+Iris 1.8.12 Wert für Wert verglichen. Behoben:
+- Die Pack-Kette arbeitet jetzt in OpenGL-Ausrichtung (`gbufferProjection[1][1]`
+  positiv, Bildzeilen von unten nach oben); vorher kehrten Packformeln wie
+  `gbufferProjection[1][1] / 1.37` (Umgebungsverdeckung, Lichtbrechung,
+  Tiefenschärfe) ihr Vorzeichen um.
+- `vignette=false` und `underwaterOverlay=false` der Packs werden beachtet (wie
+  Iris); vorher dunkelte die Vanilla-Vignette die Bildränder um 5–10 % ab.
+- Iris-Merkmale `HIGHER_SHADOWCOLOR`, `BLOCK_EMISSION_ATTRIBUTE`,
+  `ENTITY_TRANSLUCENT` werden angekündigt und sind umgesetzt (u. a. interaktives
+  Wasser in Rethinking Voxels, `shadowcolorimgN`).
+- Terrain nutzt wie Iris `gbuffers_terrain_solid`/`_cutout` (Photon, Mellow,
+  Eclipse) und die Ersatzkette bis `gbuffers_textured`.
+Einzelheiten: `docs/NATIVE_PACK_FEATURES.md`, Abschnitt „Iris parity fixes“.
+
+## Stand 0.26 — Shaderpack-Kompatibilität (11.11.2026)
+
+Neu unterstützt: Compute-Programme (inkl. `setup` und `shadowcomp`),
+Speicherpuffer (`bufferObject`), eigene Bilder (`image.*`), Datentexturen
+(`.dat`, auch 3D), Geometry- und Tessellation-Stufen sowie die Pack-Wolken
+(`gbuffers_clouds`). Damit lassen sich alle 14 Testpacks starten. Mit
+derselben Szene wie im Iris-Referenzclient sehen Photon, Eclipse Unstable,
+Bliss, Complementary Reimagined/Unbound und Miniature sichtbar gleich aus;
+Solas und Rethinking Voxels weitgehend. Nach dem Iris-Abgleich am Abend
+stimmen alle 14 Testpacks sichtbar überein (BSL-Wolken kommen über DHs
+Generic-Objekte). Einzelheiten in `docs/NATIVE_PACK_FEATURES.md` und
+`docs/MIGRATION_STATUS.md`. Kann ein Pack in einer Welt nicht aufgebaut
+werden, schaltet VSDH mit Chat-Hinweis auf die Standarddarstellung, statt
+abzustürzen. Andere Packs, Einstellungen und GPUs sind nicht getestet.
+
+## Stand 0.26 — Leistung
+
+In der festen Testszene (2560×1440, Complementary MEDIUM, DH 3.3.3,
+Sichtweite 8, RTX 4070) steigen die FPS von 89,4 (0.25) auf 112,4.
+Die Tiefenkopien für `depthtex1`/`depthtex2` kopieren keinen ungenutzten
+Stencil-Anteil mehr. Textur-Uploads lassen den nächsten Frame nicht mehr
+auf dem Prozessor warten. Der Schattenpass zeichnet nur noch, was nach
+den Pack-Vorgaben Schatten ins Bild werfen kann. Messwerte, Werkzeuge und
+Grenzen stehen in `docs/PERFORMANCE.md`.
+
+Vergleich mit Iris 1.8.12 in derselben Szene (RTX 4070, DH 3.3.3,
+Sichtweite 4, Fenster, 11.11.2026): Ohne Shaderpack ist der Vulkan-Renderer
+in 1280×720 35–50 % schneller als Iris mit Sodium, in 2560×1440 gleichauf.
+Mit Shaderpack und DH bei 2560×1440 (RTX 4070, Stand 12.11.2026): im **Vollbild** ist VSDH
+in allen fünf gemessenen Packs 9–18 % schneller als Iris (Complementary 162 gegen 147 FPS,
+Photon 169/150, BSL 202/171, Bliss 154/138, Eclipse 118/108). Im **Fenster** ist VSDH
+seit der eigenen DirectX-12-Bildausgabe (12.11.2026 mittags) 5–14 % schneller als Iris
+(Complementary 160 gegen 146, Photon 166/148, BSL 193/170, Bliss 152/137, Eclipse 110/104).
+Die DirectX-12-Ausgabe ist auf NVIDIA unter Windows im Fenster automatisch aktiv; im Vollbild
+nutzt VSDH weiter die Vulkan-Ausgabe, weil sie dort schneller ist. Abschalten:
+JVM-Schalter `-Dvsdh.dxgiPresent=false`. Andere GPUs, Treiber und Szenen sind nicht gemessen;
+auf AMD/Intel bleibt die Vulkan-Ausgabe.
+3D-Texturen eines Packs (Photon, Mellow) sind echte 3D-Bilder; der frühere 2D-Atlas
+bleibt als JVM-Schalter `-Dvsdh.flatVolumes=true`.
+
+Bei Darstellungsfehlern nach Textur-Updates hilft zur Eingrenzung der
+JVM-Schalter `-Dvsdh.legacyUploadSync=true` (alter Upload-Weg).
 
 ## Stand 0.25
 
@@ -205,8 +275,10 @@ Prüfbericht. Andere Shaderpacks können weitere Shaderstufen, Texturformate
 oder Spezialgeometrie benötigen. Weitere DH-Versionen und GPUs benötigen
 eigene Spieltests.
 
-Texturierte DH-LODs, DH-Antialiasing, DH-Drahtgitter und benutzerdefinierte DH-API-
-Geometrie sind noch nicht implementiert. Diese DH-Optionen werden nur für die
+Texturierte DH-LODs, DH-Antialiasing und DH-Drahtgitter sind noch nicht
+implementiert. DH-Generic-Objekte (DHs Wolken, Beacon-Strahlen, API-Boxen)
+werden als LOD-Geometrie gezeichnet; mit Shaderpack über `dh_generic` bzw.
+`dh_terrain` wie unter Iris. Diese DH-Optionen werden nur für die
 Sitzung abgeschaltet; gespeicherte Benutzerwerte werden nicht überschrieben.
 Der Renderer verwendet die jeweils unterstützten Pack-Programme für Wolken.
 Wasser-, Wolken- und LOD-Übergänge in weiteren Welten benötigen Sichtprüfungen.

@@ -21,6 +21,8 @@ class WorldPackPlanTest {
             assertEquals(java.util.List.of(0),prepared.chain().targets().writes("gbuffers_basic"));
             assertTrue(prepared.chain().externalSamplers().contains("depthtex0"));
             assertEquals(ParticlePackPlan.Order.MIXED,prepared.particles().order());
+            assertEquals(dev.vitrail.pack.source.ShadowCullState.DEFAULT,prepared.shadow().cull());
+            assertFalse(prepared.shadow().voxelizes(),"no geometry stage on the shadow program");
             assertEquals(3,prepared.particles().programs().size());
             assertEquals(java.util.List.of(9),prepared.chain().targets().writes("gbuffers_weather"));
             assertEquals(dev.vitrail.pack.model.TargetFormat.RGBA16_FLOAT,prepared.chain().targets().directives().format(9).used());

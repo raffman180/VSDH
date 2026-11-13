@@ -22,7 +22,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LevelRenderer.class)
-public abstract class WorldShaderLevelMixin implements de.stranger.vsdh.shader.NativeShadowCasters.LevelAccess {
+public abstract class WorldShaderLevelMixin implements de.stranger.vsdh.shader.NativeShadowCasters.LevelAccess,
+        de.stranger.vsdh.shader.IrisStandardValues.LevelTicks {
+    @Override
+    @org.spongepowered.asm.mixin.gen.Accessor("ticks")
+    public abstract int vsdh$ticks();
+
     @Override
     @Invoker("renderEntity")
     public abstract void vsdh$renderShadowEntity(Entity entity, double x, double y, double z, float partial,
@@ -52,6 +57,18 @@ public abstract class WorldShaderLevelMixin implements de.stranger.vsdh.shader.N
                                  LightTexture light, Matrix4f view, Matrix4f projection, CallbackInfo ci) {
         var session=WorldShaderSession.current();
         if(session!=null) session.beginWorld(camera,view,projection,delta.getGameTimeDeltaPartialTick(false),delta.getGameTimeDeltaPartialTick(true));
+    }
+    /**
+     * renderLevel clears the bound target with the fog colour right after beginWorld bound the pack's
+     * scene target, which overwrote the pack's own colortex0ClearColor (Mellow's sky came out in fog
+     * colour). Iris replaces this clear with the pack's clear passes; here the colour part is dropped
+     * while a pack frame is active and the depth part still clears the world depth.
+     */
+    @com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation(method="renderLevel",
+            at=@At(value="INVOKE",target="Lcom/mojang/blaze3d/systems/RenderSystem;clear(IZ)V"))
+    private void vsdh$worldClear(int mask,boolean onOsx,Operation<Void> original) {
+        var session=WorldShaderSession.current();
+        original.call(session!=null&&session.active()?mask&~0x4000:mask,onOsx); // GL_COLOR_BUFFER_BIT
     }
     @Inject(method="setLevel",at=@At("HEAD"))
     private void vsdh$changeWorld(ClientLevel level,CallbackInfo ci) {

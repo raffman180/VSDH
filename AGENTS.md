@@ -94,3 +94,82 @@ Keep invalid or blank settings on the standard renderer. Never bundle the pack.
 0.15 keeps vanilla culling for shader translucent terrain when backFaceCulling
 is enabled. Liquid meshes carry both face windings. Preserve the standard
 renderer and confirm upward water normals in the live GPU probe.
+
+0.26 is a measured performance step; read docs/PERFORMANCE.md. Profile before
+optimising (-Dvsdh.gpuProfile, -Dvsdh.syncTrace, JFR). ShadowCuller mirrors
+Iris's caster selection and must stay monotone. depthtex1/2 copy the depth
+plane only. Render-thread uploads share one graphics-queue batch per frame;
+flush it before any other graphics submission, never add a CPU fence for it.
+Do not claim an advantage over Iris/OpenGL without a same-scene comparison.
+Pack DH passes cull back faces with CCW front faces like DH itself (Bliss
+showed white water tiles otherwise). dhNearPlane/dhFarPlane/dhRenderDistance
+are always provided, as in Iris. Compare pack bugs against the Iris client in
+build/reference/iris-client with the same seed, camera and DH config.
+WorldUniforms writes a program's frame-constant members once per capture and
+DrawSpace; later draws refresh only PER_DRAW members. A new value that can
+change between two draws of one program must be added to PER_DRAW.
+Under NeoForge Reforged's Matrix4fM does not apply (JOML probe m32=-0.1); the
+`near` uniform must follow the published projection, not a constant 0.05.
+Pack sky programs get a closed horizon (SkyHorizon) like other loaders.
+Never write DH config from code: a DH-API switch-off once persisted
+rendererMode=DISABLED in the test client and silently removed every LOD.
+The harness scripts reset it; check "DH land draws" in bench summaries.
+Full-screen passes are a 0..1 quad (6 vertices), never one oversized triangle:
+packs shrink gl_Position (Bliss half-res fog). The vanilla renderLevel clear
+must not clear colour into pack targets (WorldShaderLevelMixin.vsdh$worldClear).
+Compare GPU per pass with run-iris-gpu-profile.ps1 before optimising.
+The pack chain is GL-oriented: publish the game's projection unflipped
+(gbufferProjection[1][1] > 0), pack images store rows bottom-up, vanilla draws
+into the pack scene use the unflipped viewport (Renderer.setMainTargetRowsBottomUp),
+FINAL goes through one mirrored blit. Never reintroduce the Y-negated matrices.
+Honour pack directives Iris honours (vignette, underwaterOverlay default off).
+Compare uniforms against Iris with build/reference/packs-debug/zzUniformProbe.zip;
+test screenshots hide the GUI in both clients (vanilla vignette skews colours).
+Persistent pack targets swap halves instead of being copied back only when unblended
+fullscreen passes alone write them (NativeShaderChain.swappable); keep that rule, and
+look images up per frame (views keyed by image ids, geometry passes via Supplier).
+Depth snapshots (depthtex1/2, dhDepthTex1) exist only when a program reads them;
+smoke runs force them with -Dvsdh.allDepthSnapshots=true. Windowed Vulkan present on
+NVIDIA costs ~1 ms GPU per frame at 1440p (driver copy); fullscreen does not. Measure
+both before claiming a lead over Iris (run-vsdh-026-bench.ps1 -HighResolution -Fullscreen).
+The frame's upload batch rides as the first command buffer of the frame's own vkQueueSubmit
+(GraphicsQueue.detachBatch); a separate submit cost a 0.12 ms GPU gap. The remaining gap
+between frames is driver presentation (GPU_GAP, -Dvsdh.debugCpuDelayUs): do not chase it again.
+Pack .dat volumes are real 3D images (GlslTranslator.nativeVolumes, PackTexturePlan.Volume);
+the 2D atlas stays only as the -Dvsdh.flatVolumes=true fallback.
+DXGI flip presentation (net.vulkanmod.vulkan.present): D3D12 interop is the default in a window on
+NVIDIA (-Dvsdh.dxgiPresent=auto; Photon 1440p 159-163 vs 149-153 FPS); exclusive fullscreen keeps the
+Vulkan swapchain (Vulkan 166-171 vs D3D12 145-150), SwapChain switches on every recreate. D3D11
+(=d3d11) and a D3D12 copy queue (device removed, access denied) were slower or invalid. COM slots
+come from the Windows SDK headers; never guess them, and count d3d12.h C vtables with one #if branch
+only (struct-returning methods appear twice). Never change the player's driver settings from code.
+Players pick packs on the Shader page of the video settings (ShaderSettingsPage): it saves
+config/vsdh.json (profile/options of other packs stay in otherPacks) and ShaderPackStartup.request
+swaps the world host only while no level is loaded (uninstall, then install); a failed preparation
+keeps the installed host. Test both paths: -PtestSysProps=vsdh.releaseQA.menuSwitch=<zip> (title
+screen: pack, other, off, back) and vsdh.releaseQA.worldSwitch=true (off in a world, applies on leave).
+Distant Horizons is optional (mods.toml type="optional"): DhMixinPlugin applies no vsdh.mixins.json hook
+without DH, Vsdh touches DH's API only via its DistantHorizonsSetup holder, WorldUniforms skips DH scalars
+and Selection forces distant=false. Never let core render code load com.seibel classes unguarded; test
+with -PtestNoDh (pack and -PtestNoShader). Smoothness is measured with run-vsdh-026-flight.ps1 (30 s flight,
+per-frame CSV, flight-analyse.py at 165 Hz); single runs vary 168-227 FPS, compare medians of several.
+Device-local buffer copies on the render thread ride the frame upload batch (GraphicsQueue.recordBufferUpload,
+one barrier at batch end) instead of a transfer submit + fence each. G1 pauses from server/DH allocation
+dominate flight stutter; keep render-thread allocation near zero per frame (no per-draw maps/regex/streams).
+Pack options are listed from the pack's own screens and language file (PackOptionsView, read on the
+preparation worker); only differences from the profile are stored in shaderOptions, and a newly chosen
+profile clears them as in Iris. Test with vsdh.releaseQA.packOptions=true.
+ShaderPackSource.options() indexes the source files plus every #included file of any extension (Miniature
+keeps its settings in shader.h); never narrow it back to the extension list.
+The Shader page's first row shows ShaderPackStartup.active()/requested() at the time the page opens.
+Worldgen rule lists loop by index (MaterialRuleListMixin, SurfaceSequenceRuleMixin; -Dvsdh.worldgenLoops=false
+for A/B). DH 3.3.x's chunk update loop spins while its head is debounced or after leaving the world;
+MixinChunkUpdateQueueBackoff waits 2 ms after a pass that took in and dispatched nothing (applied only when
+DH has runQueueingLoop; -Dvsdh.dhQueueBackoff=false). Both cut allocation, neither moved FPS or hitches in
+7 A/B flight pairs: do not claim a smoothness gain. -Xms=-Xmx and MaxGCPauseMillis were measured and are
+not recommended (longer pauses). Never leave a bench client unwatched: the flight menu wait once hung 3 h.
+G1 remark spends 10-32 ms in class unloading about once a second while almost nothing unloads; the player-side
+Java argument -XX:-ClassUnloadingWithConcurrentMark cut remark to ~1 ms (JFR). Recommend it, never set it.
+Fullscreen vs Iris (1440p): VSDH more FPS, half the small hitches, but more >25 ms frames (G1, driver present).
+Long fullscreen frames are mostly vkQueuePresentKHR blocking 20-25 ms in the driver; an FPS cap just below
+the refresh rate removed them (VSDH 0 frames >25 ms vs Iris 2-3). Recommend it; do not add an automatic cap.

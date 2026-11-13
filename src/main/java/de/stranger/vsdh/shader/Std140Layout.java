@@ -13,6 +13,9 @@ import java.util.regex.Pattern;
 public final class Std140Layout {
     private static final Pattern ARRAY = Pattern.compile("\\[\\s*(\\d+)\\s*]");
     private static final Pattern MATRIX = Pattern.compile("(d?)mat([2-4])(?:x([2-4]))?");
+    // Precompiled: the write path runs for every active uniform in every frame.
+    private static final Pattern FLOAT_VECTOR = Pattern.compile("vec[2-4]|mat[2-4](?:x[2-4])?");
+    private static final Pattern INTEGER = Pattern.compile("int|uint|bool|[iub]vec[2-4]");
     private static final int MAX_BYTES = 1 << 20;
     public record Member(String name, String type, int offset, int size, int alignment,
                          int arrayLength, int arrayStride, int matrixStride) {}
@@ -62,16 +65,32 @@ public final class Std140Layout {
         return member;
     }
 
-    /** Write scalar/vector/matrix float values in column-major order without disturbing padding. */
-    public void putFloats(ByteBuffer destination, String name, int arrayIndex, float... values) {
-        Member member = member(name);
-        if (!(member.type.equals("float") || member.type.matches("vec[2-4]|mat[2-4](?:x[2-4])?")))
-            throw new IllegalArgumentException("Not a float uniform: " + member.type);
-        int offset = elementOffset(destination, member, arrayIndex);
-        var matrix = MATRIX.matcher(member.type);
+    /** Parsed once per GLSL type: the write path runs for every active uniform in every frame. */
+    private record TypeInfo(boolean floats, boolean ints, int columns, int rows) {}
+    private static final Map<String, TypeInfo> TYPES = new java.util.concurrent.ConcurrentHashMap<>();
+    private static TypeInfo typeInfo(String type) { return TYPES.computeIfAbsent(type, Std140Layout::parseType); }
+    private static TypeInfo parseType(String type) {
+        boolean floats = type.equals("float") || FLOAT_VECTOR.matcher(type).matches();
+        boolean ints = INTEGER.matcher(type).matches();
+        var matrix = MATRIX.matcher(type);
         if (matrix.matches()) {
             int columns = Integer.parseInt(matrix.group(2));
             int rows = matrix.group(3) == null ? columns : Integer.parseInt(matrix.group(3));
+            return new TypeInfo(floats, ints, columns, rows);
+        }
+        return new TypeInfo(floats, ints, 0, 0);
+    }
+
+    /** Write scalar/vector/matrix float values in column-major order without disturbing padding. */
+    public void putFloats(ByteBuffer destination, String name, int arrayIndex, float... values) {
+        Member member = member(name);
+        TypeInfo info = typeInfo(member.type);
+        if (!info.floats())
+            throw new IllegalArgumentException("Not a float uniform: " + member.type);
+        int offset = elementOffset(destination, member, arrayIndex);
+        if (info.columns() > 0) {
+            int columns = info.columns();
+            int rows = info.rows();
             if (values.length != columns * rows) throw new IllegalArgumentException("Wrong matrix value count: " + name);
             for (int column = 0; column < columns; column++)
                 for (int row = 0; row < rows; row++)
@@ -85,7 +104,7 @@ public final class Std140Layout {
 
     public void putInts(ByteBuffer destination, String name, int arrayIndex, int... values) {
         Member member = member(name);
-        if (!member.type.matches("int|uint|bool|[iub]vec[2-4]"))
+        if (!typeInfo(member.type).ints())
             throw new IllegalArgumentException("Not an integer uniform: " + member.type);
         int offset = elementOffset(destination, member, arrayIndex);
         int count = member.type.length() <= 4 ? 1 : member.type.charAt(member.type.length() - 1) - '0';

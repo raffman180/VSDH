@@ -281,6 +281,9 @@ public final class ChainPlan {
 					// the reason no family with a switch is: the far terrain is drawn where that mod
 					// is installed and running, which is no place in particular.
 					new NamedProgram("dh_terrain", false, NOT_EVERYWHERE),
+					// DH's generic objects (its clouds, beacon beams) beside its opaque terrain, for a
+					// pack that writes a program of their own; the others shade them with dh_terrain.
+					new NamedProgram("dh_generic", false, NOT_EVERYWHERE),
 					new NamedProgram("dh_water", true, NOT_EVERYWHERE)))
 			.toList();
 

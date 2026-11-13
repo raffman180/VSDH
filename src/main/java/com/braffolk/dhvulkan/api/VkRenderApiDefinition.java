@@ -73,7 +73,7 @@ public abstract class VkRenderApiDefinition extends AbstractDhRenderApiDefinitio
     @Override public IDhTestTriangleRenderer getTestTriangleRenderer() { return testTriangleRenderer; }
 
     // Factories
-    @Override public IDhGenericRenderer createGenericRenderer() { return new VkGenericRenderer(); }
+    @Override public IDhGenericRenderer createGenericRenderer() { return new VkGenericRenderer(backend); }
     @Override public IVertexBufferWrapper createVboWrapper(String name) { return new VkVertexBufferWrapper(backend); }
     @Override public ILodContainerUniformBufferWrapper createLodContainerUniformWrapper() { return new VkLodContainerUniformWrapper(); }
     @Override public IDhGenericObjectVertexBufferContainer createGenericVboContainer() { return new VkGenericObjectVboContainer(); }
@@ -255,20 +255,94 @@ public abstract class VkRenderApiDefinition extends AbstractDhRenderApiDefinitio
         }
     }
 
+    /**
+     * DH generic objects (its clouds, beacon beams, API boxes) drawn as LOD quads.
+     * <p>
+     * DH calls this twice per frame after the opaque LOD terrain, once for groups with SSAO and once
+     * for the others, and expects each group's double-buffered container to be advanced here. Under a
+     * pack the quads go to the pack's dh_generic (else dh_terrain) and write the DH depth, like Iris;
+     * DH's clouds stay away when the pack says dhClouds=off, or says nothing about them and clouds=off.
+     */
     static class VkGenericRenderer implements IDhGenericRenderer {
         // DH registers its cloud group during world construction even when
         // drawing API geometry is disabled. Registration must remain functional.
         private final java.util.concurrent.ConcurrentMap<Long, IDhApiRenderableBoxGroup> groups =
                 new java.util.concurrent.ConcurrentHashMap<>();
+        private final VulkanBackend backend;
+        private boolean failed;
+
+        VkGenericRenderer(VulkanBackend backend) { this.backend = backend; }
+
         @Override public void close() { groups.clear(); }
+
+        /** -Dvsdh.genericTrace=true: log what DH hands the generic renderer every 600 calls. */
+        private static final boolean TRACE = Boolean.getBoolean("vsdh.genericTrace");
+        private long calls, drawnQuads;
+        private boolean sawSsaoCall;
+
         @Override
         public void render(RenderParams renderEventParam, IProfilerWrapper profiler, boolean renderingWithSsao) {
-            // Generic object rendering not yet implemented for Vulkan
+            if (TRACE && calls++ % 600 == 0) {
+                var text = new StringBuilder("GENERIC_TRACE calls=").append(calls).append(" accepts=")
+                        .append(backend.acceptsGenericDraws()).append(" quads=").append(drawnQuads).append(" groups:");
+                for (var group : groups.values())
+                    if (group instanceof com.seibel.distanthorizons.core.render.renderer.RenderableBoxGroup box)
+                        text.append(' ').append(box.resourceLocationPath).append("[active=").append(box.active)
+                                .append(",ssao=").append(box.ssaoEnabled).append(",size=").append(box.size())
+                                .append(",state=").append(box.vertexBufferContainer == null ? null : box.vertexBufferContainer.getState())
+                                .append(']');
+                org.slf4j.LoggerFactory.getLogger("DH-VulkanMod").info(text.toString());
+            }
+            if (failed || groups.isEmpty() || !backend.acceptsGenericDraws()) return;
+            var camera = renderEventParam.exactCameraPosition;
+            if (camera == null) return;
+            // DH makes the SSAO call only while its own SSAO pass runs, which never happens here: the
+            // call without SSAO then draws the SSAO groups too (API boxes default to SSAO).
+            boolean includeSsaoGroups = renderingWithSsao || !sawSsaoCall;
+            if (renderingWithSsao) sawSsaoCall = true; else sawSsaoCall = false;
+            try {
+                boolean shaded = !backend.packFrameActive();
+                for (IDhApiRenderableBoxGroup group : groups.values()) {
+                    if (!(group instanceof com.seibel.distanthorizons.core.render.renderer.RenderableBoxGroup box)) continue;
+                    if (renderingWithSsao ? !box.ssaoEnabled : box.ssaoEnabled && !includeSsaoGroups) continue;
+                    if ("Clouds".equalsIgnoreCase(box.resourceLocationPath) && !backend.drawsDhClouds()) continue;
+                    var shading = box.shading;
+                    float[] faces = shading == null ? null
+                            : new float[]{shading.bottom, shading.top, shading.north, shading.south, shading.west, shading.east};
+                    box.preRender(renderEventParam.apiCopy);
+                    // DH may hand the next build to its worker inside this call; it reads these first.
+                    configure(box, faces);
+                    box.tryUpdateInstancedDataAsync();
+                    if (box.active && box.vertexBufferContainer instanceof VkGenericObjectVboContainer container
+                            && container.getState() == IDhGenericObjectVertexBufferContainer.EState.RENDER) {
+                        var origin = box.positionBoxesRelativeToGroupOrigin ? box.getOriginBlockPos() : null;
+                        double ox = origin == null ? 0 : origin.x, oy = origin == null ? 0 : origin.y, oz = origin == null ? 0 : origin.z;
+                        for (var segment : container.segments(shaded)) {
+                            Object buffer = segment.gpu()[shaded ? 1 : 0];
+                            if (buffer == null) continue;
+                            drawnQuads += segment.quads();
+                            backend.drawGenericQuads(buffer, segment.quads(),
+                                    (float) (ox + segment.x() - camera.x), (float) (oy + segment.y() - camera.y),
+                                    (float) (oz + segment.z() - camera.z));
+                        }
+                    }
+                    box.postRender(renderEventParam.apiCopy);
+                }
+            } catch (LinkageError incompatible) {
+                // A DH build whose generic group differs from 3.3.3: draw nothing rather than fail every frame.
+                failed = true;
+                org.slf4j.LoggerFactory.getLogger("DH-VulkanMod").warn("DH generic objects disabled: incompatible DH build", incompatible);
+            }
+        }
+
+        private static void configure(com.seibel.distanthorizons.core.render.renderer.RenderableBoxGroup box, float[] faces) {
+            if (box.vertexBufferContainer instanceof VkGenericObjectVboContainer current)
+                current.configure(box.skyLight, box.blockLight, faces);
         }
 
         @Override
         public String getVboRenderDebugMenuString() {
-            return "VSDH: custom DH API geometry unsupported";
+            return "VSDH: " + groups.size() + " generic object groups";
         }
 
         @Override
@@ -277,6 +351,13 @@ public abstract class VkRenderApiDefinition extends AbstractDhRenderApiDefinitio
             IDhApiRenderableBoxGroup previous = groups.putIfAbsent(cubeGroup.getId(), cubeGroup);
             if (previous != null && previous != cubeGroup) {
                 throw new IllegalArgumentException("A DH render group with this ID is already registered");
+            }
+            // A new group is not dirty; DH's own renderer schedules its first build here as well.
+            try {
+                if (cubeGroup instanceof com.seibel.distanthorizons.core.render.renderer.RenderableBoxGroup box && box.size() > 0)
+                    box.triggerBoxChange();
+            } catch (LinkageError incompatible) {
+                // Other DH builds: the group stays registered and is drawn once it reports a change.
             }
         }
 

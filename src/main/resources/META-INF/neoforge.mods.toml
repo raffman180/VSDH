@@ -8,10 +8,10 @@ version="${version}"
 displayName="VSDH (development build)"
 authors="Stranger; Braffolk and upstream contributors (rendering)"
 description='''
-Experimental native Vulkan rendering bridge for Distant Horizons and VulkanMod Reforged.
+Vulkan renderer with shader packs; renders Distant Horizons natively when DH is installed (optional).
 Development target: Minecraft 1.21.1, NeoForge 21.1.264, DH 3.2.0-b and 3.3.1–3.3.3.
 Experimental shaderpack tests cover Complementary Reimagined and BSL with the native renderer.
-Experimental shader selection is available through config/vsdh.json. Full world coverage is in development.
+Pick a shader pack under Video Settings > Shaders (no restart needed). Not every pack or GPU is tested.
 '''
 
 [[dependencies.vsdh]]
@@ -31,7 +31,7 @@ versionRange="[${renderer_version}]"
 side="CLIENT"
 [[dependencies.vsdh]]
 modId="distanthorizons"
-type="required"
+type="optional"
 versionRange="[3.2.0-b],[3.3.1],[3.3.2],[3.3.3]"
 side="CLIENT"
 [[dependencies.vsdh]]
@@ -39,13 +39,25 @@ modId="iris"
 type="incompatible"
 versionRange="[0,)"
 side="CLIENT"
-reason="This development milestone provides native DH rendering, not an Iris Vulkan backend."
+reason="VSDH loads shader packs itself with its Vulkan renderer; remove Iris."
 [[dependencies.vsdh]]
 modId="sodium"
 type="incompatible"
 versionRange="[0,)"
 side="CLIENT"
-reason="Sodium and VulkanMod Reforged replace the terrain renderer; simultaneous use is not implemented."
+reason="Sodium and the Vulkan renderer in VSDH both replace the terrain renderer; remove Sodium."
+[[dependencies.vsdh]]
+modId="embeddium"
+type="incompatible"
+versionRange="[0,)"
+side="CLIENT"
+reason="Embeddium and the Vulkan renderer in VSDH both replace the terrain renderer; remove Embeddium."
+[[dependencies.vsdh]]
+modId="oculus"
+type="incompatible"
+versionRange="[0,)"
+side="CLIENT"
+reason="VSDH loads shader packs itself; remove Oculus."
 
 [[mixins]]
 config="vsdh.mixins.json"

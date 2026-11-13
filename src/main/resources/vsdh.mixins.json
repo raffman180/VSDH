@@ -10,6 +10,7 @@
     "dh3.MixinLegacyUpdateQueryScope",
     "dh3.MixinLegacyUpdatePropagatorShutdown",
     "dh3.MixinRegenStatementCancellation",
+    "dh3.MixinChunkUpdateQueueBackoff",
     "shared.MixinLevelRenderer"
   ],
   "injectors": { "defaultRequire": 1 }

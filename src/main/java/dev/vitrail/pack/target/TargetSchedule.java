@@ -288,6 +288,14 @@ public final class TargetSchedule {
 	}
 
 	public Optional<Bound> step(String program) {
+		// Asked for every pass of every frame: answer from a memo instead of a fresh stream each time.
+		return this.stepMemo.computeIfAbsent(program, this::findStep);
+	}
+
+	private final java.util.concurrent.ConcurrentHashMap<String, Optional<Bound>> stepMemo =
+			new java.util.concurrent.ConcurrentHashMap<>();
+
+	private Optional<Bound> findStep(String program) {
 		String wanted = TargetName.bareName(program);
 
 		return this.steps.stream().filter(step -> TargetName.bareName(step.program()).equals(wanted))

@@ -46,6 +46,9 @@ public abstract class Options {
                 Component.translatable("vulkanmod.options.pages.graphics").getString(),
                 Options.getGraphicsOpts()));
 
+        optionPages.add(de.stranger.vsdh.shader.ShaderSettingsPage.page());
+        optionPages.add(de.stranger.vsdh.shader.ShaderSettingsPage.optionsPage());
+
         optionPages.add(new OptionPage(
                 Component.translatable("vulkanmod.options.pages.optimizations").getString(),
                 Options.getOptimizationOpts()));

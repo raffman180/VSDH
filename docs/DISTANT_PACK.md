@@ -71,3 +71,82 @@ Das ursprüngliche Reforged-Verhalten gilt im Standardmodus.
 Weitere Arbeiten betreffen Packprogramme für übrige Minecraft-Geometrie,
 DH-Schatten für Packs, die sie aktivieren, und allgemeine DH-Objekte. Complementary MEDIUM
 deaktiviert DH-Schatten in seiner eigenen Konfiguration.
+
+## 0.26: Rückseiten der DH-Pack-Durchläufe
+
+Bliss 2.1.2 zeigte über dem Ozean blockgroße weiße Kacheln. Unter Iris in
+derselben Szene fehlten sie. Mit übersprungenem DH-Wasser verschwanden sie
+auch im Nahbereich. Dort zeichnet Bliss DH-Wasser bereits ab 16 Blöcken.
+`NativeDistantPass` zeichnete `dh_terrain` und `dh_water` ohne
+Rückseitenausblendung. Die nach unten zeigenden Flächen von LOD-Wasser über
+Seetang und Seegras schattierte Bliss wie Wasser, das man von unten sieht.
+DH selbst und der normale Vulkan-DH-Weg nutzen Rückseitenausblendung mit
+Vorderseiten gegen den Uhrzeigersinn. Die Pack-Durchläufe tun das nun auch.
+Seit der GL-Ausrichtung der Pack-Kette (Zeilen von unten nach oben,
+`NATIVE_PACK_FEATURES.md`) erscheint DHs Gegen-Uhrzeigersinn im Framebuffer
+gespiegelt; die Pässe nutzen deshalb `VK_FRONT_FACE_CLOCKWISE`. Das Bild entspricht danach der
+Iris-Referenz; das DH-Land bleibt vollständig.
+
+## Packs ohne DH-Programme (11.11.2026)
+
+Hat ein Pack in der Dimension kein vollständiges `dh_terrain`/`dh_water`,
+verwendet VSDH ihn ohne Pack-DH-Programme (`WorldPackPlan.prepare`, Warnung im
+Log) und zeichnet keine DH-LODs (`VulkanRenderEngine.beginFrame`). Ein
+zwischenzeitlich eingebautes Abschalten über die DH-API
+(`renderingEnabled().setValue(false)`) wurde wieder entfernt: Iris macht das
+nicht, und es behob den AstraLex/Insanity-Rand nicht. Dieser Rand (harte
+Chunk-Kante, hellerer Himmel als unter Iris) ist weiterhin offen.
+
+## DH-Generic-Objekte: Wolken, Beacons, API-Boxen (11.11.2026)
+
+DH zeichnet eigene Wolken (`CloudRenderHandler`, Gruppe `DistantHorizons:Clouds`),
+Beacon-Strahlen und Boxen anderer Mods über seinen „Generic“-Renderer. VSDH
+hatte dafür nur Platzhalter und schaltete `enableGenericRendering` pro Sitzung
+ab. Unter Iris erscheinen die Wolken in `dhDepthTex0` und werden vom Pack
+schattiert; in BSL fehlten sie deshalb.
+
+Jetzt (`VkGenericRenderer`, `VkGenericObjectVboContainer`):
+
+- Jede Box wird auf einem DH-Worker zu sechs Flächen im 16-Byte-LOD-Format
+  (Position, Licht, Farbe, Material, Fläche); jede Fläche in beiden
+  Wicklungen, damit das Rückseiten-Culling der LOD-Pässe sie nie verliert.
+  Upload und Freigabe nur auf dem Render-Thread (DHs Doppelpuffer-Protokoll:
+  `tryUpdateInstancedDataAsync`).
+- DH ruft den Renderer nach dem opaken LOD-Terrain zweimal auf (mit/ohne SSAO);
+  gezeichnet wird jeweils die passende Gruppe.
+- Mit Pack: eigene Warteschlange in `NativeDistantTerrain`, gezeichnet mit dem
+  Pack-Programm `dh_generic`, sonst `dh_terrain` (Iris-Fallback), in die
+  DH-Tiefe vor deren Opak-Kopie. `dh_generic` steht dazu in `ChainPlan`.
+- DHs Wolken entfallen bei `dhClouds=off` oder ohne `dhClouds`-Zeile bei
+  `clouds=off` (Regel wie Iris).
+- Ohne Pack: DHs eigene Terrain-Pipeline; die Flächenschattierung der Gruppe
+  ist in die Farbe eingerechnet.
+
+Geprüft: Unit-Test für das Vertex-Layout; im Spiel BSL (Wolken wie unter Iris),
+Eclipse und Super Duper Vanilla (eigenes `dh_generic`), Complementary.
+`-Dvsdh.genericTrace=true` loggt Gruppen, Zustände und gezeichnete Quads.
+Nicht geprüft: Standardrenderer ohne Pack, Beacon-Strahlen, Boxen fremder Mods.
+DH-Ereignisse `DhApiBeforeGenericObjectRenderEvent` werden nicht gefeuert.
+
+Nachtrag (11.11.2026 nachmittags): Boxen fremder Mods über die DH-API
+(`createAbsolutePositionedGroup` + `getRenderRegister().add`) werden jetzt auch
+gezeichnet. Zwei Fehler verhinderten das: `VkGenericRenderer.add` löste den
+ersten Aufbau nicht aus (DHs eigener Renderer ruft dort `triggerBoxChange()`),
+und Gruppen mit SSAO (Standard für API-Boxen) wurden nie verarbeitet, weil DH
+den SSAO-Aufruf nur bei eigenem SSAO macht; ohne diesen Aufruf zeichnet der
+Aufruf ohne SSAO sie mit. Im Spiel geprüft mit einer roten Säule und grüner
+Platte jenseits der Sichtweite: Standardrenderer, Complementary (`dh_terrain`),
+Eclipse (`dh_generic`, inklusive Spiegelung im Wasser). DHs Beacon-Gruppe ist
+registriert; in der Testszene hat DH den Test-Beacon nicht übernommen (Gruppe
+leer), die Strahlen selbst sind daher nicht im Bild geprüft.
+
+## Beacon-Strahlen (11.11.2026 abends)
+
+DH übernimmt Beacons nur aus geladenen Chunks, wenn der Beacon beim Einlesen
+schon aktiv ist (Prüfung alle 80 Ticks). Die Testszene (`-PtestBeacon`, ohne
+Pack zusätzlich `-PtestBeaconNoShader`) baut deshalb Beacon und Sockel, ändert
+nach der Aktivierung einen Block im selben Chunk und entfernt sich erst danach
+170 Blöcke. Ergebnis: DH-Gruppe „Beacons“ mit einem Strahl, sichtbar mit
+Complementary (`dh_terrain`, mit Spiegelung im Wasser) und ohne Shaderpack.
+Ein Lauf ohne Pack registrierte den Beacon einmal nicht (DH-Zeitpunkt, die
+Gruppe blieb leer); der Wiederholungslauf zeigte ihn.

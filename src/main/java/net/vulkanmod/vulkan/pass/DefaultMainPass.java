@@ -279,7 +279,7 @@ public class DefaultMainPass implements MainPass {
                 resolveScaledFramebufferToSwapchain(commandBuffer, false);
             }
 
-            swapChain.getColorAttachment().transitionImageLayout(stack, commandBuffer, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+            swapChain.getColorAttachment().transitionImageLayout(stack, commandBuffer, swapChain.presentLayout());
         }
 
         int result = vkEndCommandBuffer(commandBuffer);

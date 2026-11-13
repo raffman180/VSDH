@@ -10,9 +10,9 @@ import static org.lwjgl.vulkan.VK10.*;
 /** Dedicated DH depths and transient draw lists. Mesh buffers stay owned by the DH backend. */
 public final class NativeDistantTerrain implements AutoCloseable {
     private final DistantPackPlan plan;
-    private final Batch opaque = new Batch(), transparent = new Batch();
+    private final Batch opaque = new Batch(), transparent = new Batch(), generic = new Batch();
     private VulkanImage depth, opaqueDepth;
-    private NativeDistantPass terrain, water;
+    private NativeDistantPass terrain, water, genericPass;
     private long terrainDraws, waterDraws;
     private boolean closed;
 
@@ -23,7 +23,9 @@ public final class NativeDistantTerrain implements AutoCloseable {
             depth = createDepth(width, height);
             opaqueDepth = createDepth(width, height);
             terrain = new NativeDistantPass(plan.terrain(), NativeBlend.forProgram(targets,"dh_terrain",targets.writes("dh_terrain").size()));
-            water = new NativeDistantPass(plan.water(), NativeBlend.forProgram(targets,"dh_water",targets.writes("dh_water").size()));
+            water = new NativeDistantPass(plan.water(), NativeBlend.forProgram(targets,"dh_water",targets.writes("dh_water").size()), true);
+            if (plan.generic() != null)
+                genericPass = new NativeDistantPass(plan.generic(), NativeBlend.forProgram(targets,"dh_generic",targets.writes("dh_generic").size()));
         } catch (RuntimeException | Error failure) {
             close();
             throw failure;
@@ -39,9 +41,14 @@ public final class NativeDistantTerrain implements AutoCloseable {
     void beginFrame() {
         opaque.clear();
         transparent.clear();
+        generic.clear();
         NativeImageOps.clearDepth(depth, 1, 0);
-        NativeImageOps.clearDepth(opaqueDepth, 1, 0);
+        if (opaqueSnapshot) NativeImageOps.clearDepth(opaqueDepth, 1, 0);
     }
+
+    /** Whether anything reads dhDepthTex1 (pack programs, or DH programs reading DH depth). */
+    private boolean opaqueSnapshot = true;
+    void opaqueSnapshot(boolean needed) { opaqueSnapshot = needed; }
 
     public VulkanImage image(String name) {
         return switch (name) {
@@ -55,15 +62,25 @@ public final class NativeDistantTerrain implements AutoCloseable {
         (water ? transparent : opaque).add(vertices, indices, count, x, y, z);
     }
 
+    /** DH generic objects: opaque, after the LOD terrain and before its translucent half. */
+    public void enqueueGeneric(Object vertices, Object indices, int count, float x, float y, float z) {
+        generic.add(vertices, indices, count, x, y, z);
+    }
+
     void snapshotOpaque() {
-        NativeImageOps.copyBase(depth, opaqueDepth);
+        if (opaqueSnapshot) NativeImageOps.copyBase(depth, opaqueDepth);
     }
 
     void render(WorldShaderSession session, boolean translucent) {
-        var batch = translucent ? transparent : opaque;
+        draw(session, translucent ? transparent : opaque, translucent ? plan.water() : plan.terrain(),
+                translucent ? water : terrain, translucent);
+        if (!translucent && generic.size != 0)
+            draw(session, generic, plan.genericProgram(), genericPass != null ? genericPass : terrain, false);
+    }
+
+    private void draw(WorldShaderSession session, Batch batch, PackProgramSource.Prepared source,
+                      NativeDistantPass pipeline, boolean translucent) {
         if (batch.size == 0) return;
-        var source = translucent ? plan.water() : plan.terrain();
-        var pipeline = translucent ? water : terrain;
         var target = session.chain().geometry(source.path().substring(source.path().lastIndexOf('/') + 1), translucent, depth);
         session.writeDistant(pipeline, source, translucent);
         try (var stack = MemoryStack.stackPush()) {
@@ -83,14 +100,16 @@ public final class NativeDistantTerrain implements AutoCloseable {
 
     public long terrainDraws() { return terrainDraws; }
     public long waterDraws() { return waterDraws; }
-    boolean hasOpaqueDraws() { return opaque.size != 0; }
+    boolean hasOpaqueDraws() { return opaque.size != 0 || generic.size != 0; }
 
     @Override public void close() {
         if (closed) return;
         closed = true;
         opaque.clear();
         transparent.clear();
+        generic.clear();
         if (terrain != null) terrain.close();
+        if (genericPass != null) genericPass.close();
         if (water != null) water.close();
         if (depth != null) depth.free();
         if (opaqueDepth != null) opaqueDepth.free();

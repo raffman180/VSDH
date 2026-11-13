@@ -25,37 +25,73 @@ public final class NativeShaderChain implements AutoCloseable {
     @FunctionalInterface public interface UniformWriter {
         void update(ShaderChainPlan.Pass source, NativeFullscreenPass pipeline);
     }
+    @FunctionalInterface public interface ComputeUniformWriter {
+        void update(ShaderChainPlan.Compute source, NativeComputePass pipeline);
+    }
     @FunctionalInterface public interface ExternalImages {
         VulkanImage resolve(String program, SamplerPlan.Binding input);
     }
-    private record ViewKey(List<ShaderChainPlan.Attachment> attachments, long externalColour, long depth) {
-        ViewKey { attachments = List.copyOf(attachments); }
+    /** Views are keyed by the images themselves: target halves swap roles between frames. */
+    private record ViewKey(List<Long> colours, long depth) {
+        ViewKey { colours = List.copyOf(colours); }
     }
     public record View(Framebuffer framebuffer, RenderPass pass) implements AutoCloseable {
         @Override public void close() { pass.cleanUp(); framebuffer.cleanUp(false); }
     }
-    private record RuntimePass(ShaderChainPlan.Pass source, NativeFullscreenPass pipeline, View output) {}
+    private record RuntimeCompute(ShaderChainPlan.Compute source, NativeComputePass pipeline) {}
+    private record RuntimePass(ShaderChainPlan.Pass source, NativeFullscreenPass pipeline, List<ShaderChainPlan.Attachment> outputs,
+                               List<RuntimeCompute> computes) {
+        boolean external() { return outputs.isEmpty(); }
+    }
     private enum State { READY, FRAME, FAILED, CLOSED }
 
     private final ShaderChainPlan plan;
     private final NativeColorTargets targets;
     private final Map<ShaderChainPlan.Stage, List<RuntimePass>> stages = new EnumMap<>(ShaderChainPlan.Stage.class);
     private final Map<ViewKey, View> views = new HashMap<>();
+    /** Persistent targets written only by unblended fullscreen passes: swapped instead of copied back. */
+    private final java.util.Set<Integer> swappable;
+    private final List<RuntimeCompute> setup = new ArrayList<>();
+    private final List<RuntimeCompute> shadowComputes = new ArrayList<>();
+    private boolean setupDone;
     private State state = State.READY;
     private int nextStage;
-    private long frames, drawCalls;
+    private long frames, drawCalls, dispatches;
+    private final int width, height;
 
     public NativeShaderChain(ShaderChainPlan plan, int width, int height, long colorBudgetBytes) {
         RenderSystem.assertOnRenderThread();
         this.plan = plan;
+        this.width = width;
+        this.height = height;
         var layout = ShaderTargetLayout.of(plan.targets(), width, height,
                 DeviceManager.deviceProperties.limits().maxImageDimension2D(), colorBudgetBytes);
-        targets = new NativeColorTargets(layout, colorBudgetBytes);
+        var storage = new java.util.HashSet<Integer>();
+        for (var passes : plan.stages().values()) for (var pass : passes) {
+            for (var compute : pass.computes()) compute.images().values().forEach(image -> storage.add(image.target()));
+            pass.images().values().forEach(image -> storage.add(image.target()));
+        }
+        for (var compute : plan.setup()) compute.images().values().forEach(image -> storage.add(image.target()));
+        targets = new NativeColorTargets(layout, colorBudgetBytes, storage);
+        swappable = swappable(plan);
         try {
+            for (var compute : plan.setup()) setup.add(runtimeCompute(compute));
+            for (var compute : plan.shadowComputes()) shadowComputes.add(runtimeCompute(compute));
             for (var stage : ShaderChainPlan.Stage.values()) {
                 var runtime = new ArrayList<RuntimePass>();
                 stages.put(stage, runtime);
                 for (var source : plan.stages().get(stage)) {
+                    var computes = new ArrayList<RuntimeCompute>();
+                    try {
+                        for (var compute : source.computes()) computes.add(runtimeCompute(compute));
+                    } catch (Throwable failure) {
+                        computes.forEach(compute -> compute.pipeline().close());
+                        throw failure;
+                    }
+                    if (!source.draws()) {
+                        runtime.add(new RuntimePass(source, null, List.of(), computes));
+                        continue;
+                    }
                     View view = source.outputs().isEmpty() ? null : view(source.outputs(), null);
                     // Iris presents FINAL with blending disabled. Earlier passes can blend into
                     // their scheduled destination, whose existing contents are loaded by the pass.
@@ -63,11 +99,13 @@ public final class NativeShaderChain implements AutoCloseable {
                             : plan.targets().blend(source.name()).map(NativeBlend::encode).orElse(0);
                     var pipeline = new NativeFullscreenPass(source.program().path(), source.program().translated(),
                             source.program().compiled(), blend);
-                    runtime.add(new RuntimePass(source, pipeline, view));
+                    runtime.add(new RuntimePass(source, pipeline, source.outputs(), computes));
                     if (view != null) pipeline.prepare(view.pass());
                     for (var input : source.inputs())
                         if (input.kind() == SamplerPlan.Kind.COLORTEX)
                             pipeline.bindImage(input.sampler(), targets.image(input.index(), input.side()));
+                    for (var image : source.images().entrySet())
+                        pipeline.bindStorage(image.getKey(), targets.image(image.getValue().target(), image.getValue().side()));
                 }
             }
         } catch (Throwable failure) {
@@ -76,16 +114,134 @@ public final class NativeShaderChain implements AutoCloseable {
         }
     }
 
+    private RuntimeCompute runtimeCompute(ShaderChainPlan.Compute compute) {
+        var pass = new NativeComputePass(compute.program());
+        try {
+            for (var input : compute.inputs())
+                if (input.kind() == SamplerPlan.Kind.COLORTEX)
+                    pass.bindImage(input.sampler(), targets.image(input.index(), input.side()));
+            for (var image : compute.images().entrySet())
+                pass.bindStorage(image.getKey(), targets.image(image.getValue().target(), image.getValue().side()));
+            return new RuntimeCompute(compute, pass);
+        } catch (Throwable failure) {
+            pass.close();
+            throw failure;
+        }
+    }
+
+    /** Shadow colour target N for shadowcolorimgN; set by the session once its shadow map exists. */
+    private java.util.function.IntFunction<VulkanImage> shadowColours = index -> null;
+    public void shadowColours(java.util.function.IntFunction<VulkanImage> lookup) { shadowColours = lookup; }
+
+    public static java.util.Set<Integer> swappable(ShaderChainPlan plan) {
+        var unsafe = new java.util.HashSet<Integer>();
+        var targetPlan = plan.targets();
+        for (var step : targetPlan.schedule().steps()) {
+            var writes = targetPlan.writes(step.program());
+            for (int rank = 0; rank < writes.size(); rank++) {
+                int index = writes.get(rank);
+                boolean blended = targetPlan.blend(step.program(), rank).filter(mode -> !mode.off()).isPresent();
+                if (!step.fullscreen() || blended) unsafe.add(index);
+            }
+        }
+        // Image stores write any subset of the texels.
+        for (var passes : plan.stages().values()) for (var pass : passes) {
+            pass.images().values().forEach(attachment -> unsafe.add(attachment.target()));
+            pass.computes().forEach(compute -> compute.images().values().forEach(attachment -> unsafe.add(attachment.target())));
+        }
+        plan.setup().forEach(compute -> compute.images().values().forEach(attachment -> unsafe.add(attachment.target())));
+        var result = new java.util.HashSet<>(plan.copyBack());
+        result.removeAll(unsafe);
+        return java.util.Set.copyOf(result);
+    }
+
+    /** The pass's target halves as they stand this frame (they swap roles, see NativeColorTargets.copyBack). */
+    private void bindTargets(ShaderChainPlan.Pass source, NativeFullscreenPass pipeline) {
+        for (var input : source.inputs())
+            if (input.kind() == SamplerPlan.Kind.COLORTEX)
+                pipeline.bindImage(input.sampler(), targets.image(input.index(), input.side()));
+        for (var image : source.images().entrySet())
+            pipeline.bindStorage(image.getKey(), targets.image(image.getValue().target(), image.getValue().side()));
+    }
+
+    private void dispatch(RuntimeCompute compute, ComputeUniformWriter computeUniforms, ExternalImages external) {
+        for (var input : compute.source().inputs())
+            if (input.kind() == SamplerPlan.Kind.COLORTEX)
+                compute.pipeline().bindImage(input.sampler(), targets.image(input.index(), input.side()));
+        for (var image : compute.source().images().entrySet())
+            compute.pipeline().bindStorage(image.getKey(), targets.image(image.getValue().target(), image.getValue().side()));
+        for (var entry : compute.source().shadowImages().entrySet()) {
+            VulkanImage image = shadowColours.apply(entry.getValue());
+            if (image == null) throw new IllegalStateException("Missing shadow colour image: " + compute.source().name() + "/" + entry.getKey());
+            compute.pipeline().bindStorage(entry.getKey(), image);
+        }
+        for (var input : compute.source().inputs()) {
+            if (!ShaderChainPlan.external(input)) continue;
+            VulkanImage image = external.resolve(compute.source().name(), input);
+            if (image == null) throw new IllegalStateException("Missing external compute image: " + compute.source().name() + "/" + input.sampler());
+            compute.pipeline().bindImage(input.sampler(), image);
+        }
+        computeUniforms.update(compute.source(), compute.pipeline());
+        var indirect = compute.source().indirect();
+        if (indirect != null) {
+            var buffers = NativeStorageBuffers.current();
+            long buffer = buffers == null ? VK_NULL_HANDLE : buffers.buffer(indirect.buffer());
+            if (buffer == VK_NULL_HANDLE)
+                throw new IllegalStateException("Missing indirect dispatch buffer: " + compute.source().name() + "/bufferObject." + indirect.buffer());
+            compute.pipeline().dispatchIndirect(buffer, indirect.offset());
+        } else {
+            int[] groups = compute.source().program().groups(width, height);
+            compute.pipeline().dispatch(groups[0], groups[1], groups[2]);
+        }
+        net.vulkanmod.vulkan.queries.GpuTimestamps.mark(compute.source().name());
+        dispatches++;
+    }
+
+    /** Iris' shadowcomp computes: after the shadow pass of this frame, before PREPARE. */
+    public void renderShadowComputes(ComputeUniformWriter computeUniforms, ExternalImages external) {
+        RenderSystem.assertOnRenderThread();
+        requireUsable();
+        if (state != State.FRAME || nextStage != ShaderChainPlan.Stage.PREPARE.ordinal())
+            throw new IllegalStateException("shadowcomp must run between BEGIN and PREPARE");
+        try {
+            for (var compute : shadowComputes) dispatch(compute, computeUniforms, external);
+        } catch (Throwable failure) {
+            state = State.FAILED;
+            throw failure;
+        }
+    }
+
     public NativeColorTargets targets() { requireUsable(); return targets; }
     public ShaderChainPlan plan() { return plan; }
     public long framesCompleted() { return frames; }
     public long drawCalls() { return drawCalls; }
+    public long computeDispatches() { return dispatches; }
+
+    /**
+     * FINAL draws GL-oriented (rows bottom-up) like every pass of the chain; this image takes it and
+     * is flipped once into the top-down presentation image. Same size and format as that image.
+     */
+    private VulkanImage finalImage;
+    private VulkanImage finalImage(VulkanImage output) {
+        if (finalImage != null && finalImage.width == output.width && finalImage.height == output.height
+                && finalImage.format == output.format) return finalImage;
+        if (finalImage != null) {
+            lastViews.clear();
+            var stale = views.remove(new ViewKey(List.of(finalImage.getId()), 0));
+            if (stale != null) stale.close();
+            finalImage.free();
+        }
+        finalImage = VulkanImage.builder(output.width, output.height).setFormat(output.format)
+                .setUsage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)
+                .setLinearFiltering(false).setClamp(true).createVulkanImage();
+        return finalImage;
+    }
 
     public void prepareOutput(VulkanImage output) {
         RenderSystem.assertOnRenderThread();
         requireUsable();
-        var view = externalView(output);
-        for (var pass : stages.get(ShaderChainPlan.Stage.FINAL)) pass.pipeline().prepare(view.pass());
+        var view = externalView(finalImage(output));
+        for (var pass : stages.get(ShaderChainPlan.Stage.FINAL)) if (pass.pipeline() != null) pass.pipeline().prepare(view.pass());
     }
 
     public void beginFrame(Colour fogColour) {
@@ -101,6 +257,13 @@ public final class NativeShaderChain implements AutoCloseable {
 
     /** Execute even empty stages so callers cannot silently draw deferred/composite at the wrong boundary. */
     public void render(ShaderChainPlan.Stage stage, VulkanImage finalOutput, UniformWriter uniforms, ExternalImages external) {
+        render(stage, finalOutput, uniforms, (source, pipeline) -> {
+            throw new IllegalStateException("A compute uniform writer is required for " + source.name());
+        }, external);
+    }
+
+    public void render(ShaderChainPlan.Stage stage, VulkanImage finalOutput, UniformWriter uniforms,
+                       ComputeUniformWriter computeUniforms, ExternalImages external) {
         RenderSystem.assertOnRenderThread();
         requireUsable();
         if (state != State.FRAME || nextStage != stage.ordinal())
@@ -108,24 +271,44 @@ public final class NativeShaderChain implements AutoCloseable {
         try {
             if (stage == ShaderChainPlan.Stage.FINAL && finalOutput == null)
                 throw new IllegalArgumentException("Final shader output is required");
+            // Once per chain, on its first frame after the initial target clear (Iris: at pipeline build).
+            if (stage == ShaderChainPlan.Stage.BEGIN && !setupDone) {
+                for (var compute : setup) dispatch(compute, computeUniforms, external);
+                setupDone = true;
+            }
+            boolean drew = false;
             for (RuntimePass runtime : stages.get(stage)) {
                 var source = runtime.source();
+                for (var compute : runtime.computes()) dispatch(compute, computeUniforms, external);
+                if (runtime.pipeline() == null) continue;
+                drew = true;
                 for (var input : source.inputs()) {
-                    if (input.kind() == SamplerPlan.Kind.COLORTEX) continue;
+                    if (!ShaderChainPlan.external(input)) continue;
                     VulkanImage image = external.resolve(source.name(), input);
                     if (image == null) throw new IllegalStateException("Missing external shader image: " + source.name() + "/" + input.sampler());
                     runtime.pipeline().bindImage(input.sampler(), image);
                 }
                 var step = plan.targets().schedule().step(source.name()).orElseThrow();
-                for (int index : source.mipmaps()) targets.mipmaps(index, step.read(index));
+                if (!source.mipmaps().isEmpty()) targets.mipmaps(source.mipmaps(), step::read);
+                if (net.vulkanmod.vulkan.queries.GpuTimestamps.ENABLED && !source.mipmaps().isEmpty())
+                    net.vulkanmod.vulkan.queries.GpuTimestamps.mark(source.name() + "/mips");
                 uniforms.update(source, runtime.pipeline());
-                View output = runtime.output() == null ? externalView(finalOutput) : runtime.output();
+                bindTargets(source, runtime.pipeline());
+                View output = runtime.external() ? externalView(finalImage(finalOutput)) : view(runtime.outputs(), null);
+                // Layout transitions and barriers recorded so far, apart from the pass itself (Iris: sN/setupM).
+                if (net.vulkanmod.vulkan.queries.GpuTimestamps.ENABLED) {
+                    runtime.pipeline().transitionInputs();
+                    net.vulkanmod.vulkan.queries.GpuTimestamps.mark(source.name() + "/setup");
+                }
                 runtime.pipeline().render(output.framebuffer(), output.pass());
+                net.vulkanmod.vulkan.queries.GpuTimestamps.mark(source.name());
                 drawCalls++;
             }
             if (stage == ShaderChainPlan.Stage.FINAL) {
-                if (stages.get(stage).isEmpty()) presentWithoutFinal(finalOutput);
-                targets.copyBack(plan.copyBack());
+                if (!drew) presentWithoutFinal(finalOutput);
+                else NativeImageOps.blitColour(finalImage(finalOutput), finalOutput, true);
+                targets.copyBack(plan.copyBack(), swappable);
+                net.vulkanmod.vulkan.queries.GpuTimestamps.mark("copyBack");
                 state = State.READY;
                 frames++;
             }
@@ -158,27 +341,55 @@ public final class NativeShaderChain implements AutoCloseable {
 
     /** Vanilla fallback shaders emit only location zero, independently of a pack's multi-output basic program. */
     public View scene(String program,boolean afterDeferred,VulkanImage depth) {
-        var step=(afterDeferred?plan.targets().schedule().stepAfterDeferred(program):plan.targets().schedule().step(program)).orElseThrow();
-        return view(List.of(new ShaderChainPlan.Attachment(0,step.write(0))),depth);
+        var schedule=plan.targets().schedule();
+        var step=afterDeferred?schedule.stepAfterDeferred(program):schedule.step(program);
+        if(step.isPresent())return view(List.of(new ShaderChainPlan.Attachment(0,step.get().write(0))),depth);
+        // A pack without the program (Miniature ships no gbuffers_basic): the vanilla draw still lands
+        // in colortex0, on the half every geometry step of that moment writes, i.e. the half it reads.
+        var geometry=schedule.steps().stream().filter(s->!s.fullscreen()).findFirst()
+                .flatMap(s->afterDeferred?schedule.stepAfterDeferred(s.program()):java.util.Optional.of(s));
+        Side side=geometry.map(s->s.read(0)).orElse(Side.MAIN);
+        return view(List.of(new ShaderChainPlan.Attachment(0,side)),depth);
     }
     /** Exposed to the existing frame observer for diagnostics; the chain retains ownership. */
     public NativeFullscreenPass program(String name) {
         return stages.values().stream().flatMap(java.util.Collection::stream)
-                .filter(p->p.source().name().equals(name)).map(RuntimePass::pipeline).findFirst().orElseThrow();
+                .filter(p->p.source().name().equals(name) && p.pipeline()!=null).map(RuntimePass::pipeline).findFirst().orElseThrow();
     }
 
+    /** Last answer per attachment list: images are looked up per frame, but rarely change. */
+    private final java.util.IdentityHashMap<List<ShaderChainPlan.Attachment>, CachedView> lastViews = new java.util.IdentityHashMap<>();
+    private record CachedView(VulkanImage[] colors, VulkanImage depth, View view) {}
+
     private View view(List<ShaderChainPlan.Attachment> attachments, VulkanImage depth) {
+        var last = lastViews.get(attachments);
+        if (last != null && last.depth() == depth && last.colors().length == attachments.size()) {
+            boolean same = true;
+            for (int i = 0; same && i < attachments.size(); i++) {
+                var a = attachments.get(i);
+                same = targets.image(a.target(), a.side()) == last.colors()[i];
+            }
+            if (same) return last.view();
+        }
+        View found = lookupView(attachments, depth);
+        VulkanImage[] colors = new VulkanImage[attachments.size()];
+        for (int i = 0; i < colors.length; i++) colors[i] = targets.image(attachments.get(i).target(), attachments.get(i).side());
+        lastViews.put(attachments, new CachedView(colors, depth, found));
+        return found;
+    }
+
+    private View lookupView(List<ShaderChainPlan.Attachment> attachments, VulkanImage depth) {
         if (attachments.isEmpty() || attachments.size() > DeviceManager.deviceProperties.limits().maxColorAttachments())
             throw new IllegalArgumentException("Invalid shader color output count: " + attachments.size());
-        ViewKey key = new ViewKey(attachments, 0, depth == null ? 0 : depth.getId());
-        return views.computeIfAbsent(key, ignored -> {
-            VulkanImage[] colors = attachments.stream().map(a -> targets.image(a.target(), a.side())).toArray(VulkanImage[]::new);
-            return createView(colors, depth);
-        });
+        VulkanImage[] colors = attachments.stream().map(a -> targets.image(a.target(), a.side())).toArray(VulkanImage[]::new);
+        var ids = new ArrayList<Long>(colors.length);
+        for (VulkanImage color : colors) ids.add(color.getId());
+        ViewKey key = new ViewKey(ids, depth == null ? 0 : depth.getId());
+        return views.computeIfAbsent(key, ignored -> createView(colors, depth));
     }
     private View externalView(VulkanImage color) {
         if (color == null) throw new IllegalArgumentException("Missing presentation image");
-        ViewKey key = new ViewKey(List.of(), color.getId(), 0);
+        ViewKey key = new ViewKey(List.of(color.getId()), 0);
         return views.computeIfAbsent(key, ignored -> createView(new VulkanImage[]{color}, null));
     }
     private static View createView(VulkanImage[] colors, VulkanImage depth) {
@@ -203,7 +414,7 @@ public final class NativeShaderChain implements AutoCloseable {
             if ((props.optimalTilingFeatures() & VK_FORMAT_FEATURE_BLIT_DST_BIT) == 0)
                 throw new IllegalStateException("Device cannot blit to presentation image");
         }
-        NativeImageOps.blitColour(source, destination);
+        NativeImageOps.blitColour(source, destination, true);
     }
     private void requireUsable() {
         if (state == State.CLOSED || state == State.FAILED) throw new IllegalStateException("Shader chain is " + state);
@@ -212,9 +423,16 @@ public final class NativeShaderChain implements AutoCloseable {
         RenderSystem.assertOnRenderThread();
         if (state == State.CLOSED) return;
         state = State.CLOSED;
-        for (var passes : stages.values()) for (var pass : passes) pass.pipeline().close();
+        setup.forEach(compute -> compute.pipeline().close());
+        shadowComputes.forEach(compute -> compute.pipeline().close());
+        for (var passes : stages.values()) for (var pass : passes) {
+            if (pass.pipeline() != null) pass.pipeline().close();
+            pass.computes().forEach(compute -> compute.pipeline().close());
+        }
+        lastViews.clear();
         views.values().forEach(View::close);
         views.clear();
+        if (finalImage != null) { finalImage.free(); finalImage = null; }
         targets.close();
     }
 }
