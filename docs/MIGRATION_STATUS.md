@@ -79,6 +79,10 @@
   `vulkanmod` → `vsdh_renderer` (`Initializer`, mods.toml, CORE_MOD_IDS); das echte VulkanMod ist als `incompatible`
   eingetragen. Keine der 127 anderen Mods im Monkeytalk-Pack nennt die ID `vulkanmod`. Testclient 026-packs prüft `vsdh_renderer`.
 
+- 14.11.2026: Öffentliches Repository https://github.com/raffman180/VSDH (LGPL-3.0, Standardzweig `main` = Stand 258f0f3 von
+  `codex/renderer-shaders`). Lokaler Zweig verfolgt `origin/main`. Noch keine CurseForge-Veröffentlichung; vorher Spieltests,
+  Version/Name ohne „dev“ und NeoForge-Bereich prüfen.
+
 ## Stand 13.11.2026 nachts (0.26, DH optional, Glätte im Flug)
 
 - Neu: Seite **Pack-Optionen** (`PackOptionsView`, `ShaderSettingsPage.optionsPage`): alle Optionen, die
