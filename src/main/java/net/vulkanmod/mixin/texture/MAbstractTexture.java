@@ -25,7 +25,7 @@ public abstract class MAbstractTexture {
 
         VulkanImage vulkanImage = glTexture.getVulkanImage();
         if (vulkanImage != null) {
-            vulkanImage.updateTextureSampler(this.blur, false, this.mipmap);
+            vulkanImage.updateTextureSampler(this.blur, glTexture.clampToEdgeRequested(), this.mipmap);
         }
     }
 }

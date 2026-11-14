@@ -1,5 +1,6 @@
 package de.stranger.vsdh;
 
+import com.braffolk.dhvulkan.DhSupport;
 import com.braffolk.dhvulkan.api.ApiDhIntegration;
 import com.braffolk.dhvulkan.core.VulkanRenderEngine;
 import com.braffolk.dhvulkan.config.DhVulkanConfig;
@@ -25,22 +26,21 @@ public final class Vsdh {
             // Only touch DH's API when DH is installed; the Vulkan renderer and shader packs work without it.
             DistantHorizonsSetup.initialize();
             NeoForge.EVENT_BUS.addListener(this::onLogout);
-        } else {
-            LOGGER.info("Distant Horizons is not installed; VSDH runs the Vulkan renderer and shader packs without LODs.");
+        } else if (DhSupport.result().status() == DhSupport.Status.ABSENT) {
+            LOGGER.info(DhSupport.result().message());
         }
         if(!Boolean.getBoolean("vsdh.smoke") || Boolean.getBoolean("vsdh.smoke.configuredPack"))
             ShaderPackStartup.start(config.shaderPack,config.shaderProfile,config.shaderOptions,config.shaderDistantHorizons&&distantHorizons());
         LOGGER.info("VSDH native renderer initialized; complete shaderpack and DH-pack integration remain in development.");
     }
 
-    /** Whether Distant Horizons is installed (it is optional). */
+    /** Whether Distant Horizons is installed (it is optional) in a version VSDH's adapter serves. */
     public static boolean distantHorizons() {
         return DISTANT_HORIZONS;
     }
 
-    private static final boolean DISTANT_HORIZONS = net.neoforged.fml.ModList.get() != null
-            ? net.neoforged.fml.ModList.get().isLoaded("distanthorizons")
-            : net.neoforged.fml.loading.FMLLoader.getLoadingModList().getModFileById("distanthorizons") != null;
+    /** False without DH and with a DH version VSDH cannot serve (DhSupport logs why). */
+    private static final boolean DISTANT_HORIZONS = DhSupport.active();
 
     private void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         if (RenderSystem.isOnRenderThread()) DistantHorizonsSetup.cleanup();

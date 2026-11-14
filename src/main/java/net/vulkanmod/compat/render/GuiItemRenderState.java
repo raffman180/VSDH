@@ -5,49 +5,62 @@ import net.vulkanmod.vulkan.VRenderSystem;
 import org.lwjgl.opengl.GL11;
 
 public final class GuiItemRenderState {
-    private static final ThreadLocal<RenderStateSnapshot> DEFERRED_DRAW_STATE = new ThreadLocal<>();
-    private static final ThreadLocal<Integer> TOOLTIP_OVERLAY_DEPTH = ThreadLocal.withInitial(() -> 0);
+    // Render thread only. Plain fields: these are read on every buffer flush, and a ThreadLocal that is
+    // set and removed per draw allocates a map entry each time.
+    private static RenderStateSnapshot deferredDrawState;
+    private static int tooltipOverlayDepth;
 
     private GuiItemRenderState() {
     }
 
     public static void prepareDeferredDraw() {
-        if (DEFERRED_DRAW_STATE.get() == null) {
-            DEFERRED_DRAW_STATE.set(new RenderStateSnapshot());
+        if (!RenderSystem.isOnRenderThread()) {
+            return;
+        }
+
+        if (deferredDrawState == null) {
+            deferredDrawState = new RenderStateSnapshot();
         }
 
         prepare();
     }
 
     public static boolean hasDeferredDrawState() {
-        return DEFERRED_DRAW_STATE.get() != null;
+        return deferredDrawState != null;
     }
 
     public static void beginTooltipOverlay() {
-        TOOLTIP_OVERLAY_DEPTH.set(TOOLTIP_OVERLAY_DEPTH.get() + 1);
+        tooltipOverlayDepth++;
     }
 
     public static void endTooltipOverlay() {
-        int depth = TOOLTIP_OVERLAY_DEPTH.get();
-
-        if (depth <= 1) {
-            TOOLTIP_OVERLAY_DEPTH.remove();
-        } else {
-            TOOLTIP_OVERLAY_DEPTH.set(depth - 1);
+        if (tooltipOverlayDepth > 0) {
+            tooltipOverlayDepth--;
         }
     }
 
     public static boolean isTooltipOverlayActive() {
-        return TOOLTIP_OVERLAY_DEPTH.get() > 0;
+        return tooltipOverlayDepth > 0;
     }
 
     public static void restoreDeferredDrawState() {
-        RenderStateSnapshot snapshot = DEFERRED_DRAW_STATE.get();
-        DEFERRED_DRAW_STATE.remove();
+        RenderStateSnapshot snapshot = deferredDrawState;
+        deferredDrawState = null;
 
         if (snapshot != null) {
             snapshot.restore();
         }
+    }
+
+    /** Drops a pending boundary without restoring it: for callers that restore an enclosing snapshot themselves. */
+    public static void discardDeferredDrawState() {
+        deferredDrawState = null;
+    }
+
+    /** Frame boundary: nothing of the last frame may stay pending. */
+    public static void resetFrame() {
+        deferredDrawState = null;
+        tooltipOverlayDepth = 0;
     }
 
     public static void prepare() {

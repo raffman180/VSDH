@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.world.entity.LivingEntity;
+import net.vulkanmod.compat.render.GuiEntityRenderState;
 import net.vulkanmod.compat.render.RenderStateSnapshot;
 import net.vulkanmod.vulkan.VRenderSystem;
 import org.jetbrains.annotations.Nullable;
@@ -38,6 +39,8 @@ public class InventoryScreenM {
         RenderStateSnapshot snapshot = vulkanMod$inventoryEntityStateSnapshot.get();
         vulkanMod$inventoryEntityStateSnapshot.remove();
 
+        // Closed by the flush inside unless a batching mod swallowed it; this snapshot covers it either way.
+        GuiEntityRenderState.discardDeferredDrawState();
         if (snapshot != null) {
             snapshot.restore();
         }

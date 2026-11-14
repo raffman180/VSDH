@@ -61,26 +61,32 @@ public class GL13M {
 
     @Overwrite(remap = false)
     public static void glCompressedTexSubImage1D(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLsizei") int width, @NativeType("GLenum") int format, @NativeType("void const *") ByteBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCompressedTexSubImage1D");
     }
 
     @Overwrite(remap = false)
     public static void glCompressedTexSubImage1D(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLsizei") int width, @NativeType("GLenum") int format, @NativeType("GLsizei") int imageSize, @NativeType("void const *") long data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCompressedTexSubImage1D");
     }
 
     @Overwrite(remap = false)
     public static void glCompressedTexSubImage2D(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLenum") int format, @NativeType("void const *") ByteBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCompressedTexSubImage2D");
     }
 
     @Overwrite(remap = false)
     public static void glCompressedTexSubImage2D(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLenum") int format, @NativeType("GLsizei") int imageSize, @NativeType("void const *") long data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCompressedTexSubImage2D");
     }
 
     @Overwrite(remap = false)
     public static void glCompressedTexSubImage3D(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLint") int zoffset, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth, @NativeType("GLenum") int format, @NativeType("void const *") ByteBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCompressedTexSubImage3D");
     }
 
     @Overwrite(remap = false)
     public static void glCompressedTexSubImage3D(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLint") int zoffset, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth, @NativeType("GLenum") int format, @NativeType("GLsizei") int imageSize, @NativeType("void const *") long data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCompressedTexSubImage3D");
     }
 
     @Overwrite(remap = false)
@@ -90,6 +96,7 @@ public class GL13M {
 
     @Overwrite(remap = false)
     public static void glGetCompressedTexImage(@NativeType("GLenum") int target, @NativeType("GLint") int lod, @NativeType("void *") long img) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetCompressedTexImage");
     }
 
     @Overwrite(remap = false)

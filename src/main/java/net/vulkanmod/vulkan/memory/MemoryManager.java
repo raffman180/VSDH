@@ -363,6 +363,16 @@ public class MemoryManager {
         return (int) (bytes / BYTES_IN_MB);
     }
 
+    /** Device heap budget minus usage as VMA reports it (other processes included when the driver exposes it). */
+    public long getDeviceHeapFreeBytes() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            VmaBudget.Buffer vmaBudgets = VmaBudget.calloc(DeviceManager.memoryProperties.memoryHeapCount(), stack);
+            vmaGetHeapBudgets(ALLOCATOR, vmaBudgets);
+            VmaBudget vmaBudget = vmaBudgets.get(MemoryTypes.GPU_MEM.vkMemoryType.heapIndex());
+            return Math.max(0L, vmaBudget.budget() - vmaBudget.usage());
+        }
+    }
+
     public String getHeapStats() {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VmaBudget.Buffer vmaBudgets = VmaBudget.calloc(DeviceManager.memoryProperties.memoryHeapCount(), stack);

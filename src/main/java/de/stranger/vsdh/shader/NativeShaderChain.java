@@ -323,12 +323,26 @@ public final class NativeShaderChain implements AutoCloseable {
     public View geometry(String program, boolean afterDeferred, VulkanImage depth) {
         RenderSystem.assertOnRenderThread();
         requireUsable();
-        var step = (afterDeferred ? plan.targets().schedule().stepAfterDeferred(program)
-                : plan.targets().schedule().step(program)).orElseThrow(() -> new IllegalArgumentException("Unknown geometry program " + program));
-        var attachments = plan.targets().writes(program).stream()
-                .map(index -> new ShaderChainPlan.Attachment(index, step.write(index))).toList();
+        var memo = afterDeferred ? geometryOutputsLate : geometryOutputs;
+        var attachments = memo.get(program);
+        if (attachments == null) {
+            var step = (afterDeferred ? plan.targets().schedule().stepAfterDeferred(program)
+                    : plan.targets().schedule().step(program)).orElseThrow(() -> new IllegalArgumentException("Unknown geometry program " + program));
+            attachments = plan.targets().writes(program).stream()
+                    .map(index -> new ShaderChainPlan.Attachment(index, step.write(index))).toList();
+            memo.put(program, attachments);
+        }
         return view(attachments, depth);
     }
+
+    /**
+     * The outputs of a geometry program depend on the immutable plan alone. One list per program and moment:
+     * this is asked for every geometry draw, and {@link #view} remembers its last answer per list identity. A fresh
+     * list per call never matched there and left one more entry behind each time (about 200 per frame with
+     * Jurgens), so the map grew without bound until the next resize of the window.
+     */
+    private final Map<String, List<ShaderChainPlan.Attachment>> geometryOutputs = new HashMap<>(), geometryOutputsLate = new HashMap<>();
+    private final Map<String, List<ShaderChainPlan.Attachment>> sceneOutputs = new HashMap<>(), sceneOutputsLate = new HashMap<>();
 
     VulkanImage geometrySampler(String program, int index, boolean afterDeferred) {
         var step = (afterDeferred ? plan.targets().schedule().stepAfterDeferred(program)
@@ -341,15 +355,25 @@ public final class NativeShaderChain implements AutoCloseable {
 
     /** Vanilla fallback shaders emit only location zero, independently of a pack's multi-output basic program. */
     public View scene(String program,boolean afterDeferred,VulkanImage depth) {
+        var memo=afterDeferred?sceneOutputsLate:sceneOutputs;
+        var attachments=memo.get(program);
+        if(attachments==null) {
+            attachments=sceneAttachments(program,afterDeferred);
+            memo.put(program,attachments);
+        }
+        return view(attachments,depth);
+    }
+
+    private List<ShaderChainPlan.Attachment> sceneAttachments(String program,boolean afterDeferred) {
         var schedule=plan.targets().schedule();
         var step=afterDeferred?schedule.stepAfterDeferred(program):schedule.step(program);
-        if(step.isPresent())return view(List.of(new ShaderChainPlan.Attachment(0,step.get().write(0))),depth);
+        if(step.isPresent())return List.of(new ShaderChainPlan.Attachment(0,step.get().write(0)));
         // A pack without the program (Miniature ships no gbuffers_basic): the vanilla draw still lands
         // in colortex0, on the half every geometry step of that moment writes, i.e. the half it reads.
         var geometry=schedule.steps().stream().filter(s->!s.fullscreen()).findFirst()
                 .flatMap(s->afterDeferred?schedule.stepAfterDeferred(s.program()):java.util.Optional.of(s));
         Side side=geometry.map(s->s.read(0)).orElse(Side.MAIN);
-        return view(List.of(new ShaderChainPlan.Attachment(0,side)),depth);
+        return List.of(new ShaderChainPlan.Attachment(0,side));
     }
     /** Exposed to the existing frame observer for diagnostics; the chain retains ownership. */
     public NativeFullscreenPass program(String name) {

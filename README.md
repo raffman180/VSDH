@@ -13,7 +13,7 @@ dieses Profil die VSDH-JAR als Renderer.
 | NeoForge | 21.1.264 |
 | Java | 21 |
 | Vulkan-Renderer | in dieser VSDH-JAR enthalten; Reforged-Basis 0618965 |
-| Distant Horizons | **optional.** Ohne DH laufen Vulkan-Renderer und Shaderpacks allein. Mit DH: 3.2.0-b sowie 3.3.1 bis 3.3.3 für 1.21.1 mit der regulären JAR; für 3.3.0 die Datei mit Endung `-dh330.jar`. |
+| Distant Horizons | **optional.** Ohne DH laufen Vulkan-Renderer und Shaderpacks allein. Mit DH: 3.2.0-b sowie 3.3.0 bis 3.3.3 für 1.21.1, alle mit derselben JAR (für 3.3.0 passt VSDH sich beim Laden an; diese Einzel-JAR ist im Spiel noch nicht geprüft). |
 | Erstes Shader-Ziel | Complementary Reimagined r5.9.3, Profil MEDIUM |
 
 ## Testinstallation
@@ -140,8 +140,8 @@ Setze dafür `shaderPack` auf den Namen des originalen Bliss-ZIPs und
 Für BSL 10.1 liefert der gemeinsame Renderer zusätzliche Werte für
 Welthöhe, Sonnenrichtung, dominante Hand und Blockentitätskontext.
 Der ältere DH-3.3-Tiefenadapter wird zur Laufzeit ausgewählt. Beide
-Adapter verwenden denselben Vulkan-Renderer. DH 3.3.0 braucht wegen seiner
-separat benannten NeoForge-Klassen die `-dh330.jar`.
+Adapter verwenden denselben Vulkan-Renderer. DH 3.3.0 benennt seine NeoForge-Klassen
+separat; ein mitgelieferter Coremod passt VSDH beim Laden daran an (nur bei DH 3.3.0).
 
 Für BSL `BSL_v10.1.zip` als `shaderPack` und `MEDIUM` als Profil eintragen.
 `ENTITY_SHADOW` ist in der unten gezeigten Form eine Complementary-Option.
@@ -287,11 +287,11 @@ reproduzierbarer FPS-Vergleich steht aus.
 
 ## Bauen und prüfen
 
-Für den DH-3.3.0-Build die originale DH-3.3.0-JAR an `jarDh330` übergeben.
-Der Build prüft ihre Prüfsumme und erzeugt die separate VSDH-JAR in `build/libs`.
+Eine JAR für alle DH-Versionen. `verifyDhLinks` prüft ohne Spiel, ob alle DH-Verweise in jeder
+unterstützten Version passen (Referenz-JARs unter `build/reference`).
 
 ```powershell
-.\gradlew.bat jarDh330 '-Pdh330Jar=<Pfad zur originalen DH-3.3.0-JAR>'
+.\gradlew.bat --offline build verifyDhLinks
 ```
 
 Für den regulären Build JDK 21 installieren und im Projektordner PowerShell öffnen.

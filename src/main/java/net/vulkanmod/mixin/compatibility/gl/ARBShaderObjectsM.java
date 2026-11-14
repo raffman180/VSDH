@@ -150,6 +150,7 @@ public class ARBShaderObjectsM {
 
     @Overwrite(remap = false)
     public static void glUniform2iARB(@NativeType("GLint") int location, @NativeType("GLint") int v0, @NativeType("GLint") int v1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform2iARB");
     }
 
     @Overwrite(remap = false)
@@ -159,6 +160,7 @@ public class ARBShaderObjectsM {
 
     @Overwrite(remap = false)
     public static void glUniform4iARB(@NativeType("GLint") int location, @NativeType("GLint") int v0, @NativeType("GLint") int v1, @NativeType("GLint") int v2, @NativeType("GLint") int v3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform4iARB");
     }
 
     @Overwrite(remap = false)
@@ -196,6 +198,7 @@ public class ARBShaderObjectsM {
 
     @Overwrite(remap = false)
     public static void glUniform2ivARB(@NativeType("GLint") int location, @NativeType("GLint const *") IntBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform2ivARB");
     }
 
     @Overwrite(remap = false)
@@ -207,10 +210,12 @@ public class ARBShaderObjectsM {
 
     @Overwrite(remap = false)
     public static void glUniform4ivARB(@NativeType("GLint") int location, @NativeType("GLint const *") IntBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform4ivARB");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix2fvARB(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLfloat const *") FloatBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix2fvARB");
     }
 
     @Overwrite(remap = false)
@@ -439,6 +444,7 @@ public class ARBShaderObjectsM {
 
     @Overwrite(remap = false)
     public static void glUniform2ivARB(@NativeType("GLint") int location, @NativeType("GLint const *") int[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform2ivARB");
     }
 
     @Overwrite(remap = false)
@@ -450,10 +456,12 @@ public class ARBShaderObjectsM {
 
     @Overwrite(remap = false)
     public static void glUniform4ivARB(@NativeType("GLint") int location, @NativeType("GLint const *") int[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform4ivARB");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix2fvARB(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLfloat const *") float[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix2fvARB");
     }
 
     @Overwrite(remap = false)

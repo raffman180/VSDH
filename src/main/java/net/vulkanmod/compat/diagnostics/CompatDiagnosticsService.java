@@ -34,7 +34,7 @@ import java.util.Set;
 public final class CompatDiagnosticsService {
     public static final String UNKNOWN = "Unknown";
     private static final int MAX_SESSION_KEYS_PER_TYPE = 100;
-    private static final Set<String> CORE_MOD_IDS = Set.of("minecraft", "neoforge", "fml", "vulkanmod");
+    private static final Set<String> CORE_MOD_IDS = Set.of("minecraft", "neoforge", "fml", "vsdh", "vsdh_renderer");
     private static final Comparator<ModDiagnostic> MOD_ORDER = Comparator
             .comparingInt((ModDiagnostic mod) -> mod.severity().ordinal()).reversed()
             .thenComparing(ModDiagnostic::displayName, String.CASE_INSENSITIVE_ORDER)

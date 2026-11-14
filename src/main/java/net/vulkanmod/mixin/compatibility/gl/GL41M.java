@@ -117,10 +117,12 @@ public class GL41M {
 
     @Overwrite(remap = false)
     public static void glActiveShaderProgram(int p0, int p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glActiveShaderProgram");
     }
 
     @Overwrite(remap = false)
     public static void glBindProgramPipeline(int p0) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindProgramPipeline");
     }
 
     @Overwrite(remap = false)
@@ -155,14 +157,17 @@ public class GL41M {
 
     @Overwrite(remap = false)
     public static void glDepthRangeArrayv(int p0, double[] p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDepthRangeArrayv");
     }
 
     @Overwrite(remap = false)
     public static void glDepthRangeArrayv(int p0, java.nio.DoubleBuffer p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDepthRangeArrayv");
     }
 
     @Overwrite(remap = false)
     public static void glDepthRangeIndexed(int p0, double p1, double p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDepthRangeIndexed");
     }
 
     @Overwrite(remap = false)
@@ -296,374 +301,467 @@ public class GL41M {
 
     @Overwrite(remap = false)
     public static void glProgramBinary(int p0, int p1, java.nio.ByteBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramBinary");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform1d(int p0, int p1, double p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform1d");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform1dv(int p0, int p1, double[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform1dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform1dv(int p0, int p1, java.nio.DoubleBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform1dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform1f(int p0, int p1, float p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform1f");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform1fv(int p0, int p1, float[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform1fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform1fv(int p0, int p1, java.nio.FloatBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform1fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform1i(int p0, int p1, int p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform1i");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform1iv(int p0, int p1, int[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform1iv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform1iv(int p0, int p1, java.nio.IntBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform1iv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform1ui(int p0, int p1, int p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform1ui");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform1uiv(int p0, int p1, int[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform1uiv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform1uiv(int p0, int p1, java.nio.IntBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform1uiv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform2d(int p0, int p1, double p2, double p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform2d");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform2dv(int p0, int p1, double[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform2dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform2dv(int p0, int p1, java.nio.DoubleBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform2dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform2f(int p0, int p1, float p2, float p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform2f");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform2fv(int p0, int p1, float[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform2fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform2fv(int p0, int p1, java.nio.FloatBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform2fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform2i(int p0, int p1, int p2, int p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform2i");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform2iv(int p0, int p1, int[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform2iv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform2iv(int p0, int p1, java.nio.IntBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform2iv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform2ui(int p0, int p1, int p2, int p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform2ui");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform2uiv(int p0, int p1, int[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform2uiv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform2uiv(int p0, int p1, java.nio.IntBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform2uiv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform3d(int p0, int p1, double p2, double p3, double p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform3d");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform3dv(int p0, int p1, double[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform3dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform3dv(int p0, int p1, java.nio.DoubleBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform3dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform3f(int p0, int p1, float p2, float p3, float p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform3f");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform3fv(int p0, int p1, float[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform3fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform3fv(int p0, int p1, java.nio.FloatBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform3fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform3i(int p0, int p1, int p2, int p3, int p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform3i");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform3iv(int p0, int p1, int[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform3iv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform3iv(int p0, int p1, java.nio.IntBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform3iv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform3ui(int p0, int p1, int p2, int p3, int p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform3ui");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform3uiv(int p0, int p1, int[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform3uiv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform3uiv(int p0, int p1, java.nio.IntBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform3uiv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform4d(int p0, int p1, double p2, double p3, double p4, double p5) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform4d");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform4dv(int p0, int p1, double[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform4dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform4dv(int p0, int p1, java.nio.DoubleBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform4dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform4f(int p0, int p1, float p2, float p3, float p4, float p5) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform4f");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform4fv(int p0, int p1, float[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform4fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform4fv(int p0, int p1, java.nio.FloatBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform4fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform4i(int p0, int p1, int p2, int p3, int p4, int p5) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform4i");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform4iv(int p0, int p1, int[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform4iv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform4iv(int p0, int p1, java.nio.IntBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform4iv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform4ui(int p0, int p1, int p2, int p3, int p4, int p5) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform4ui");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform4uiv(int p0, int p1, int[] p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform4uiv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniform4uiv(int p0, int p1, java.nio.IntBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniform4uiv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix2dv(int p0, int p1, boolean p2, double[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix2dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix2dv(int p0, int p1, boolean p2, java.nio.DoubleBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix2dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix2fv(int p0, int p1, boolean p2, float[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix2fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix2fv(int p0, int p1, boolean p2, java.nio.FloatBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix2fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix2x3dv(int p0, int p1, boolean p2, double[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix2x3dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix2x3dv(int p0, int p1, boolean p2, java.nio.DoubleBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix2x3dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix2x3fv(int p0, int p1, boolean p2, float[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix2x3fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix2x3fv(int p0, int p1, boolean p2, java.nio.FloatBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix2x3fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix2x4dv(int p0, int p1, boolean p2, double[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix2x4dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix2x4dv(int p0, int p1, boolean p2, java.nio.DoubleBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix2x4dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix2x4fv(int p0, int p1, boolean p2, float[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix2x4fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix2x4fv(int p0, int p1, boolean p2, java.nio.FloatBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix2x4fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix3dv(int p0, int p1, boolean p2, double[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix3dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix3dv(int p0, int p1, boolean p2, java.nio.DoubleBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix3dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix3fv(int p0, int p1, boolean p2, float[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix3fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix3fv(int p0, int p1, boolean p2, java.nio.FloatBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix3fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix3x2dv(int p0, int p1, boolean p2, double[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix3x2dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix3x2dv(int p0, int p1, boolean p2, java.nio.DoubleBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix3x2dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix3x2fv(int p0, int p1, boolean p2, float[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix3x2fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix3x2fv(int p0, int p1, boolean p2, java.nio.FloatBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix3x2fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix3x4dv(int p0, int p1, boolean p2, double[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix3x4dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix3x4dv(int p0, int p1, boolean p2, java.nio.DoubleBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix3x4dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix3x4fv(int p0, int p1, boolean p2, float[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix3x4fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix3x4fv(int p0, int p1, boolean p2, java.nio.FloatBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix3x4fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix4dv(int p0, int p1, boolean p2, double[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix4dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix4dv(int p0, int p1, boolean p2, java.nio.DoubleBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix4dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix4fv(int p0, int p1, boolean p2, float[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix4fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix4fv(int p0, int p1, boolean p2, java.nio.FloatBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix4fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix4x2dv(int p0, int p1, boolean p2, double[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix4x2dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix4x2dv(int p0, int p1, boolean p2, java.nio.DoubleBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix4x2dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix4x2fv(int p0, int p1, boolean p2, float[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix4x2fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix4x2fv(int p0, int p1, boolean p2, java.nio.FloatBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix4x2fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix4x3dv(int p0, int p1, boolean p2, double[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix4x3dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix4x3dv(int p0, int p1, boolean p2, java.nio.DoubleBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix4x3dv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix4x3fv(int p0, int p1, boolean p2, float[] p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix4x3fv");
     }
 
     @Overwrite(remap = false)
     public static void glProgramUniformMatrix4x3fv(int p0, int p1, boolean p2, java.nio.FloatBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glProgramUniformMatrix4x3fv");
     }
 
     @Overwrite(remap = false)
     public static void glScissorArrayv(int p0, int[] p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glScissorArrayv");
     }
 
     @Overwrite(remap = false)
     public static void glScissorArrayv(int p0, java.nio.IntBuffer p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glScissorArrayv");
     }
 
     @Overwrite(remap = false)
     public static void glScissorIndexed(int p0, int p1, int p2, int p3, int p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glScissorIndexed");
     }
 
     @Overwrite(remap = false)
     public static void glScissorIndexedv(int p0, int[] p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glScissorIndexedv");
     }
 
     @Overwrite(remap = false)
     public static void glScissorIndexedv(int p0, java.nio.IntBuffer p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glScissorIndexedv");
     }
 
     @Overwrite(remap = false)
     public static void glShaderBinary(int[] p0, int p1, java.nio.ByteBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glShaderBinary");
     }
 
     @Overwrite(remap = false)
     public static void glShaderBinary(java.nio.IntBuffer p0, int p1, java.nio.ByteBuffer p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glShaderBinary");
     }
 
     @Overwrite(remap = false)
     public static void glUseProgramStages(int p0, int p1, int p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUseProgramStages");
     }
 
     @Overwrite(remap = false)
@@ -672,81 +770,101 @@ public class GL41M {
 
     @Overwrite(remap = false)
     public static void glVertexAttribL1d(int p0, double p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribL1d");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribL1dv(int p0, double[] p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribL1dv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribL1dv(int p0, java.nio.DoubleBuffer p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribL1dv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribL2d(int p0, double p1, double p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribL2d");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribL2dv(int p0, double[] p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribL2dv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribL2dv(int p0, java.nio.DoubleBuffer p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribL2dv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribL3d(int p0, double p1, double p2, double p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribL3d");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribL3dv(int p0, double[] p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribL3dv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribL3dv(int p0, java.nio.DoubleBuffer p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribL3dv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribL4d(int p0, double p1, double p2, double p3, double p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribL4d");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribL4dv(int p0, double[] p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribL4dv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribL4dv(int p0, java.nio.DoubleBuffer p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribL4dv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribLPointer(int p0, int p1, int p2, int p3, java.nio.ByteBuffer p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribLPointer");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribLPointer(int p0, int p1, int p2, int p3, long p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribLPointer");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribLPointer(int p0, int p1, int p2, java.nio.DoubleBuffer p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribLPointer");
     }
 
     @Overwrite(remap = false)
     public static void glViewportArrayv(int p0, float[] p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glViewportArrayv");
     }
 
     @Overwrite(remap = false)
     public static void glViewportArrayv(int p0, java.nio.FloatBuffer p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glViewportArrayv");
     }
 
     @Overwrite(remap = false)
     public static void glViewportIndexedf(int p0, float p1, float p2, float p3, float p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glViewportIndexedf");
     }
 
     @Overwrite(remap = false)
     public static void glViewportIndexedfv(int p0, float[] p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glViewportIndexedfv");
     }
 
     @Overwrite(remap = false)
     public static void glViewportIndexedfv(int p0, java.nio.FloatBuffer p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glViewportIndexedfv");
     }
 }

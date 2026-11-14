@@ -491,6 +491,48 @@ public final class WorldShaderSession implements MainPass {
     public static WorldShaderSession install(WorldPackSet plans) {
         RenderSystem.assertOnRenderThread();
         if (Minecraft.getInstance().level!=null || current!=null) throw new IllegalStateException("Unload world and previous shader session before installation");
+        return installUnchecked(plans);
+    }
+
+    /**
+     * Switches pack, profile or the standard renderer while a world is loaded ({@code next == null}: standard
+     * renderer). The chunk builders stop first, so no section of the old terrain vertex contract is built or
+     * uploaded; the old host is released, the new one installed for the current dimension, and every section is
+     * rebuilt in the new contract. Runs on the render thread between frames (client tick).
+     */
+    public static void replaceInWorld(@org.jetbrains.annotations.Nullable WorldPackSet next) {
+        RenderSystem.assertOnRenderThread();
+        var level=Minecraft.getInstance().level;
+        var worldRenderer=net.vulkanmod.render.chunk.WorldRenderer.getInstance();
+        if (level==null || worldRenderer==null) throw new IllegalStateException("replaceInWorld needs a loaded world");
+        if (next!=null) { // refuse unusable plans before anything is torn down
+            var unique=new java.util.LinkedHashSet<>(next.dimensions().values());
+            unique.add(next.overworld());
+            unique.forEach(WorldShaderSession::validatePlan);
+        }
+        worldRenderer.getTaskDispatcher().stopThreads();
+        try {
+            PipelineManager.runTerrainSwitchInWorld(()->{
+                var previous=current;
+                if (previous!=null) previous.uninstallUnchecked();
+                if (next!=null) {
+                    var installed=installUnchecked(next);
+                    try {
+                        installed.changeWorld(level);
+                    } catch (RuntimeException failure) {
+                        // Never leave a host installed that shows another dimension's plan: back to the standard renderer.
+                        installed.uninstallUnchecked();
+                        throw failure;
+                    }
+                }
+            });
+        } finally {
+            // Restarts the builders with the current contract and rebuilds every section, also after a failure.
+            worldRenderer.allChanged();
+        }
+    }
+
+    private static WorldShaderSession installUnchecked(WorldPackSet plans) {
         var unique=new java.util.LinkedHashSet<>(plans.dimensions().values());
         unique.add(plans.overworld());
         unique.forEach(WorldShaderSession::validatePlan);
@@ -562,6 +604,10 @@ public final class WorldShaderSession implements MainPass {
     public void uninstall() {
         RenderSystem.assertOnRenderThread();
         if (Minecraft.getInstance().level!=null) throw new IllegalStateException("Unload world before uninstalling shader session");
+        uninstallUnchecked();
+    }
+
+    private void uninstallUnchecked() {
         if (closed) return;
         if (current!=this || Renderer.getInstance().getMainPass()!=this) throw new IllegalStateException("Shader main-pass ownership changed");
         current=null;Renderer.getInstance().setMainPass(delegate);
@@ -862,8 +908,7 @@ public final class WorldShaderSession implements MainPass {
         return s.equals("dhDepthTex")||s.equals("dhDepthTex0")||s.equals("dhDepthTex1");
     }
     private static boolean depthName(String s) {return DEPTH_NAMES.contains(s);}
-    private static final java.util.regex.Pattern SHADOW_SAMPLER=java.util.regex.Pattern.compile("shadowtex[01](?:HW)?|shadowcolor[0-7]?");
-    private static boolean shadowName(String s) {return s.equals("shadow")||s.equals("watershadow")||SHADOW_SAMPLER.matcher(s).matches();}
+    private static boolean shadowName(String s) {return ShadowSamplerNames.matches(s);}
     private static String bare(String path) {return path.substring(path.lastIndexOf('/')+1);}
 
     private NativeGeometryPass entityPass(PackProgramSource.Prepared source, VulkanImage worldDepth, boolean late) {

@@ -226,6 +226,12 @@ public final class GlFunctionRegistry {
     }
 
     private static void noop(String name, String shape) {
+        // Decided once at registration: hints, debug and legacy state stay silent, a call whose loss shows
+        // on screen is logged the first time it is used.
+        if (net.vulkanmod.gl.GlEmulationLog.losesOutput(name)) {
+            fn(name, shape, (ret, args) -> net.vulkanmod.gl.GlEmulationLog.unimplemented(name));
+            return;
+        }
         fn(name, shape, (ret, args) -> {
         });
     }

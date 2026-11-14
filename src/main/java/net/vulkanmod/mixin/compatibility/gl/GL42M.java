@@ -25,14 +25,17 @@ public class GL42M {
 
     @Overwrite(remap = false)
     public static void glTexStorage1D(@NativeType("GLenum") int target, @NativeType("GLsizei") int levels, @NativeType("GLenum") int internalformat, @NativeType("GLsizei") int width) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTexStorage1D");
     }
 
     @Overwrite(remap = false)
     public static void glTexStorage3D(@NativeType("GLenum") int target, @NativeType("GLsizei") int levels, @NativeType("GLenum") int internalformat, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTexStorage3D");
     }
 
     @Overwrite(remap = false)
     public static void glBindImageTexture(@NativeType("GLuint") int unit, @NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLboolean") boolean layered, @NativeType("GLint") int layer, @NativeType("GLenum") int access, @NativeType("GLenum") int format) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindImageTexture");
     }
 
     @Overwrite(remap = false)
@@ -41,54 +44,67 @@ public class GL42M {
 
     @Overwrite(remap = false)
     public static void glDrawArraysInstancedBaseInstance(@NativeType("GLenum") int mode, @NativeType("GLint") int first, @NativeType("GLsizei") int count, @NativeType("GLsizei") int primcount, @NativeType("GLuint") int baseinstance) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawArraysInstancedBaseInstance");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseInstance(@NativeType("GLenum") int mode, @NativeType("GLsizei") int count, @NativeType("GLenum") int type, @NativeType("void const *") long indices, @NativeType("GLsizei") int primcount, @NativeType("GLuint") int baseinstance) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseInstance");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseInstance(@NativeType("GLenum") int mode, @NativeType("GLsizei") int count, @NativeType("void const *") ByteBuffer indices, @NativeType("GLsizei") int primcount, @NativeType("GLuint") int baseinstance) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseInstance");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseInstance(@NativeType("GLenum") int mode, @NativeType("void const *") ByteBuffer indices, @NativeType("GLsizei") int primcount, @NativeType("GLuint") int baseinstance) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseInstance");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseInstance(@NativeType("GLenum") int mode, @NativeType("void const *") ShortBuffer indices, @NativeType("GLsizei") int primcount, @NativeType("GLuint") int baseinstance) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseInstance");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseInstance(@NativeType("GLenum") int mode, @NativeType("void const *") IntBuffer indices, @NativeType("GLsizei") int primcount, @NativeType("GLuint") int baseinstance) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseInstance");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseVertexBaseInstance(@NativeType("GLenum") int mode, @NativeType("GLsizei") int count, @NativeType("GLenum") int type, @NativeType("void const *") long indices, @NativeType("GLsizei") int primcount, @NativeType("GLint") int basevertex, @NativeType("GLuint") int baseinstance) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseVertexBaseInstance");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseVertexBaseInstance(@NativeType("GLenum") int mode, @NativeType("GLsizei") int count, @NativeType("void const *") ByteBuffer indices, @NativeType("GLsizei") int primcount, @NativeType("GLint") int basevertex, @NativeType("GLuint") int baseinstance) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseVertexBaseInstance");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseVertexBaseInstance(@NativeType("GLenum") int mode, @NativeType("void const *") ByteBuffer indices, @NativeType("GLsizei") int primcount, @NativeType("GLint") int basevertex, @NativeType("GLuint") int baseinstance) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseVertexBaseInstance");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseVertexBaseInstance(@NativeType("GLenum") int mode, @NativeType("void const *") ShortBuffer indices, @NativeType("GLsizei") int primcount, @NativeType("GLint") int basevertex, @NativeType("GLuint") int baseinstance) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseVertexBaseInstance");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseVertexBaseInstance(@NativeType("GLenum") int mode, @NativeType("void const *") IntBuffer indices, @NativeType("GLsizei") int primcount, @NativeType("GLint") int basevertex, @NativeType("GLuint") int baseinstance) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseVertexBaseInstance");
     }
 
     @Overwrite(remap = false)
     public static void glDrawTransformFeedbackInstanced(@NativeType("GLenum") int mode, @NativeType("GLuint") int id, @NativeType("GLsizei") int primcount) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawTransformFeedbackInstanced");
     }
 
     @Overwrite(remap = false)
     public static void glDrawTransformFeedbackStreamInstanced(@NativeType("GLenum") int mode, @NativeType("GLuint") int id, @NativeType("GLuint") int stream, @NativeType("GLsizei") int primcount) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawTransformFeedbackStreamInstanced");
     }
 
     @Overwrite(remap = false)

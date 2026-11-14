@@ -297,6 +297,12 @@ public class Renderer {
         if (recreatingSwapChain)
             return;
 
+        // Exclusive fullscreen <-> same-sized borderless window (Borderless Window mod, F11 handling of other
+        // mods) sends no resize: rebuild so the present path follows the real window mode.
+        if (!swapChainUpdate && Vulkan.getSwapChain() != null && Vulkan.getSwapChain().windowModeChanged()) {
+            swapChainUpdate = true;
+        }
+
         if (swapChainUpdate) {
             recreatingSwapChain = true;
             swapChainUpdate = false;

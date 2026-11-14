@@ -3,6 +3,7 @@ package net.vulkanmod.mixin.render;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.vulkanmod.compat.gl.GlIntegerState;
+import net.vulkanmod.compat.gl.GlPixelStore;
 import net.vulkanmod.gl.GlBuffer;
 import net.vulkanmod.gl.GlFramebuffer;
 import net.vulkanmod.gl.GlProgram;
@@ -125,7 +126,10 @@ public class GlStateManagerM {
 
     @Overwrite(remap = false)
     public static void _texSubImage2D(int target, int level, int offsetX, int offsetY, int width, int height, int format, int type, long pixels) {
-
+        // Mods upload their own textures through this entry (map tiles with hand-built mip levels); vanilla's own
+        // callers are redirected before they get here, so an empty body silently left such textures blank.
+        RenderSystem.assertOnRenderThreadOrInit();
+        GlTexture.texSubImage2D(target, level, offsetX, offsetY, width, height, format, type, pixels);
     }
 
     @Overwrite(remap = false)
@@ -135,7 +139,8 @@ public class GlStateManagerM {
 
     @Overwrite(remap = false)
     public static void _texParameter(int i, int j, float k) {
-
+        // Same as GL11.glTexParameterf: filters and wrap modes arrive as floats from some callers.
+        GlTexture.texParameteri(i, j, (int) k);
     }
 
     @Overwrite(remap = false)
@@ -145,7 +150,8 @@ public class GlStateManagerM {
 
     @Overwrite(remap = false)
     public static void _pixelStore(int pname, int param) {
-
+        // Same state as GL11.glPixelStorei: a caller that resets the unpack layout here must reach the emulation too.
+        if (GlPixelStore.isPixelStoreParameter(pname)) GlPixelStore.setInteger(pname, param);
     }
 
     @Overwrite(remap = false)
@@ -353,5 +359,7 @@ public class GlStateManagerM {
     }
 
     @Overwrite(remap = false)
-    public static void _disableVertexAttribArray(int i) {}
+    public static void _disableVertexAttribArray(int i) {
+        // Nothing to undo: vertex input comes from the pipeline's vertex format, not from enabled arrays.
+    }
 }

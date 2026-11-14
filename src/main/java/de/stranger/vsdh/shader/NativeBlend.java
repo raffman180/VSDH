@@ -15,7 +15,15 @@ public final class NativeBlend {
     private static final int INHERIT = -1;
     private final List<Integer> states;
 
-    private NativeBlend(List<Integer> states) { this.states = List.copyOf(states); }
+    /** No attachment overrides the baseline: {@link #apply} then returns it untouched, without looking. */
+    private final boolean inheritsAll;
+
+    private NativeBlend(List<Integer> states) {
+        this.states = List.copyOf(states);
+        boolean all = true;
+        for (int state : this.states) all &= state == INHERIT;
+        this.inheritsAll = all;
+    }
 
     public static NativeBlend forProgram(TargetPlan targets, String program, int attachments) {
         var result = new ArrayList<Integer>(attachments);
@@ -25,14 +33,23 @@ public final class NativeBlend {
     }
 
     public PipelineState apply(PipelineState baseline) {
-        if (states.stream().allMatch(state -> state == INHERIT)) return baseline;
+        if (inheritsAll) return baseline;
+        // Consecutive draws of one program mostly share their state: answer the same baseline from the last
+        // result instead of building the list and a second state per draw. Pipeline states are immutable.
+        if (baseline.equals(lastBaseline)) return lastResult;
         var effective = new ArrayList<Integer>(states.size());
         for (int rank = 0; rank < states.size(); rank++) {
             int state = states.get(rank);
             effective.add(state == INHERIT ? baseline.blendState(rank) : state);
         }
-        return baseline.withAttachmentBlends(effective);
+        var result = baseline.withAttachmentBlends(effective);
+        lastBaseline = baseline;
+        lastResult = result;
+        return result;
     }
+
+    /** Render thread only. */
+    private PipelineState lastBaseline, lastResult;
 
     public static int encode(BlendMode mode) {
         if (mode.off()) return 0;

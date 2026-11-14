@@ -158,6 +158,7 @@ public class GL44M {
 
     @Overwrite(remap = false)
     public static void glBindBuffersBase(@NativeType("GLenum") int target, @NativeType("GLuint") int first, @NativeType("GLuint const *") IntBuffer buffers) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindBuffersBase");
     }
 
     @Overwrite(remap = false)
@@ -183,10 +184,12 @@ public class GL44M {
 
     @Overwrite(remap = false)
     public static void glBindTextures(@NativeType("GLuint") int first, @NativeType("GLuint const *") IntBuffer textures) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindTextures");
     }
 
     @Overwrite(remap = false)
     public static void glBindTextures(@NativeType("GLuint") int first, @NativeType("GLuint const *") int[] textures) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindTextures");
     }
 
     @Overwrite(remap = false)
@@ -211,89 +214,111 @@ public class GL44M {
 
     @Overwrite(remap = false)
     public static void glBindImageTextures(@NativeType("GLuint") int first, @NativeType("GLuint const *") IntBuffer textures) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindImageTextures");
     }
 
     @Overwrite(remap = false)
     public static void glBindImageTextures(@NativeType("GLuint") int first, @NativeType("GLuint const *") int[] textures) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindImageTextures");
     }
 
     @Overwrite(remap = false)
     public static void glBindVertexBuffers(@NativeType("GLuint") int first, @NativeType("GLuint const *") IntBuffer buffers, @NativeType("GLintptr const *") PointerBuffer offsets, @NativeType("GLsizei const *") IntBuffer strides) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindVertexBuffers");
     }
 
     @Overwrite(remap = false)
     public static void glBindVertexBuffers(@NativeType("GLuint") int first, @NativeType("GLuint const *") int[] buffers, @NativeType("GLintptr const *") PointerBuffer offsets, @NativeType("GLsizei const *") int[] strides) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindVertexBuffers");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") ByteBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") ShortBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") IntBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") FloatBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") DoubleBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") short[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") int[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") float[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") double[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexSubImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLint") int zoffset, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") ByteBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexSubImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexSubImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLint") int zoffset, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") ShortBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexSubImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexSubImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLint") int zoffset, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") IntBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexSubImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexSubImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLint") int zoffset, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") FloatBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexSubImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexSubImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLint") int zoffset, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") DoubleBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexSubImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexSubImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLint") int zoffset, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") short[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexSubImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexSubImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLint") int zoffset, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") int[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexSubImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexSubImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLint") int zoffset, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") float[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexSubImage");
     }
 
     @Overwrite(remap = false)
     public static void glClearTexSubImage(@NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLint") int zoffset, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") double[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearTexSubImage");
     }
 }

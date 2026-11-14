@@ -55,6 +55,10 @@ public class MixinPlugin implements IMixinConfigPlugin {
         if (mixinClassName.endsWith(".MaterialRuleListMixin") || mixinClassName.endsWith(".SurfaceSequenceRuleMixin")) {
             return !"false".equals(System.getProperty("vsdh.worldgenLoops"));
         }
+        // VSDH: remembered biome cell choice on the render thread; -Dvsdh.biomeCornerCache=false restores vanilla.
+        if (mixinClassName.endsWith(".BiomeManagerCornerMixin")) {
+            return !"false".equals(System.getProperty("vsdh.biomeCornerCache"));
+        }
         if (SCGUNS_MIXIN.equals(mixinClassName)) {
             return SCGUNS_HANDLER.equals(targetClassName) && supportsScgunsCooldownAbi();
         }

@@ -173,3 +173,13 @@ Java argument -XX:-ClassUnloadingWithConcurrentMark cut remark to ~1 ms (JFR). R
 Fullscreen vs Iris (1440p): VSDH more FPS, half the small hitches, but more >25 ms frames (G1, driver present).
 Long fullscreen frames are mostly vkQueuePresentKHR blocking 20-25 ms in the driver; an FPS cap just below
 the refresh rate removed them (VSDH 0 frames >25 ms vs Iris 2-3). Recommend it; do not add an automatic cap.
+GUI item/entity state boundaries close at GuiGraphics.flush and reset per frame (GuiDeferredDrawState): batching mods (ImmediatelyFast) replace BufferSource and skip vanilla endBatch. World entities in renderLevel are never GUI previews.
+One JAR covers every DH version: the nested coremod (src/dh330, Dh330CoreMod/Dh330Mapping) rewrites VSDH's DH references
+to DH 3.3.0's _neoforge twins at load time, only for the pinned 3.3.0 SHA-1; DhSupport turns the adapter off on any
+mismatch. Run verifyDhLinks after touching DH-facing code. Unimplemented GL calls warn once (GlEmulationLog.unimplemented);
+UnsupportedModNotice shows one notice for mods on the compat lists and blocks nothing.
+An over-budget shadow map is re-prepared with the pack's next smaller listed shadowMapResolution (ShadowResolutionFallback, never written to the player's config); the world-join check against free VRAM stays.
+The swapchain is rebuilt when the window gains or loses its monitor without a resize (SwapChain.windowModeChanged, Borderless Window mod): exclusive fullscreen uses the Vulkan swapchain, every window DXGI flip.
+Since 14.11. a pack change also applies inside a world (WorldShaderSession.replaceInWorld: stop builders, switch the terrain contract under PipelineManager.runTerrainSwitchInWorld, then WorldRenderer.allChanged); this replaces the old "only while no level is loaded" rule. -Dvsdh.liveShaderSwitch=false restores it. A missing configured pack file falls back to the newest file of the same pack (PackFileFallback).
+BiomeManager.getBiome remembers the chosen biome cell per position on the render thread only (BiomeCornerCache, per BiomeManager instance, so per seed). NativeShaderChain geometry/scene output lists are memoised per program: view() caches by list identity, never pass a fresh list per call.
+The bundled renderer has mod id vsdh_renderer (not vulkanmod, so a separately installed VulkanMod is refused by FML instead of colliding); keep the incompatible vulkanmod entry.

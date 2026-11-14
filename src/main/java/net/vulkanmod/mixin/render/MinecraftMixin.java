@@ -65,6 +65,8 @@ public class MinecraftMixin {
     @Inject(method = "runTick", at = @At(value = "HEAD"))
     private void resetBuffers(boolean bl, CallbackInfo ci) {
         MinecraftBenchmarkController.onClientTick((Minecraft) (Object) this);
+        // No GUI item/entity state boundary of the last frame survives into this one.
+        net.vulkanmod.compat.render.GuiDeferredDrawState.resetFrame();
         clampUnsupportedGraphicsMode();
         Renderer.getInstance().preInitFrame();
     }

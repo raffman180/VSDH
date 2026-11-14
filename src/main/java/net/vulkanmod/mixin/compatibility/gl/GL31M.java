@@ -55,26 +55,32 @@ public class GL31M {
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstanced(@NativeType("GLenum") int mode, @NativeType("GLsizei") int count, @NativeType("GLenum") int type, @NativeType("void const *") long indices, @NativeType("GLsizei") int primcount) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstanced");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstanced(@NativeType("GLenum") int mode, @NativeType("GLsizei") int count, @NativeType("void const *") ByteBuffer indices, @NativeType("GLsizei") int primcount) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstanced");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstanced(@NativeType("GLenum") int mode, @NativeType("void const *") ByteBuffer indices, @NativeType("GLsizei") int primcount) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstanced");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstanced(@NativeType("GLenum") int mode, @NativeType("void const *") ShortBuffer indices, @NativeType("GLsizei") int primcount) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstanced");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstanced(@NativeType("GLenum") int mode, @NativeType("void const *") IntBuffer indices, @NativeType("GLsizei") int primcount) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstanced");
     }
 
     @Overwrite(remap = false)
     public static void glDrawArraysInstanced(@NativeType("GLenum") int mode, @NativeType("GLint") int first, @NativeType("GLsizei") int count, @NativeType("GLsizei") int primcount) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawArraysInstanced");
     }
 
     @Overwrite(remap = false)
@@ -94,6 +100,7 @@ public class GL31M {
 
     @Overwrite(remap = false)
     public static void glUniformBlockBinding(@NativeType("GLuint") int program, @NativeType("GLuint") int uniformBlockIndex, @NativeType("GLuint") int uniformBlockBinding) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformBlockBinding");
     }
 
     @Overwrite(remap = false)
@@ -192,5 +199,6 @@ public class GL31M {
 
     @Overwrite(remap = false)
     public static void glTexBuffer(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLuint") int buffer) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTexBuffer");
     }
 }

@@ -119,9 +119,17 @@ public class PipelineState {
     public PipelineState withAttachmentBlends(List<Integer> states) {
         if(states.size()!=renderPass.getColorAttachmentCount())
             throw new IllegalArgumentException("Blend state count differs from color attachment count");
-        if(states.stream().allMatch(state->state==blendState_i))return this;
-        if(states.stream().allMatch(state->state.equals(states.getFirst())))
-            return new PipelineState(assemblyRasterState,states.getFirst(),depthState_i,stencilState_i,logicOp_i,colorMask_i,renderPass);
+        // Plain loops: this runs for every shader-pack draw, a stream per call showed up in the allocation profile.
+        boolean allBase=true,allFirst=true;
+        int first=states.isEmpty()?blendState_i:states.get(0);
+        for(int i=0;i<states.size();i++) {
+            int state=states.get(i);
+            allBase&=state==blendState_i;
+            allFirst&=state==first;
+        }
+        if(allBase)return this;
+        if(allFirst)
+            return new PipelineState(assemblyRasterState,first,depthState_i,stencilState_i,logicOp_i,colorMask_i,renderPass);
         if(!net.vulkanmod.vulkan.device.DeviceManager.supportsIndependentBlend())
             throw new IllegalArgumentException("Shader pack uses independent attachment blending, which this Vulkan device does not support");
         return new PipelineState(assemblyRasterState,blendState_i,depthState_i,stencilState_i,logicOp_i,colorMask_i,renderPass,states);
@@ -157,7 +165,18 @@ public class PipelineState {
 
     @Override
     public int hashCode() {
-        return Objects.hash(blendState_i, depthState_i, stencilState_i, logicOp_i, assemblyRasterState, colorMask_i, renderPass,attachmentBlends);
+        // Same value as Objects.hash over these fields, without the varargs array and seven boxed Integers per
+        // lookup (pipeline lookups hash a state for every draw).
+        int result = 1;
+        result = 31 * result + blendState_i;
+        result = 31 * result + depthState_i;
+        result = 31 * result + stencilState_i;
+        result = 31 * result + logicOp_i;
+        result = 31 * result + assemblyRasterState;
+        result = 31 * result + colorMask_i;
+        result = 31 * result + (renderPass == null ? 0 : renderPass.hashCode());
+        result = 31 * result + attachmentBlends.hashCode();
+        return result;
     }
 
     public boolean stencilTestEnabled() {

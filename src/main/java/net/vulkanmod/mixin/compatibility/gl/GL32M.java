@@ -171,18 +171,22 @@ public class GL32M {
 
     @Overwrite(remap = false)
     public static void glDrawElementsBaseVertex(@NativeType("GLenum") int mode, @NativeType("GLsizei") int count, @NativeType("void const *") ByteBuffer indices, @NativeType("GLint") int basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsBaseVertex");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsBaseVertex(@NativeType("GLenum") int mode, @NativeType("void const *") ByteBuffer indices, @NativeType("GLint") int basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsBaseVertex");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsBaseVertex(@NativeType("GLenum") int mode, @NativeType("void const *") ShortBuffer indices, @NativeType("GLint") int basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsBaseVertex");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsBaseVertex(@NativeType("GLenum") int mode, @NativeType("void const *") IntBuffer indices, @NativeType("GLint") int basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsBaseVertex");
     }
 
     @Overwrite(remap = false)
@@ -194,18 +198,22 @@ public class GL32M {
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseVertex(@NativeType("GLenum") int mode, @NativeType("GLsizei") int count, @NativeType("void const *") ByteBuffer indices, @NativeType("GLsizei") int primcount, @NativeType("GLint") int basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseVertex");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseVertex(@NativeType("GLenum") int mode, @NativeType("void const *") ByteBuffer indices, @NativeType("GLsizei") int primcount, @NativeType("GLint") int basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseVertex");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseVertex(@NativeType("GLenum") int mode, @NativeType("void const *") ShortBuffer indices, @NativeType("GLsizei") int primcount, @NativeType("GLint") int basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseVertex");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsInstancedBaseVertex(@NativeType("GLenum") int mode, @NativeType("void const *") IntBuffer indices, @NativeType("GLsizei") int primcount, @NativeType("GLint") int basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsInstancedBaseVertex");
     }
 
     @Overwrite(remap = false)
@@ -217,26 +225,32 @@ public class GL32M {
 
     @Overwrite(remap = false)
     public static void glDrawRangeElementsBaseVertex(@NativeType("GLenum") int mode, @NativeType("GLuint") int start, @NativeType("GLuint") int end, @NativeType("GLsizei") int count, @NativeType("void const *") ByteBuffer indices, @NativeType("GLint") int basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawRangeElementsBaseVertex");
     }
 
     @Overwrite(remap = false)
     public static void glDrawRangeElementsBaseVertex(@NativeType("GLenum") int mode, @NativeType("GLuint") int start, @NativeType("GLuint") int end, @NativeType("void const *") ByteBuffer indices, @NativeType("GLint") int basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawRangeElementsBaseVertex");
     }
 
     @Overwrite(remap = false)
     public static void glDrawRangeElementsBaseVertex(@NativeType("GLenum") int mode, @NativeType("GLuint") int start, @NativeType("GLuint") int end, @NativeType("void const *") ShortBuffer indices, @NativeType("GLint") int basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawRangeElementsBaseVertex");
     }
 
     @Overwrite(remap = false)
     public static void glDrawRangeElementsBaseVertex(@NativeType("GLenum") int mode, @NativeType("GLuint") int start, @NativeType("GLuint") int end, @NativeType("void const *") IntBuffer indices, @NativeType("GLint") int basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawRangeElementsBaseVertex");
     }
 
     @Overwrite(remap = false)
     public static void glMultiDrawElementsBaseVertex(@NativeType("GLenum") int mode, @NativeType("GLsizei const *") IntBuffer count, @NativeType("GLenum") int type, @NativeType("void const **") PointerBuffer indices, @NativeType("GLint const *") IntBuffer basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glMultiDrawElementsBaseVertex");
     }
 
     @Overwrite(remap = false)
     public static void glMultiDrawElementsBaseVertex(@NativeType("GLenum") int mode, @NativeType("GLsizei const *") int[] count, @NativeType("GLenum") int type, @NativeType("void const **") PointerBuffer indices, @NativeType("GLint const *") int[] basevertex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glMultiDrawElementsBaseVertex");
     }
 
     @Overwrite(remap = false)
@@ -286,10 +300,12 @@ public class GL32M {
 
     @Overwrite(remap = false)
     public static void glTexImage2DMultisample(@NativeType("GLenum") int target, @NativeType("GLsizei") int samples, @NativeType("GLint") int internalformat, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLboolean") boolean fixedsamplelocations) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTexImage2DMultisample");
     }
 
     @Overwrite(remap = false)
     public static void glTexImage3DMultisample(@NativeType("GLenum") int target, @NativeType("GLsizei") int samples, @NativeType("GLint") int internalformat, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth, @NativeType("GLboolean") boolean fixedsamplelocations) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTexImage3DMultisample");
     }
 
     @Overwrite(remap = false)

@@ -354,6 +354,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glTextureParameterf(@NativeType("GLuint") int texture, @NativeType("GLenum") int pname, @NativeType("GLfloat") float param) {
+        glTextureParameteri(texture, pname, (int) param);
     }
 
     @Overwrite(remap = false)
@@ -404,6 +405,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glClipControl(@NativeType("GLenum") int origin, @NativeType("GLenum") int depth) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClipControl");
     }
 
     @Overwrite(remap = false)
@@ -483,6 +485,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glClearNamedFramebufferfi(int p0, int p1, int p2, float p3, int p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearNamedFramebufferfi");
     }
 
     @Overwrite(remap = false)
@@ -517,6 +520,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glCompressedTextureSubImage1D(int p0, int p1, int p2, int p3, int p4, int p5, long p6) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCompressedTextureSubImage1D");
     }
 
     @Overwrite(remap = false)
@@ -526,6 +530,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glCompressedTextureSubImage2D(int p0, int p1, int p2, int p3, int p4, int p5, int p6, int p7, long p8) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCompressedTextureSubImage2D");
     }
 
     @Overwrite(remap = false)
@@ -535,6 +540,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glCompressedTextureSubImage3D(int p0, int p1, int p2, int p3, int p4, int p5, int p6, int p7, int p8, int p9, long p10) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCompressedTextureSubImage3D");
     }
 
     @Overwrite(remap = false)
@@ -549,14 +555,17 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glCopyTextureSubImage1D(int p0, int p1, int p2, int p3, int p4, int p5) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCopyTextureSubImage1D");
     }
 
     @Overwrite(remap = false)
     public static void glCopyTextureSubImage2D(int p0, int p1, int p2, int p3, int p4, int p5, int p6, int p7) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCopyTextureSubImage2D");
     }
 
     @Overwrite(remap = false)
     public static void glCopyTextureSubImage3D(int p0, int p1, int p2, int p3, int p4, int p5, int p6, int p7, int p8) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCopyTextureSubImage3D");
     }
 
     @Overwrite(remap = false)
@@ -661,10 +670,12 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glDisableVertexArrayAttrib(int p0, int p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDisableVertexArrayAttrib");
     }
 
     @Overwrite(remap = false)
     public static void glEnableVertexArrayAttrib(int p0, int p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glEnableVertexArrayAttrib");
     }
 
     @Overwrite(remap = false)
@@ -673,6 +684,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glGetCompressedTextureImage(int p0, int p1, int p2, long p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetCompressedTextureImage");
     }
 
     @Overwrite(remap = false)
@@ -702,6 +714,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glGetCompressedTextureSubImage(int p0, int p1, int p2, int p3, int p4, int p5, int p6, int p7, int p8, long p9) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetCompressedTextureSubImage");
     }
 
     @Overwrite(remap = false)
@@ -884,18 +897,22 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glGetQueryBufferObjecti64v(int p0, int p1, int p2, long p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetQueryBufferObjecti64v");
     }
 
     @Overwrite(remap = false)
     public static void glGetQueryBufferObjectiv(int p0, int p1, int p2, long p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetQueryBufferObjectiv");
     }
 
     @Overwrite(remap = false)
     public static void glGetQueryBufferObjectui64v(int p0, int p1, int p2, long p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetQueryBufferObjectui64v");
     }
 
     @Overwrite(remap = false)
     public static void glGetQueryBufferObjectuiv(int p0, int p1, int p2, long p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetQueryBufferObjectuiv");
     }
 
     @Overwrite(remap = false)
@@ -920,6 +937,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glGetTextureImage(int p0, int p1, int p2, int p3, int p4, long p5) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetTextureImage");
     }
 
     @Overwrite(remap = false)
@@ -1059,6 +1077,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glGetTextureSubImage(int p0, int p1, int p2, int p3, int p4, int p5, int p6, int p7, int p8, int p9, int p10, long p11) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetTextureSubImage");
     }
 
     @Overwrite(remap = false)
@@ -1217,6 +1236,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glGetnCompressedTexImage(int p0, int p1, int p2, long p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetnCompressedTexImage");
     }
 
     @Overwrite(remap = false)
@@ -1369,6 +1389,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glGetnTexImage(int p0, int p1, int p2, int p3, int p4, long p5) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetnTexImage");
     }
 
     @Overwrite(remap = false)
@@ -1650,6 +1671,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glNamedFramebufferDrawBuffer(int p0, int p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glNamedFramebufferDrawBuffer");
     }
 
     @Overwrite(remap = false)
@@ -1659,6 +1681,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glNamedFramebufferDrawBuffers(int p0, int p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glNamedFramebufferDrawBuffers");
     }
 
     @Overwrite(remap = false)
@@ -1672,10 +1695,12 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glNamedFramebufferReadBuffer(int p0, int p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glNamedFramebufferReadBuffer");
     }
 
     @Overwrite(remap = false)
     public static void glNamedFramebufferTextureLayer(int p0, int p1, int p2, int p3, int p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glNamedFramebufferTextureLayer");
     }
 
     @Overwrite(remap = false)
@@ -1695,6 +1720,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glReadnPixels(int p0, int p1, int p2, int p3, int p4, int p5, int p6, long p7) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glReadnPixels");
     }
 
     @Overwrite(remap = false)
@@ -1723,10 +1749,12 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glTextureBuffer(int p0, int p1, int p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTextureBuffer");
     }
 
     @Overwrite(remap = false)
     public static void glTextureBufferRange(int p0, int p1, int p2, long p3, long p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTextureBufferRange");
     }
 
     @Overwrite(remap = false)
@@ -1779,18 +1807,22 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glTextureStorage1D(int p0, int p1, int p2, int p3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTextureStorage1D");
     }
 
     @Overwrite(remap = false)
     public static void glTextureStorage2DMultisample(int p0, int p1, int p2, int p3, int p4, boolean p5) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTextureStorage2DMultisample");
     }
 
     @Overwrite(remap = false)
     public static void glTextureStorage3D(int p0, int p1, int p2, int p3, int p4, int p5) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTextureStorage3D");
     }
 
     @Overwrite(remap = false)
     public static void glTextureStorage3DMultisample(int p0, int p1, int p2, int p3, int p4, int p5, boolean p6) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTextureStorage3DMultisample");
     }
 
     @Overwrite(remap = false)
@@ -1840,6 +1872,7 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glTextureSubImage1D(int p0, int p1, int p2, int p3, int p4, int p5, long p6) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTextureSubImage1D");
     }
 
     @Overwrite(remap = false)
@@ -1929,42 +1962,52 @@ public class GL45M {
 
     @Overwrite(remap = false)
     public static void glTextureSubImage3D(int p0, int p1, int p2, int p3, int p4, int p5, int p6, int p7, int p8, int p9, long p10) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTextureSubImage3D");
     }
 
     @Overwrite(remap = false)
     public static void glTransformFeedbackBufferBase(int p0, int p1, int p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTransformFeedbackBufferBase");
     }
 
     @Overwrite(remap = false)
     public static void glTransformFeedbackBufferRange(int p0, int p1, int p2, long p3, long p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTransformFeedbackBufferRange");
     }
 
     @Overwrite(remap = false)
     public static void glVertexArrayAttribBinding(int p0, int p1, int p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexArrayAttribBinding");
     }
 
     @Overwrite(remap = false)
     public static void glVertexArrayAttribFormat(int p0, int p1, int p2, int p3, boolean p4, int p5) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexArrayAttribFormat");
     }
 
     @Overwrite(remap = false)
     public static void glVertexArrayAttribIFormat(int p0, int p1, int p2, int p3, int p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexArrayAttribIFormat");
     }
 
     @Overwrite(remap = false)
     public static void glVertexArrayAttribLFormat(int p0, int p1, int p2, int p3, int p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexArrayAttribLFormat");
     }
 
     @Overwrite(remap = false)
     public static void glVertexArrayBindingDivisor(int p0, int p1, int p2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexArrayBindingDivisor");
     }
 
     @Overwrite(remap = false)
     public static void glVertexArrayElementBuffer(int p0, int p1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexArrayElementBuffer");
     }
 
     @Overwrite(remap = false)
     public static void glVertexArrayVertexBuffer(int p0, int p1, int p2, long p3, int p4) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexArrayVertexBuffer");
     }
 
     @Overwrite(remap = false)

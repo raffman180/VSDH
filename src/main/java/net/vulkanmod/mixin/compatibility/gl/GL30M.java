@@ -211,14 +211,17 @@ public class GL30M {
 
     @Overwrite(remap = false)
     public static void glFramebufferTexture1D(@NativeType("GLenum") int target, @NativeType("GLenum") int attachment, @NativeType("GLenum") int textarget, @NativeType("GLuint") int texture, @NativeType("GLint") int level) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glFramebufferTexture1D");
     }
 
     @Overwrite(remap = false)
     public static void glFramebufferTexture3D(@NativeType("GLenum") int target, @NativeType("GLenum") int attachment, @NativeType("GLenum") int textarget, @NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLint") int zoffset) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glFramebufferTexture3D");
     }
 
     @Overwrite(remap = false)
     public static void glFramebufferTextureLayer(@NativeType("GLenum") int target, @NativeType("GLenum") int attachment, @NativeType("GLuint") int texture, @NativeType("GLint") int level, @NativeType("GLint") int layer) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glFramebufferTextureLayer");
     }
 
     @Overwrite(remap = false)
@@ -235,18 +238,22 @@ public class GL30M {
 
     @Overwrite(remap = false)
     public static void glClearBufferiv(@NativeType("GLenum") int buffer, @NativeType("GLint") int drawbuffer, @NativeType("GLint const *") IntBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferiv");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferuiv(@NativeType("GLenum") int buffer, @NativeType("GLint") int drawbuffer, @NativeType("GLuint const *") IntBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferuiv");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferfv(@NativeType("GLenum") int buffer, @NativeType("GLint") int drawbuffer, @NativeType("GLfloat const *") FloatBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferfv");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferfi(@NativeType("GLenum") int buffer, @NativeType("GLint") int drawbuffer, @NativeType("GLfloat") float depth, @NativeType("GLint") int stencil) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferfi");
     }
 
     @Overwrite(remap = false)
@@ -261,30 +268,37 @@ public class GL30M {
 
     @Overwrite(remap = false)
     public static void glUniform1ui(@NativeType("GLint") int location, @NativeType("GLuint") int v0) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform1ui");
     }
 
     @Overwrite(remap = false)
     public static void glUniform2ui(@NativeType("GLint") int location, @NativeType("GLuint") int v0, @NativeType("GLuint") int v1) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform2ui");
     }
 
     @Overwrite(remap = false)
     public static void glUniform3ui(@NativeType("GLint") int location, @NativeType("GLuint") int v0, @NativeType("GLuint") int v1, @NativeType("GLuint") int v2) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform3ui");
     }
 
     @Overwrite(remap = false)
     public static void glUniform4ui(@NativeType("GLint") int location, @NativeType("GLuint") int v0, @NativeType("GLuint") int v1, @NativeType("GLuint") int v2, @NativeType("GLuint") int v3) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform4ui");
     }
 
     @Overwrite(remap = false)
     public static void glColorMaski(@NativeType("GLuint") int buf, @NativeType("GLboolean") boolean r, @NativeType("GLboolean") boolean g, @NativeType("GLboolean") boolean b, @NativeType("GLboolean") boolean a) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glColorMaski");
     }
 
     @Overwrite(remap = false)
     public static void glEnablei(@NativeType("GLenum") int cap, @NativeType("GLuint") int index) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glEnablei");
     }
 
     @Overwrite(remap = false)
     public static void glDisablei(@NativeType("GLenum") int cap, @NativeType("GLuint") int index) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDisablei");
     }
 
     @Overwrite(remap = false)
@@ -294,6 +308,7 @@ public class GL30M {
 
     @Overwrite(remap = false)
     public static void glBindFragDataLocation(@NativeType("GLuint") int program, @NativeType("GLuint") int colorNumber, @NativeType("GLchar const *") CharSequence name) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindFragDataLocation");
     }
 
     @Overwrite(remap = false)
@@ -315,6 +330,7 @@ public class GL30M {
 
     @Overwrite(remap = false)
     public static void glBeginConditionalRender(@NativeType("GLuint") int id, @NativeType("GLenum") int mode) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBeginConditionalRender");
     }
 
     @Overwrite(remap = false)
@@ -323,6 +339,7 @@ public class GL30M {
 
     @Overwrite(remap = false)
     public static void glBeginTransformFeedback(@NativeType("GLenum") int primitiveMode) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBeginTransformFeedback");
     }
 
     @Overwrite(remap = false)
@@ -431,14 +448,17 @@ public class GL30M {
 
     @Overwrite(remap = false)
     public static void glClearBufferiv(@NativeType("GLenum") int buffer, @NativeType("GLint") int drawbuffer, @NativeType("GLint const *") int[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferiv");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferuiv(@NativeType("GLenum") int buffer, @NativeType("GLint") int drawbuffer, @NativeType("GLuint const *") int[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferuiv");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferfv(@NativeType("GLenum") int buffer, @NativeType("GLint") int drawbuffer, @NativeType("GLfloat const *") float[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferfv");
     }
 
     @Overwrite(remap = false)
@@ -450,6 +470,7 @@ public class GL30M {
 
     @Overwrite(remap = false)
     public static void glBindFragDataLocation(@NativeType("GLuint") int program, @NativeType("GLuint") int colorNumber, @NativeType("GLchar const *") ByteBuffer name) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindFragDataLocation");
     }
 
     @Overwrite(remap = false)
@@ -459,14 +480,17 @@ public class GL30M {
 
     @Overwrite(remap = false)
     public static void glTransformFeedbackVaryings(@NativeType("GLuint") int program, @NativeType("GLchar const **") CharSequence varying, @NativeType("GLenum") int bufferMode) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTransformFeedbackVaryings");
     }
 
     @Overwrite(remap = false)
     public static void glTransformFeedbackVaryings(@NativeType("GLuint") int program, @NativeType("GLchar const **") CharSequence[] varyings, @NativeType("GLenum") int bufferMode) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTransformFeedbackVaryings");
     }
 
     @Overwrite(remap = false)
     public static void glTransformFeedbackVaryings(@NativeType("GLuint") int program, @NativeType("GLchar const **") PointerBuffer varyings, @NativeType("GLenum") int bufferMode) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTransformFeedbackVaryings");
     }
 
     @Overwrite(remap = false)
@@ -592,34 +616,42 @@ public class GL30M {
 
     @Overwrite(remap = false)
     public static void glUniform1uiv(@NativeType("GLint") int location, @NativeType("GLuint const *") IntBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform1uiv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform1uiv(@NativeType("GLint") int location, @NativeType("GLuint const *") int[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform1uiv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform2uiv(@NativeType("GLint") int location, @NativeType("GLuint const *") IntBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform2uiv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform2uiv(@NativeType("GLint") int location, @NativeType("GLuint const *") int[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform2uiv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform3uiv(@NativeType("GLint") int location, @NativeType("GLuint const *") IntBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform3uiv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform3uiv(@NativeType("GLint") int location, @NativeType("GLuint const *") int[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform3uiv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform4uiv(@NativeType("GLint") int location, @NativeType("GLuint const *") IntBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform4uiv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform4uiv(@NativeType("GLint") int location, @NativeType("GLuint const *") int[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform4uiv");
     }
 
     @Overwrite(remap = false)
@@ -663,122 +695,152 @@ public class GL30M {
 
     @Overwrite(remap = false)
     public static void glVertexAttribI1i(@NativeType("GLuint") int index, @NativeType("GLint") int x) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI1i");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI2i(@NativeType("GLuint") int index, @NativeType("GLint") int x, @NativeType("GLint") int y) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI2i");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI3i(@NativeType("GLuint") int index, @NativeType("GLint") int x, @NativeType("GLint") int y, @NativeType("GLint") int z) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI3i");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI4i(@NativeType("GLuint") int index, @NativeType("GLint") int x, @NativeType("GLint") int y, @NativeType("GLint") int z, @NativeType("GLint") int w) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI4i");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI1ui(@NativeType("GLuint") int index, @NativeType("GLuint") int x) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI1ui");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI2ui(@NativeType("GLuint") int index, @NativeType("GLuint") int x, @NativeType("GLuint") int y) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI2ui");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI3ui(@NativeType("GLuint") int index, @NativeType("GLuint") int x, @NativeType("GLuint") int y, @NativeType("GLuint") int z) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI3ui");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI4ui(@NativeType("GLuint") int index, @NativeType("GLuint") int x, @NativeType("GLuint") int y, @NativeType("GLuint") int z, @NativeType("GLuint") int w) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI4ui");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI1iv(@NativeType("GLuint") int index, @NativeType("GLint const *") IntBuffer v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI1iv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI1iv(@NativeType("GLuint") int index, @NativeType("GLint const *") int[] v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI1iv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI1uiv(@NativeType("GLuint") int index, @NativeType("GLuint const *") IntBuffer v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI1uiv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI1uiv(@NativeType("GLuint") int index, @NativeType("GLuint const *") int[] v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI1uiv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI2iv(@NativeType("GLuint") int index, @NativeType("GLint const *") IntBuffer v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI2iv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI2iv(@NativeType("GLuint") int index, @NativeType("GLint const *") int[] v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI2iv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI2uiv(@NativeType("GLuint") int index, @NativeType("GLuint const *") IntBuffer v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI2uiv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI2uiv(@NativeType("GLuint") int index, @NativeType("GLuint const *") int[] v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI2uiv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI3iv(@NativeType("GLuint") int index, @NativeType("GLint const *") IntBuffer v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI3iv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI3iv(@NativeType("GLuint") int index, @NativeType("GLint const *") int[] v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI3iv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI3uiv(@NativeType("GLuint") int index, @NativeType("GLuint const *") IntBuffer v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI3uiv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI3uiv(@NativeType("GLuint") int index, @NativeType("GLuint const *") int[] v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI3uiv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI4iv(@NativeType("GLuint") int index, @NativeType("GLint const *") IntBuffer v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI4iv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI4iv(@NativeType("GLuint") int index, @NativeType("GLint const *") int[] v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI4iv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI4uiv(@NativeType("GLuint") int index, @NativeType("GLuint const *") IntBuffer v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI4uiv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI4uiv(@NativeType("GLuint") int index, @NativeType("GLuint const *") int[] v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI4uiv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI4bv(@NativeType("GLuint") int index, @NativeType("GLbyte const *") ByteBuffer v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI4bv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI4sv(@NativeType("GLuint") int index, @NativeType("GLshort const *") ShortBuffer v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI4sv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI4sv(@NativeType("GLuint") int index, @NativeType("GLshort const *") short[] v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI4sv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI4ubv(@NativeType("GLuint") int index, @NativeType("GLubyte const *") ByteBuffer v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI4ubv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI4usv(@NativeType("GLuint") int index, @NativeType("GLushort const *") ShortBuffer v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI4usv");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribI4usv(@NativeType("GLuint") int index, @NativeType("GLushort const *") short[] v) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribI4usv");
     }
 
     @Overwrite(remap = false)

@@ -18,7 +18,8 @@ public class ItemRendererM {
     private void vulkanMod$deferGuiItemModelStateBoundary(ItemStack stack, ItemDisplayContext displayContext, boolean leftHand,
                                                           PoseStack poseStack, MultiBufferSource buffer, int packedLight,
                                                           int packedOverlay, BakedModel model, CallbackInfo ci) {
-        if (displayContext == ItemDisplayContext.GUI) {
+        // GUI-transformed items drawn inside the world pass (item displays) are world geometry, not a GUI boundary.
+        if (displayContext == ItemDisplayContext.GUI && !net.vulkanmod.compat.render.GuiEntityRenderState.inWorldPass()) {
             GuiItemRenderState.prepareDeferredDraw();
         }
     }

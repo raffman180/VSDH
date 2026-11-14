@@ -3,7 +3,7 @@ package net.vulkanmod.compat;
 import java.util.Set;
 
 public final class CompatState {
-    private static final Set<String> CORE_MOD_IDS = Set.of("minecraft", "neoforge", "fml", "vulkanmod");
+    private static final Set<String> CORE_MOD_IDS = Set.of("minecraft", "neoforge", "fml", "vsdh", "vsdh_renderer");
 
     private static volatile boolean externalModsPresent = true;
     private static volatile boolean detected = false;

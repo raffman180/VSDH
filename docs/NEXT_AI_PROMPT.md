@@ -1,6 +1,6 @@
 # Fortsetzungs-Prompt — VSDH 0.26
 
-Arbeite in `C:/Users/Stranger/Documents/Meine Mods/VSDH` auf
+Arbeite in dem Projektordner (Repository-Wurzel) auf
 `codex/renderer-shaders`. Der Nutzer will autonome Weiterarbeit bis zum
 Gesamtziel und gemessene FPS. Er kommuniziert auf Deutsch und möchte
 Entscheidungen zu Aussehen, Kompatibilität und größeren Leistungsabwägungen
@@ -177,11 +177,10 @@ Leistung: In 0.26 umgesetzt, siehe oben und `docs/PERFORMANCE.md`.
 Der Nutzer möchte alle für Minecraft 1.21.1 / NeoForge 21.1.264 geeigneten
 DH-Ausgaben und möglichst alle Iris-/OptiFine-Shaderpacks verwenden.
 Siehe `dist/0.24.0-dev/verification.json` für echte Spieltests. Die vier
-stabilen DH-Ausgaben reichen von 3.3.0 bis 3.3.3. Die reguläre JAR deckt
-3.3.1 bis 3.3.3 ab. Für 3.3.0 baut `jarDh330 -Pdh330Jar=<Original-JAR>`
-eine separate Ausgabe. Der ursprüngliche 3.3.0-Lauf hatte einen leeren
-NeoForge-Renderer-Injector. Der Build ordnet die Referenzen über
-`tools/RemapDh330.java` der `_neoforge`-Namensvariante zu.
+stabilen DH-Ausgaben reichen von 3.3.0 bis 3.3.3. Seit dem 13.11. deckt eine JAR
+alle ab (DH 3.3.0 über den Coremod in `src/dh330`; die frühere `-dh330.jar` entfällt). Der ursprüngliche 3.3.0-Lauf hatte einen leeren
+NeoForge-Renderer-Injector. Die Zuordnung zur `_neoforge`-Namensvariante
+steht in `Dh330Mapping`.
 Auf Modrinth sind 22 weitere
 Alpha- und Beta-Ausgaben für dieselbe Zielplattform gelistet. Die lokale
 Liste und geprüfte Binärvergleiche liegen unter `build/reference/dh-matrix`.
@@ -475,7 +474,7 @@ GL-Projektion sind verschiedene Verträge. DHs Projektion nicht doppelt
 nach GL konvertieren. DISTANT_HORIZONS ist pro Pack-Lesung gesetzt und
 muss bei Expansion, finalem GLSL und Cache-Schlüssel identisch sein.
 
-Arbeite direkt unter C:/Users/Stranger/Documents/Meine Mods/VSDH weiter, auf Deutsch.
+Arbeite direkt unter im Projektordner weiter, auf Deutsch.
 Der Nutzer verlangt die Vervollständigung von Vulkan + Shadern + Distant Horizons.
 Das Gesamtziel ist noch NICHT erreicht. Keine erneute Grundsatzfrage Addon/Fork,
 keine Zusage perfekter Unterstützung sämtlicher Packs oder DH-Versionen.
@@ -585,7 +584,7 @@ Inventare und gespeicherte Benutzereinstellungen schützen. GPU-Arbeit nur auf d
 Renderthread, Freigaben verzögert. Keine blockierende Dateioperation pro Frame.
 
 Referenzen liegen privat außerhalb des Projekts unter
-C:/Users/Stranger/Documents/ChatGPT/Vulkan Shader&DistantHorizons/.reference.
+einem lokalen Referenzordner außerhalb des Repositorys.
 Pins und Lizenzen stehen in AGENTS.md, NOTICE und docs/upstream. Keine Original-
 Packdateien, übersetzten Packquellen oder privaten dekompilierten Referenzen in
 Lieferungen übernehmen. Vor dem Ende HANDOFF, Prüfbericht und diesen Prompt auf
@@ -655,3 +654,67 @@ den tatsächlich geprüften Stand bringen. Weiter implementieren und testen.
   165 Hz: VSDH 0 Frames > 25 ms (Iris 2–3). Testclients kennen `-PtestFlightFps=<n>` und `-PtestJfrSettings=<jfc>`
   (1-ms-Sampling hilft unter Windows kaum). GPU-Abstand composite1/deferred1: ohne Nsight/RenderDoc keine Spur;
   Download nur mit Erlaubnis des Nutzers.
+
+- Nachtrag 13.11. abends (nur kompiliert, nicht im Spiel getestet): GL-Emulation für Mod-Texturen –
+  `GlStateManager._texSubImage2D` und `_pixelStore` waren leere Overwrites (Raffman's Detailed Map lud so keine
+  Kacheln), `glTexSubImage2D` schreibt jetzt in die angegebene Mip-Stufe, `AbstractTexture.setFilter` behält ein
+  ausdrücklich gesetztes CLAMP_TO_EDGE. Offen: welches Menü der Nutzer meint; Jurgens-Shader CINEMATIC scheitert an
+  der festen 512-MiB-Schattengrenze (`NativeWorldShadows`); ImmediatelyFast lief mit dem Vulkan-Renderer ohne Warnung.
+
+- Nachtrag 13.11. spät (kompiliert, 96 Unit-Tests, nicht im Spiel): GUI-Zustandsgrenze für Gegenstände/Figuren schließt
+  an `GuiGraphics.flush` und wird je Frame verworfen (`GuiDeferredDrawState`), damit ImmediatelyFasts eigene
+  BufferSource sie nicht mehr übergeht (Esc-Menü zeigte nur „Zurück zum Spiel“). Weltfiguren zählen während
+  `GameRenderer.renderLevel` nicht als GUI-Vorschau. JARs: `dist/0.26.0-dev-compat`.
+
+- Nachtrag 13.11. nachts (kompiliert, 107 Unit-Tests, `verifyDhLinks` PASS für 3.2.0-b/3.3.0–3.3.3, NICHT im Spiel):
+  Eine JAR für alle DH-Versionen (verschachtelter Coremod `src/dh330` passt VSDH nur bei DH 3.3.0 beim Laden an,
+  `DhSupport` schaltet den Adapter bei Unstimmigkeit ab; `jarDh330`/`RemapDh330` entfallen). GL-Emulation: 7 Aufrufe
+  nachgerüstet, ~500 nicht emulierte melden sich einmal (`GlEmulationLog.unimplemented`). Hinweis beim Start für nicht
+  voll unterstützte Mods (`UnsupportedModNotice`, nichts gesperrt). Release-Matrix mit der Einzel-JAR steht aus.
+
+- Nachtrag 14.11. (kompiliert, 110 Unit-Tests, nicht im Spiel): Schattenbudget richtet sich nach dem Grafikspeicher
+  (`NativeWorldShadows.shadowBudgetBytes`: 1/6 des Geräte-Heaps, 512 MiB bis 3 GiB; vorher fest 512 MiB, Jurgens
+  CINEMATIC brauchte 1 GiB). Hinweis: Minecrafts „Chunk-Aktualisierung“ (prioritizeChunkUpdates) hat im VulkanMod-
+  Renderer keine Wirkung; Spike-Zeilen „build“ sind Worker-Zeit, nicht Render-Thread. Die Hänger im Monkeytalk-Pack
+  (25–110 ms ohne zugeordnete Ursache) sind noch nicht profiliert.
+
+- Nachtrag 14.11. nachmittags (kompiliert, 111 Unit-Tests, verifyDhLinks PASS, nicht im Spiel): Review-Funde behoben –
+  `glTexSubImage2D` überspringt nicht umrechenbare Uploads mit Warnung statt Absturz, Region auch für Stufe 0 geprüft;
+  Weltpass als Zähler (verschachteltes renderLevel); `Dh330Mapping` ignoriert Strings, die keine Deskriptoren sind;
+  Schattenbudget höchstens 3/4 des freien VMA-Heaps (mind. 512 MiB); keine Warnung mehr für MRT-glDrawBuffers in Reihenfolge.
+  Sodium bleibt inkompatibel (OpenGL-4.5-Renderer, GLFW_NO_API-Fenster, Polyform-Shield-Lizenz); Iris-Koexistenz gestrichen.
+
+- Nachtrag 14.11. abends (kompiliert, 111 Unit-Tests): zwei Allokationen pro Aufruf entfernt (Warntext, glDrawBuffers(int[])),
+  GUI-transformierte Gegenstände im Weltpass öffnen keine GUI-Zustandsgrenze mehr (`ItemRendererM`).
+  Fable-Vorschlagsliste (Rangfolge): Pack-JAR tauschen und testen; Spark-/JVM-A/B; Schattenauflösung bei Budgetüberschreitung
+  halbieren statt Pack abschalten; Einzel-JAR-Matrix; Statusblock auf der Shader-Seite; GL-Lücken je Mod (Aufrufer);
+  Smoke-Tests gängiger GL-Mods (Flywheel/Veil brauchen GL 4.x); Jurgens in Audit/Smoke; NeoForge-Pin weiten; DH-Adapter-aus
+  sichtbar machen; Kamera-Frame beim Welteintritt; Build-ID im Log, eine dist pro Release, englische README.
+
+- Nachtrag 14.11. abends (kompiliert, 114 Unit-Tests, nicht im Spiel): Passt die Schattenkarte nicht ins GPU-Budget, bereitet
+  `ShaderPackStartup` das Pack mit dem nächstkleineren eigenen Wert von `shadowMapResolution` neu vor (Werteliste des Packs,
+  `ShadowResolutionFallback`), statt es beim Welteintritt abzuschalten; Toast „Schatten verkleinert“, gespeicherte Optionen
+  bleiben unverändert. Schätzung ohne Gerät: `NativeWorldShadows.estimateBytes`. Prüfung beim Welteintritt (freier Speicher) bleibt.
+
+- Nachtrag 14.11. abends (kompiliert, 114 Unit-Tests, nicht im Spiel): Borderless Window macht aus dem exklusiven Vollbild ein
+  gleich großes randloses Fenster, ohne Größenereignis; die Swapchain blieb auf dem Vollbild-Pfad (Vulkan statt DXGI-Flip).
+  `SwapChain.windowModeChanged()` + Prüfung in `Renderer.beginFrame` bauen sie dann neu. Solas und Eclipse Unstable in den
+  shaderpacks-Ordner von Monkeytalk kopiert (nicht ausgeliefert, nur lokal).
+
+- Nachtrag 14.11. abends (kompiliert, 118 Unit-Tests, NICHT im Spiel): Shader-Wechsel in der Welt (`WorldShaderSession.replaceInWorld`):
+  Chunk-Builder stoppen, Terrain-Vertexformat unter `PipelineManager.runTerrainSwitchInWorld` tauschen, alte Session freigeben,
+  neue für die aktuelle Dimension installieren, `WorldRenderer.allChanged` baut alles neu. `-Dvsdh.liveShaderSwitch=false`
+  stellt das alte Verhalten (erst nach Verlassen) her. Fehlt die eingestellte Pack-Datei, nimmt `PackFileFallback` die
+  neueste Version desselben Packs (gespeicherte Wahl bleibt), Toast „Andere Pack-Version verwendet“. Tooltips angepasst.
+
+- Nachtrag 14.11. spät (Fable; kompiliert, 124 Unit-Tests, verifyDhLinks PASS, NICHT im Spiel): JFR des Monkeytalk-Packs:
+  60 % der Render-Thread-Zeit ist Client-Tick, `BiomeManager.getBiome` allein 34 % (Subtle Effects, Raffman's Map, Vanilla).
+  Neu: `BiomeCornerCache`/`BiomeManagerCornerMixin` merkt sich auf dem Render-Thread die Zellwahl je Position
+  (`-Dvsdh.biomeCornerCache=false`). Fehler behoben: unbegrenzter View-Cache im Shader-Modus (`NativeShaderChain` geometry/scene
+  erzeugten je Aufruf eine neue Liste), veraltete Schatten-Draw-Listen nach `allChanged`, Rollback beim Live-Wechsel, Schatten-
+  Fallback beim Spielstart vor dem Gerät (`ShadowResolutionFallback.needsRecheck`). Weniger Allokation: PipelineState.hashCode,
+  NativeBlend, Schatten-Samplernamen ohne Regex. Harness `vsdh.releaseQA.worldSwitch` erwartet noch „wirkt beim Verlassen“.
+
+- Nachtrag 14.11. spät (kompiliert, 124 Unit-Tests, verifyDhLinks PASS, nicht im Spiel): Mod-ID des mitgelieferten Renderers
+  `vulkanmod` → `vsdh_renderer` (`Initializer`, mods.toml, CORE_MOD_IDS); das echte VulkanMod ist als `incompatible`
+  eingetragen. Keine der 127 anderen Mods im Monkeytalk-Pack nennt die ID `vulkanmod`. Testclient 026-packs prüft `vsdh_renderer`.

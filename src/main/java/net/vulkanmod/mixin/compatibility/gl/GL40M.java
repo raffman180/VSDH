@@ -65,10 +65,12 @@ public class GL40M {
 
     @Overwrite(remap = false)
     public static void glBlendEquationi(@NativeType("GLuint") int buf, @NativeType("GLenum") int mode) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBlendEquationi");
     }
 
     @Overwrite(remap = false)
     public static void glBlendEquationSeparatei(@NativeType("GLuint") int buf, @NativeType("GLenum") int modeRGB, @NativeType("GLenum") int modeAlpha) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBlendEquationSeparatei");
     }
 
     @Overwrite(remap = false)
@@ -82,42 +84,52 @@ public class GL40M {
 
     @Overwrite(remap = false)
     public static void glPatchParameterfv(@NativeType("GLenum") int pname, @NativeType("GLfloat const *") FloatBuffer values) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glPatchParameterfv");
     }
 
     @Overwrite(remap = false)
     public static void glPatchParameterfv(@NativeType("GLenum") int pname, @NativeType("GLfloat const *") float[] values) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glPatchParameterfv");
     }
 
     @Overwrite(remap = false)
     public static void glDrawArraysIndirect(@NativeType("GLenum") int mode, @NativeType("void const *") long indirect) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawArraysIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glDrawArraysIndirect(@NativeType("GLenum") int mode, @NativeType("void const *") ByteBuffer indirect) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawArraysIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glDrawArraysIndirect(@NativeType("GLenum") int mode, @NativeType("void const *") IntBuffer indirect) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawArraysIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glDrawArraysIndirect(@NativeType("GLenum") int mode, @NativeType("void const *") int[] indirect) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawArraysIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsIndirect(@NativeType("GLenum") int mode, @NativeType("GLenum") int type, @NativeType("void const *") long indirect) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsIndirect(@NativeType("GLenum") int mode, @NativeType("GLenum") int type, @NativeType("void const *") ByteBuffer indirect) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsIndirect(@NativeType("GLenum") int mode, @NativeType("GLenum") int type, @NativeType("void const *") IntBuffer indirect) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glDrawElementsIndirect(@NativeType("GLenum") int mode, @NativeType("GLenum") int type, @NativeType("void const *") int[] indirect) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawElementsIndirect");
     }
 
     @Overwrite(remap = false)
@@ -196,18 +208,22 @@ public class GL40M {
 
     @Overwrite(remap = false)
     public static void glDrawTransformFeedback(@NativeType("GLenum") int mode, @NativeType("GLuint") int id) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawTransformFeedback");
     }
 
     @Overwrite(remap = false)
     public static void glDrawTransformFeedbackStream(@NativeType("GLenum") int mode, @NativeType("GLuint") int id, @NativeType("GLuint") int stream) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawTransformFeedbackStream");
     }
 
     @Overwrite(remap = false)
     public static void glBeginQueryIndexed(@NativeType("GLenum") int target, @NativeType("GLuint") int index, @NativeType("GLuint") int id) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBeginQueryIndexed");
     }
 
     @Overwrite(remap = false)
     public static void glEndQueryIndexed(@NativeType("GLenum") int target, @NativeType("GLuint") int index) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glEndQueryIndexed");
     }
 
     @Overwrite(remap = false)
@@ -227,122 +243,152 @@ public class GL40M {
 
     @Overwrite(remap = false)
     public static void glUniform1d(@NativeType("GLint") int location, @NativeType("GLdouble") double x) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform1d");
     }
 
     @Overwrite(remap = false)
     public static void glUniform2d(@NativeType("GLint") int location, @NativeType("GLdouble") double x, @NativeType("GLdouble") double y) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform2d");
     }
 
     @Overwrite(remap = false)
     public static void glUniform3d(@NativeType("GLint") int location, @NativeType("GLdouble") double x, @NativeType("GLdouble") double y, @NativeType("GLdouble") double z) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform3d");
     }
 
     @Overwrite(remap = false)
     public static void glUniform4d(@NativeType("GLint") int location, @NativeType("GLdouble") double x, @NativeType("GLdouble") double y, @NativeType("GLdouble") double z, @NativeType("GLdouble") double w) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform4d");
     }
 
     @Overwrite(remap = false)
     public static void glUniform1dv(@NativeType("GLint") int location, @NativeType("GLdouble const *") DoubleBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform1dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform1dv(@NativeType("GLint") int location, @NativeType("GLdouble const *") double[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform1dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform2dv(@NativeType("GLint") int location, @NativeType("GLdouble const *") DoubleBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform2dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform2dv(@NativeType("GLint") int location, @NativeType("GLdouble const *") double[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform2dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform3dv(@NativeType("GLint") int location, @NativeType("GLdouble const *") DoubleBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform3dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform3dv(@NativeType("GLint") int location, @NativeType("GLdouble const *") double[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform3dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform4dv(@NativeType("GLint") int location, @NativeType("GLdouble const *") DoubleBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform4dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniform4dv(@NativeType("GLint") int location, @NativeType("GLdouble const *") double[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniform4dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix2dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") DoubleBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix2dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix2dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") double[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix2dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix3dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") DoubleBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix3dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix3dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") double[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix3dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix4dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") DoubleBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix4dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix4dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") double[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix4dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix2x3dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") DoubleBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix2x3dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix2x3dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") double[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix2x3dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix3x2dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") DoubleBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix3x2dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix3x2dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") double[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix3x2dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix2x4dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") DoubleBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix2x4dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix2x4dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") double[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix2x4dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix4x2dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") DoubleBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix4x2dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix4x2dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") double[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix4x2dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix3x4dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") DoubleBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix3x4dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix3x4dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") double[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix3x4dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix4x3dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") DoubleBuffer value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix4x3dv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformMatrix4x3dv(@NativeType("GLint") int location, @NativeType("GLboolean") boolean transpose, @NativeType("GLdouble const *") double[] value) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformMatrix4x3dv");
     }
 
     @Overwrite(remap = false)
@@ -437,14 +483,17 @@ public class GL40M {
 
     @Overwrite(remap = false)
     public static void glUniformSubroutinesui(@NativeType("GLenum") int shadertype, @NativeType("GLuint") int index) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformSubroutinesui");
     }
 
     @Overwrite(remap = false)
     public static void glUniformSubroutinesuiv(@NativeType("GLenum") int shadertype, @NativeType("GLuint const *") IntBuffer indices) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformSubroutinesuiv");
     }
 
     @Overwrite(remap = false)
     public static void glUniformSubroutinesuiv(@NativeType("GLenum") int shadertype, @NativeType("GLuint const *") int[] indices) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glUniformSubroutinesuiv");
     }
 
     @Overwrite(remap = false)

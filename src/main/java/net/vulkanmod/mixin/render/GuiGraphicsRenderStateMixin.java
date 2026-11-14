@@ -10,6 +10,7 @@ import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositione
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.vulkanmod.compat.render.GuiDeferredDrawState;
 import net.vulkanmod.compat.render.GuiItemRenderState;
 import net.vulkanmod.compat.render.RenderStateSnapshot;
 import org.jetbrains.annotations.Nullable;
@@ -54,6 +55,23 @@ public class GuiGraphicsRenderStateMixin {
         ((GuiGraphics) (Object) this).flush();
     }
 
+    /**
+     * The buffer flush of the GUI, whatever class the buffer source is: vanilla's hooks in BufferSourceM do the
+     * same inside endBatch and then leave nothing pending here, so with vanilla buffers these two are no-ops.
+     * Not required: if another mod replaces this call, the method snapshots and the frame reset still hold.
+     */
+    @Inject(method = "flush", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/renderer/MultiBufferSource$BufferSource;endBatch()V", shift = At.Shift.BEFORE), require = 0)
+    private void vulkanMod$prepareDeferredGuiStateForFlush(CallbackInfo ci) {
+        GuiDeferredDrawState.prepareIfPending();
+    }
+
+    @Inject(method = "flush", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/renderer/MultiBufferSource$BufferSource;endBatch()V", shift = At.Shift.AFTER), require = 0)
+    private void vulkanMod$restoreDeferredGuiStateAfterFlush(CallbackInfo ci) {
+        GuiDeferredDrawState.restore();
+    }
+
     @WrapMethod(method = "renderItem(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/level/Level;Lnet/minecraft/world/item/ItemStack;IIII)V", require = 1)
     private void vulkanMod$renderItemStateBoundary(@Nullable LivingEntity entity, @Nullable Level level, ItemStack stack, int x, int y,
                                                    int seed, int guiOffset, Operation<Void> original) {
@@ -62,6 +80,9 @@ public class GuiGraphicsRenderStateMixin {
             vulkanMod$prepareGuiItemState();
             original.call(entity, level, stack, x, y, seed, guiOffset);
         } finally {
+            // The flush inside has closed the item boundary unless a batching mod swallowed it; the snapshot
+            // of this method covers it either way.
+            GuiItemRenderState.discardDeferredDrawState();
             snapshot.restore();
         }
     }

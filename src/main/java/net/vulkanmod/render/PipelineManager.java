@@ -55,9 +55,25 @@ public abstract class PipelineManager {
                 TerrainRenderType.getRenderType(renderType).bufferSize(), CustomVertexFormat.COMPRESSED_TERRAIN));
     }
 
+    /**
+     * Set only by WorldShaderSession.replaceInWorld while the chunk builders are stopped and before every section is
+     * rebuilt: then no buffer of the old vertex contract can be built, uploaded or drawn with the new pipelines.
+     */
+    private static boolean terrainSwitchInWorld;
+
+    public static void runTerrainSwitchInWorld(Runnable switchTerrain) {
+        RenderSystem.assertOnRenderThread();
+        terrainSwitchInWorld = true;
+        try {
+            switchTerrain.run();
+        } finally {
+            terrainSwitchInWorld = false;
+        }
+    }
+
     private static void configureTerrain(VertexFormat format, Function<TerrainRenderType, TerrainBufferBuilder> builders) {
         RenderSystem.assertOnRenderThread();
-        if (Minecraft.getInstance().level != null)
+        if (Minecraft.getInstance().level != null && !terrainSwitchInWorld)
             throw new IllegalStateException("Unload the world before replacing the terrain vertex contract");
         GraphicsPipeline early = createPipeline("terrain", "terrain", "terrain_z", format);
         GraphicsPipeline color;

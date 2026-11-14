@@ -340,6 +340,14 @@ public final class TargetSchedule {
 	 * full screen step is itself a flip, and re-binding one here would contradict the walk.
 	 */
 	public Optional<Bound> stepAfterDeferred(String program) {
+		// Asked for every draw of a translucent or late program: the schedule is immutable, answer from a memo.
+		return this.afterDeferredMemo.computeIfAbsent(program, this::findStepAfterDeferred);
+	}
+
+	private final java.util.concurrent.ConcurrentHashMap<String, Optional<Bound>> afterDeferredMemo =
+			new java.util.concurrent.ConcurrentHashMap<>();
+
+	private Optional<Bound> findStepAfterDeferred(String program) {
 		return step(program)
 				.filter(step -> !step.fullscreen())
 				.map(step -> new Bound(step.program(), step.writes(), false, this.afterDeferred,

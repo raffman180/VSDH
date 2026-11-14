@@ -352,6 +352,17 @@ public abstract class GameRendererMixin {
         }
     }
 
+    /** World entities are not GUI entity previews, also while a screen is open (GuiEntityRenderState). */
+    @Inject(method = "renderLevel", at = @At("HEAD"))
+    private void vulkanMod$beginWorldPass(DeltaTracker deltaTracker, CallbackInfo ci) {
+        net.vulkanmod.compat.render.GuiEntityRenderState.beginWorldPass();
+    }
+
+    @Inject(method = "renderLevel", at = @At("RETURN"))
+    private void vulkanMod$endWorldPass(DeltaTracker deltaTracker, CallbackInfo ci) {
+        net.vulkanmod.compat.render.GuiEntityRenderState.endWorldPass();
+    }
+
     @Inject(method = "getDepthFar", at = @At("HEAD"), cancellable = true)
     private void getDepthFar(CallbackInfoReturnable<Float> cir) {
 

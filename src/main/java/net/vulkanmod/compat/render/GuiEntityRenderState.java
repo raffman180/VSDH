@@ -7,36 +7,55 @@ import org.lwjgl.opengl.GL11;
 
 public final class GuiEntityRenderState {
     public static final int FULL_BRIGHT_LIGHT = 15728880;
-    private static final ThreadLocal<RenderStateSnapshot> DEFERRED_DRAW_STATE = new ThreadLocal<>();
-    private static final ThreadLocal<Integer> HUD_ENTITY_PREVIEW_DEPTH = ThreadLocal.withInitial(() -> 0);
+    // Render thread only; see GuiItemRenderState for why these are plain fields.
+    private static RenderStateSnapshot deferredDrawState;
+    private static int hudEntityPreviewDepth;
+    private static int worldPassDepth;
 
     private GuiEntityRenderState() {
     }
 
+    /**
+     * An entity drawn for the GUI: by a screen (inventory player model, a mod's preview) or inside a HUD preview
+     * scope. Entities of the world itself are never previews, also while a screen is open above the world: the
+     * pause menu must not put every model part of the world pass into the GUI entity state.
+     */
     public static boolean isGuiEntityPreview() {
-        return Minecraft.getInstance().screen != null || isHudEntityPreviewActive();
+        return isHudEntityPreviewActive() || (worldPassDepth == 0 && Minecraft.getInstance().screen != null);
     }
 
     public static boolean isGuiEntityPreview(int packedLight) {
         return isGuiEntityPreview() && packedLight == 15728880;
     }
 
+    /** GameRenderer.renderLevel is running (world, entities, hand); counted, since portal/mirror mods nest it. */
+    /** True while GameRenderer.renderLevel runs (also nested). */
+    public static boolean inWorldPass() {
+        return worldPassDepth > 0;
+    }
+
+    public static void beginWorldPass() {
+        worldPassDepth++;
+    }
+
+    public static void endWorldPass() {
+        if (worldPassDepth > 0) {
+            worldPassDepth--;
+        }
+    }
+
     public static void beginHudEntityPreview() {
-        HUD_ENTITY_PREVIEW_DEPTH.set(HUD_ENTITY_PREVIEW_DEPTH.get() + 1);
+        hudEntityPreviewDepth++;
     }
 
     public static void endHudEntityPreview() {
-        int depth = HUD_ENTITY_PREVIEW_DEPTH.get();
-        if (depth <= 1) {
-            HUD_ENTITY_PREVIEW_DEPTH.remove();
-            return;
+        if (hudEntityPreviewDepth > 0) {
+            hudEntityPreviewDepth--;
         }
-
-        HUD_ENTITY_PREVIEW_DEPTH.set(depth - 1);
     }
 
     public static boolean isHudEntityPreviewActive() {
-        return HUD_ENTITY_PREVIEW_DEPTH.get() > 0;
+        return hudEntityPreviewDepth > 0;
     }
 
     public static void prepare() {
@@ -51,23 +70,39 @@ public final class GuiEntityRenderState {
     }
 
     public static void prepareDeferredDraw() {
-        if (DEFERRED_DRAW_STATE.get() == null) {
-            DEFERRED_DRAW_STATE.set(new RenderStateSnapshot());
+        if (!RenderSystem.isOnRenderThread()) {
+            return;
+        }
+
+        if (deferredDrawState == null) {
+            deferredDrawState = new RenderStateSnapshot();
         }
 
         prepare();
     }
 
     public static boolean hasDeferredDrawState() {
-        return DEFERRED_DRAW_STATE.get() != null;
+        return deferredDrawState != null;
     }
 
     public static void restoreDeferredDrawState() {
-        RenderStateSnapshot snapshot = DEFERRED_DRAW_STATE.get();
-        DEFERRED_DRAW_STATE.remove();
+        RenderStateSnapshot snapshot = deferredDrawState;
+        deferredDrawState = null;
 
         if (snapshot != null) {
             snapshot.restore();
         }
+    }
+
+    /** Drops a pending boundary without restoring it: for callers that restore an enclosing snapshot themselves. */
+    public static void discardDeferredDrawState() {
+        deferredDrawState = null;
+    }
+
+    /** Frame boundary: nothing of the last frame may stay pending or keep the world-pass flag set. */
+    public static void resetFrame() {
+        deferredDrawState = null;
+        hudEntityPreviewDepth = 0;
+        worldPassDepth = 0;
     }
 }

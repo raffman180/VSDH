@@ -192,14 +192,17 @@ public class GL43M {
 
     @Overwrite(remap = false)
     public static void glCopyImageSubData(@NativeType("GLuint") int srcName, @NativeType("GLenum") int srcTarget, @NativeType("GLint") int srcLevel, @NativeType("GLint") int srcX, @NativeType("GLint") int srcY, @NativeType("GLint") int srcZ, @NativeType("GLuint") int dstName, @NativeType("GLenum") int dstTarget, @NativeType("GLint") int dstLevel, @NativeType("GLint") int dstX, @NativeType("GLint") int dstY, @NativeType("GLint") int dstZ, @NativeType("GLsizei") int srcWidth, @NativeType("GLsizei") int srcHeight, @NativeType("GLsizei") int srcDepth) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCopyImageSubData");
     }
 
     @Overwrite(remap = false)
     public static void glDispatchCompute(@NativeType("GLuint") int num_groups_x, @NativeType("GLuint") int num_groups_y, @NativeType("GLuint") int num_groups_z) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDispatchCompute");
     }
 
     @Overwrite(remap = false)
     public static void glDispatchComputeIndirect(@NativeType("GLintptr") long indirect) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glDispatchComputeIndirect");
     }
 
     @Overwrite(remap = false)
@@ -223,66 +226,82 @@ public class GL43M {
 
     @Overwrite(remap = false)
     public static void glTexStorage2DMultisample(@NativeType("GLenum") int target, @NativeType("GLsizei") int samples, @NativeType("GLenum") int internalformat, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLboolean") boolean fixedsamplelocations) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTexStorage2DMultisample");
     }
 
     @Overwrite(remap = false)
     public static void glTexStorage3DMultisample(@NativeType("GLenum") int target, @NativeType("GLsizei") int samples, @NativeType("GLenum") int internalformat, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLsizei") int depth, @NativeType("GLboolean") boolean fixedsamplelocations) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTexStorage3DMultisample");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") ByteBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferData");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") ShortBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferData");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") IntBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferData");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") FloatBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferData");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") short[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferData");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") int[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferData");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") float[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferData");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferSubData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLintptr") long offset, @NativeType("GLsizeiptr") long size, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") ByteBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferSubData");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferSubData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLintptr") long offset, @NativeType("GLsizeiptr") long size, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") ShortBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferSubData");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferSubData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLintptr") long offset, @NativeType("GLsizeiptr") long size, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") IntBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferSubData");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferSubData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLintptr") long offset, @NativeType("GLsizeiptr") long size, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") FloatBuffer data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferSubData");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferSubData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLintptr") long offset, @NativeType("GLsizeiptr") long size, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") short[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferSubData");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferSubData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLintptr") long offset, @NativeType("GLsizeiptr") long size, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") int[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferSubData");
     }
 
     @Overwrite(remap = false)
     public static void glClearBufferSubData(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLintptr") long offset, @NativeType("GLsizeiptr") long size, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") float[] data) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glClearBufferSubData");
     }
 
     @Overwrite(remap = false)
@@ -302,38 +321,47 @@ public class GL43M {
 
     @Overwrite(remap = false)
     public static void glMultiDrawArraysIndirect(@NativeType("GLenum") int mode, @NativeType("void const *") ByteBuffer indirect, @NativeType("GLsizei") int primcount, @NativeType("GLsizei") int stride) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glMultiDrawArraysIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glMultiDrawArraysIndirect(@NativeType("GLenum") int mode, @NativeType("void const *") IntBuffer indirect, @NativeType("GLsizei") int primcount, @NativeType("GLsizei") int stride) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glMultiDrawArraysIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glMultiDrawArraysIndirect(@NativeType("GLenum") int mode, @NativeType("void const *") int[] indirect, @NativeType("GLsizei") int primcount, @NativeType("GLsizei") int stride) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glMultiDrawArraysIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glMultiDrawArraysIndirect(@NativeType("GLenum") int mode, @NativeType("void const *") long indirect, @NativeType("GLsizei") int primcount, @NativeType("GLsizei") int stride) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glMultiDrawArraysIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glMultiDrawElementsIndirect(@NativeType("GLenum") int mode, @NativeType("GLenum") int type, @NativeType("void const *") ByteBuffer indirect, @NativeType("GLsizei") int primcount, @NativeType("GLsizei") int stride) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glMultiDrawElementsIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glMultiDrawElementsIndirect(@NativeType("GLenum") int mode, @NativeType("GLenum") int type, @NativeType("void const *") IntBuffer indirect, @NativeType("GLsizei") int primcount, @NativeType("GLsizei") int stride) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glMultiDrawElementsIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glMultiDrawElementsIndirect(@NativeType("GLenum") int mode, @NativeType("GLenum") int type, @NativeType("void const *") int[] indirect, @NativeType("GLsizei") int primcount, @NativeType("GLsizei") int stride) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glMultiDrawElementsIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glMultiDrawElementsIndirect(@NativeType("GLenum") int mode, @NativeType("GLenum") int type, @NativeType("void const *") long indirect, @NativeType("GLsizei") int primcount, @NativeType("GLsizei") int stride) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glMultiDrawElementsIndirect");
     }
 
     @Overwrite(remap = false)
     public static void glShaderStorageBlockBinding(@NativeType("GLuint") int program, @NativeType("GLuint") int storageBlockIndex, @NativeType("GLuint") int storageBlockBinding) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glShaderStorageBlockBinding");
     }
 
     @Overwrite(remap = false)
@@ -415,33 +443,41 @@ public class GL43M {
 
     @Overwrite(remap = false)
     public static void glTexBufferRange(@NativeType("GLenum") int target, @NativeType("GLenum") int internalformat, @NativeType("GLuint") int buffer, @NativeType("GLintptr") long offset, @NativeType("GLsizeiptr") long size) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTexBufferRange");
     }
 
     @Overwrite(remap = false)
     public static void glTextureView(@NativeType("GLuint") int texture, @NativeType("GLenum") int target, @NativeType("GLuint") int origtexture, @NativeType("GLenum") int internalformat, @NativeType("GLuint") int minlevel, @NativeType("GLuint") int numlevels, @NativeType("GLuint") int minlayer, @NativeType("GLuint") int numlayers) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTextureView");
     }
 
     @Overwrite(remap = false)
     public static void glBindVertexBuffer(@NativeType("GLuint") int bindingindex, @NativeType("GLuint") int buffer, @NativeType("GLintptr") long offset, @NativeType("GLsizei") int stride) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindVertexBuffer");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribFormat(@NativeType("GLuint") int attribindex, @NativeType("GLint") int size, @NativeType("GLenum") int type, @NativeType("GLboolean") boolean normalized, @NativeType("GLuint") int relativeoffset) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribFormat");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribIFormat(@NativeType("GLuint") int attribindex, @NativeType("GLint") int size, @NativeType("GLenum") int type, @NativeType("GLuint") int relativeoffset) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribIFormat");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribLFormat(@NativeType("GLuint") int attribindex, @NativeType("GLint") int size, @NativeType("GLenum") int type, @NativeType("GLuint") int relativeoffset) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribLFormat");
     }
 
     @Overwrite(remap = false)
     public static void glVertexAttribBinding(@NativeType("GLuint") int attribindex, @NativeType("GLuint") int bindingindex) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexAttribBinding");
     }
 
     @Overwrite(remap = false)
     public static void glVertexBindingDivisor(@NativeType("GLuint") int bindingindex, @NativeType("GLuint") int divisor) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glVertexBindingDivisor");
     }
 }

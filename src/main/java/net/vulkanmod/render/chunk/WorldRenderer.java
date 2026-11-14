@@ -268,6 +268,9 @@ public class WorldRenderer {
             }
 
             this.taskDispatcher.clearBatchQueue();
+            // The shadow draw lists are keyed by the chunk areas of the grid released above; without this every
+            // rebuild (render distance, live shader switch) kept the old areas and their draw buffers reachable.
+            clearShadowDraws();
             synchronized (this.globalBlockEntities) {
                 this.globalBlockEntities.clear();
             }
@@ -554,6 +557,9 @@ public class WorldRenderer {
         if(shadowAreaState.length!=areas)shadowAreaState=new byte[areas];
         else java.util.Arrays.fill(shadowAreaState,(byte)0);
         final int areaWidth=ChunkAreaManager.WIDTH<<4, areaHeight=ChunkAreaManager.HEIGHT<<4;
+        // Neighbouring sections of the grid share their area: remember the last area's queue instead of asking
+        // the map for each of the ten thousand and more sections of every shadow pass.
+        ChunkArea lastArea=null;StaticQueue<RenderSection> lastQueue=null;
         for(RenderSection section:sectionGrid.sections) {
             var area=section.getChunkArea();
             if(area==null||section.isCompletelyEmpty())continue;
@@ -568,8 +574,13 @@ public class WorldRenderer {
                 float sx=(float)(section.xOffset-cameraX),sy=(float)(section.yOffset-cameraY),sz=(float)(section.zOffset-cameraZ);
                 if(!areaVisible||!test.visible(sx,sy,sz,sx+16,sy+16,sz+16)) {shadowSectionsCulled++;continue;}
             }
-            var queue=shadowDrawQueues.get(area);
-            if(queue==null) {queue=new StaticQueue<>(512);shadowDrawQueues.put(area,queue);shadowDrawAreas.add(area);shadowDrawList.add(queue);}
+            StaticQueue<RenderSection> queue;
+            if(area==lastArea)queue=lastQueue;
+            else {
+                queue=shadowDrawQueues.get(area);
+                if(queue==null) {queue=new StaticQueue<>(512);shadowDrawQueues.put(area,queue);shadowDrawAreas.add(area);shadowDrawList.add(queue);}
+                lastArea=area;lastQueue=queue;
+            }
             queue.add(section);
             shadowSectionsQueued++;
         }

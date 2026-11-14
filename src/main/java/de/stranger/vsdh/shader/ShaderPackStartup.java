@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -51,38 +52,100 @@ public final class ShaderPackStartup {
 
     private static final class Request {
         final Selection selection;
-        final CompletableFuture<WorldPackSet> pending; // null: switch to the standard renderer
+        final CompletableFuture<Prepared> pending; // null: switch to the standard renderer
         boolean waitingForMenu;
-        Request(Selection selection,CompletableFuture<WorldPackSet> pending) { this.selection=selection;this.pending=pending; }
+        Request(Selection selection,CompletableFuture<Prepared> pending) { this.selection=selection;this.pending=pending; }
     }
 
-    private static CompletableFuture<WorldPackSet> prepare(Path directory,Selection selection) {
+    /** A prepared pack; shadowFrom/shadowTo differ when the shadow map was made smaller to fit the GPU. */
+    record Prepared(WorldPackSet set,int shadowFrom,int shadowTo,String packFile,boolean budgetKnown) {
+        boolean shadowReduced() { return shadowTo!=shadowFrom; }
+    }
+
+    private record Opened(WorldPackSet set,List<String> shadowResolutions) {}
+
+    private static final String SHADOW_RESOLUTION="shadowMapResolution";
+
+    private static CompletableFuture<Prepared> prepare(Path directory,Selection selection) {
         return CompletableFuture.supplyAsync(()->{
-            try(var pack=OpenedPack.open(resolvePack(directory,selection.name()),parseOptions(selection.options()),selection.profile())) {
-                for (var entry : selection.options().entrySet()) {
-                    var option = pack.options().get(entry.getKey())
-                            .orElseThrow(() -> new IOException("Unknown shader option " + entry.getKey()));
-                    if (option.hasValueList() && !option.values().contains(entry.getValue().strip()))
-                        throw new IOException("Unsupported value for shader option " + entry.getKey());
+            try {
+                // A newer version may have replaced the configured file (v1.0 -> v1.0.1): use it, keep the saved choice.
+                String packFile=PackFileFallback.resolve(directory,selection.name());
+                if(!packFile.equals(selection.name()))LOGGER.warn("Shader pack {} not found; using {} instead",selection.name(),packFile);
+                var first=open(directory,packFile,selection,selection.options(),true);
+                int resolution=largestShadowResolution(first.set());
+                long budget=preparationShadowBudget();
+                if(budget<=0 || largestShadowBytes(first.set())<=budget)return new Prepared(first.set(),resolution,resolution,packFile,budget>0);
+                // Too large for this GPU: try the pack's own smaller values of shadowMapResolution, largest first,
+                // instead of dropping the whole pack at world join. The player's saved options stay unchanged.
+                for(int smaller:ShadowResolutionFallback.smallerResolutions(first.shadowResolutions(),resolution)) {
+                    var options=new HashMap<>(selection.options());
+                    options.put(SHADOW_RESOLUTION,Integer.toString(smaller));
+                    var retry=open(directory,packFile,selection,options,false);
+                    if(largestShadowBytes(retry.set())<=budget) {
+                        LOGGER.warn("Shadow map of {} reduced from {} to {} to fit {} MiB of GPU memory",
+                                selection.name(),resolution,smaller,budget>>20);
+                        return new Prepared(retry.set(),resolution,smaller,packFile,true);
+                    }
                 }
-                // The settings page lists this pack's options from the same opening (no second read).
-                try {
-                    PackOptionsView.remember(PackOptionsView.read(pack,selection.name(),selection.profile(),language()));
-                } catch(RuntimeException unreadable) {
-                    LOGGER.warn("Cannot list the options of {}: {}",selection.name(),unreadable.toString());
-                }
-                // The driver's sin/cos, as under Iris on the same GPU. The translator's reduced
-                // software sine (-Dvsdh.reduceTrig=true) cost 0.6 ms per frame (Complementary, 1440p).
-                dev.vitrail.glsl.GlslTranslator.reduceTrig(Boolean.getBoolean("vsdh.reduceTrig"));
-                // Real 3D textures for the volumes a pack ships, sampled trilinearly by the hardware as
-                // under Iris; -Dvsdh.flatVolumes=true restores the 2D atlas with a shader helper.
-                dev.vitrail.glsl.GlslTranslator.nativeVolumes(!Boolean.getBoolean("vsdh.flatVolumes"));
-                return WorldPackSet.prepare(pack,selection.distant());
+                return new Prepared(first.set(),resolution,resolution,packFile,true); // the world join then reports the limit
             } catch(IOException failure) {
                 throw new CompletionException(failure);
             }
         }, command->Thread.ofVirtual().name("VSDH shaderpack preparation").start(command));
     }
+
+    private static Opened open(Path directory,String packFile,Selection selection,Map<String,String> options,boolean first) throws IOException {
+        try(var pack=OpenedPack.open(resolvePack(directory,packFile),parseOptions(options),selection.profile())) {
+            for (var entry : selection.options().entrySet()) {
+                var option = pack.options().get(entry.getKey())
+                        .orElseThrow(() -> new IOException("Unknown shader option " + entry.getKey()));
+                if (option.hasValueList() && !option.values().contains(entry.getValue().strip()))
+                    throw new IOException("Unsupported value for shader option " + entry.getKey());
+            }
+            // The settings page lists this pack's options from the same opening (no second read).
+            if(first) {
+                try {
+                    PackOptionsView.remember(PackOptionsView.read(pack,selection.name(),selection.profile(),language()));
+                } catch(RuntimeException unreadable) {
+                    LOGGER.warn("Cannot list the options of {}: {}",selection.name(),unreadable.toString());
+                }
+            }
+            // The driver's sin/cos, as under Iris on the same GPU. The translator's reduced
+            // software sine (-Dvsdh.reduceTrig=true) cost 0.6 ms per frame (Complementary, 1440p).
+            dev.vitrail.glsl.GlslTranslator.reduceTrig(Boolean.getBoolean("vsdh.reduceTrig"));
+            // Real 3D textures for the volumes a pack ships, sampled trilinearly by the hardware as
+            // under Iris; -Dvsdh.flatVolumes=true restores the 2D atlas with a shader helper.
+            dev.vitrail.glsl.GlslTranslator.nativeVolumes(!Boolean.getBoolean("vsdh.flatVolumes"));
+            var values=pack.options().get(SHADOW_RESOLUTION).map(dev.vitrail.pack.option.PackOption::values).orElse(List.of());
+            return new Opened(WorldPackSet.prepare(pack,selection.distant()),values);
+        }
+    }
+
+    private static int largestShadowResolution(WorldPackSet set) {
+        int largest=0;
+        for(var plan:set.dimensions().values())
+            if(plan.shadow()!=null)largest=Math.max(largest,plan.directives().shadowMapResolution());
+        return largest;
+    }
+
+    private static long largestShadowBytes(WorldPackSet set) {
+        long largest=0;
+        for(var plan:set.dimensions().values())largest=Math.max(largest,NativeWorldShadows.estimateBytes(plan));
+        return largest;
+    }
+
+    /** The share of GPU memory shadows may take; 0 while the device is not known yet (then nothing is reduced). */
+    private static long preparationShadowBudget() {
+        try {
+            var memory=net.vulkanmod.vulkan.memory.MemoryManager.getInstance();
+            return memory==null?0:NativeWorldShadows.shadowBudgetBytes(memory.getDeviceMemoryMB());
+        } catch(RuntimeException|LinkageError notReady) {
+            return 0;
+        }
+    }
+
+
 
     private static String language() {
         try {
@@ -208,6 +271,20 @@ public final class ShaderPackStartup {
         var mc=Minecraft.getInstance();
         boolean failed=current.pending!=null && current.pending.isCompletedExceptionally();
         String name=current.selection.name();
+        if(!failed && current.pending!=null && request==current) {
+            var prepared=current.pending.join();
+            if(ShadowResolutionFallback.needsRecheck(prepared.budgetKnown(),largestShadowBytes(prepared.set()),preparationShadowBudget())) {
+                LOGGER.info("Shadow map of {} exceeds this GPU's shadow budget; preparing it again with the device known",name);
+                request=new Request(current.selection,prepare(FMLPaths.GAMEDIR.get().resolve("shaderpacks"),current.selection));
+                return;
+            }
+        }
+        if(mc.level!=null && !failed && LIVE_SWITCH) {
+            if(request!=current)return;
+            request=null;
+            switchInWorld(mc,current);
+            return;
+        }
         if(mc.level!=null && !failed) {
             if(!current.waitingForMenu) {
                 current.waitingForMenu=true;
@@ -236,14 +313,53 @@ public final class ShaderPackStartup {
                 notify(mc,"off",Component.translatable("vsdh.shader.standard"));
                 return;
             }
-            WorldShaderSession.install(current.pending.join());
+            var prepared=current.pending.join();
+            WorldShaderSession.install(prepared.set());
             active=current.selection;
             LOGGER.info("Vulkan shaderpack ready: {}",name);
-            notify(mc,"ready",Component.literal(name));
+            announce(mc,prepared,name);
         } catch(RuntimeException failure) {
             LOGGER.error("Could not activate Vulkan shaderpack "+name,failure);
             requested=active;
             notify(mc,"failed",Component.translatable("vsdh.shader.failed.details"));
+        }
+    }
+
+    /** -Dvsdh.liveShaderSwitch=false: apply a pack change only after leaving the world, as before 14.11.2026. */
+    private static final boolean LIVE_SWITCH=!"false".equals(System.getProperty("vsdh.liveShaderSwitch"));
+
+    /** A finished preparation (or "off") while a world is loaded: swap at once and rebuild the terrain, as Iris does. */
+    private static void switchInWorld(Minecraft mc,Request current) {
+        String name=current.selection.name();
+        try {
+            Prepared prepared=current.pending==null?null:current.pending.join();
+            WorldShaderSession.replaceInWorld(prepared==null?null:prepared.set());
+            active=current.selection;
+            if(prepared==null) {
+                LOGGER.info("Vulkan shaderpack off in the world; standard renderer active");
+                notify(mc,"off",Component.translatable("vsdh.shader.standard"));
+            } else {
+                LOGGER.info("Vulkan shaderpack switched in the world: {}",name);
+                announce(mc,prepared,name);
+            }
+        } catch(RuntimeException failure) {
+            LOGGER.error("Could not switch the Vulkan shaderpack in the world: "+name,failure);
+            // replaceInWorld may have released the old host before the new one failed.
+            active=WorldShaderSession.current()==null?Selection.OFF:active;
+            requested=active;
+            notify(mc,"failed",Component.translatable("vsdh.shader.failed.details"));
+        }
+    }
+
+    /** The ready toast; says when another version of the pack or a smaller shadow map was used. */
+    private static void announce(Minecraft mc,Prepared prepared,String name) {
+        if(!prepared.packFile().equals(name)) {
+            notify(mc,"replaced",Component.translatable("vsdh.shader.replaced.details",prepared.packFile(),name));
+        } else if(prepared.shadowReduced()) {
+            notify(mc,"shadowReduced",Component.translatable("vsdh.shader.shadowReduced.details",
+                    prepared.shadowFrom(),prepared.shadowTo()));
+        } else {
+            notify(mc,"ready",Component.literal(name));
         }
     }
 

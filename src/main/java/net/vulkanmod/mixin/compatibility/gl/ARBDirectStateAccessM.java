@@ -132,6 +132,7 @@ public class ARBDirectStateAccessM {
 
     @Overwrite(remap = false)
     public static void glTextureParameterf(@NativeType("GLuint") int texture, @NativeType("GLenum") int pname, @NativeType("GLfloat") float param) {
+        glTextureParameteri(texture, pname, (int) param);
     }
 
     @Overwrite(remap = false)

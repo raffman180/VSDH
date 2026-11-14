@@ -81,6 +81,9 @@ public class SwapChain extends Framebuffer {
             VkSurfaceFormatKHR surfaceFormat = getFormat(surfaceProperties.formats);
             int presentMode = getPresentMode(surfaceProperties.presentModes);
             VkExtent2D extent = getExtent(surfaceProperties.capabilities);
+            // Recorded before the minimised early return too, so windowModeChanged() cannot request a rebuild every
+            // frame while the window has no size.
+            this.createdForExclusiveFullscreen = org.lwjgl.glfw.GLFW.glfwGetWindowMonitor(Vulkan.window) != 0;
 
             if (extent.width() == 0 && extent.height() == 0) {
                 if (this.dxgi != null) {
@@ -103,6 +106,7 @@ public class SwapChain extends Framebuffer {
             // faster (docs/PERFORMANCE.md). Switching either way needs the other swapchain gone first;
             // the caller has waited for the device to be idle.
             boolean fullscreen = org.lwjgl.glfw.GLFW.glfwGetWindowMonitor(Vulkan.window) != 0;
+            this.createdForExclusiveFullscreen = fullscreen;
             if (this.dxgi != null && (this.dxgiDisabled || fullscreen)) closeDxgi();
             if (!this.dxgiDisabled && !fullscreen && DeviceManager.isDxgiInteropEnabled()) {
                 if (this.swapChainId != VK_NULL_HANDLE) {
@@ -201,6 +205,17 @@ public class SwapChain extends Framebuffer {
     private net.vulkanmod.vulkan.present.DxgiBackend dxgi;
     private net.vulkanmod.vulkan.present.DxgiVulkanTargets dxgiTargets;
     private boolean dxgiDisabled;
+    /** Whether the window had a monitor (exclusive fullscreen) when this swapchain was made. */
+    private boolean createdForExclusiveFullscreen;
+
+    /**
+     * True when the window's fullscreen kind changed since creation without a size change. Borderless-window mods
+     * turn exclusive fullscreen into a monitor-sized undecorated window of the same size: no resize event arrives,
+     * and the swapchain would keep the fullscreen present path (Vulkan instead of DXGI flip) in a window.
+     */
+    public boolean windowModeChanged() {
+        return createdForExclusiveFullscreen != (org.lwjgl.glfw.GLFW.glfwGetWindowMonitor(Vulkan.window) != 0);
+    }
     private final long[] dxgiCopyValues = new long[net.vulkanmod.vulkan.present.DxgiBackend.IMAGES];
     private int dxgiNext;
 

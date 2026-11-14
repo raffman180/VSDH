@@ -21,7 +21,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Path;
 
-@Mod(value = "vulkanmod", dist = net.neoforged.api.distmarker.Dist.CLIENT)
+@Mod(value = "vsdh_renderer", dist = net.neoforged.api.distmarker.Dist.CLIENT)
 public class Initializer {
 	public static final Logger LOGGER = LogManager.getLogger("VulkanMod");
 
@@ -59,6 +59,7 @@ public class Initializer {
 				CompatReport.logReport();
 			}
 			CompatReport.logRuntimeHints();
+			net.vulkanmod.compat.UnsupportedModNotice.init();
 		});
 	}
 

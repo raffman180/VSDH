@@ -578,6 +578,7 @@ public class GL15M {
 
     @Overwrite(remap = false)
     public static void glGetQueryObjectiv(@NativeType("GLuint") int id, @NativeType("GLenum") int pname, @NativeType("GLint *") long params) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetQueryObjectiv");
     }
 
     @Overwrite(remap = false)
@@ -601,6 +602,7 @@ public class GL15M {
 
     @Overwrite(remap = false)
     public static void glGetQueryObjectuiv(@NativeType("GLuint") int id, @NativeType("GLenum") int pname, @NativeType("GLuint *") long params) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetQueryObjectuiv");
     }
 
     @Overwrite(remap = false)

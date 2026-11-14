@@ -249,6 +249,7 @@ public class GL33M {
 
     @Overwrite(remap = false)
     public static void glGetQueryObjecti64v(@NativeType("GLuint") int id, @NativeType("GLenum") int pname, @NativeType("GLint64 *") long params) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetQueryObjecti64v");
     }
 
     @Overwrite(remap = false)
@@ -268,6 +269,7 @@ public class GL33M {
 
     @Overwrite(remap = false)
     public static void glGetQueryObjectui64v(@NativeType("GLuint") int id, @NativeType("GLenum") int pname, @NativeType("GLuint64 *") long params) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glGetQueryObjectui64v");
     }
 
     @Overwrite(remap = false)
@@ -282,10 +284,12 @@ public class GL33M {
 
     @Overwrite(remap = false)
     public static void glBindFragDataLocationIndexed(@NativeType("GLuint") int program, @NativeType("GLuint") int colorNumber, @NativeType("GLuint") int index, @NativeType("GLchar const *") CharSequence name) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindFragDataLocationIndexed");
     }
 
     @Overwrite(remap = false)
     public static void glBindFragDataLocationIndexed(@NativeType("GLuint") int program, @NativeType("GLuint") int colorNumber, @NativeType("GLuint") int index, @NativeType("GLchar const *") ByteBuffer name) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glBindFragDataLocationIndexed");
     }
 
     @Overwrite(remap = false)

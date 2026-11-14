@@ -132,6 +132,7 @@
     "optimization.HolderReferenceMixin",
     "optimization.MaterialRuleListMixin",
     "optimization.SurfaceSequenceRuleMixin",
+    "optimization.BiomeManagerCornerMixin",
     "voxel.VoxelShapeMixin",
     "compatibility.fml.ImmediateWindowHandlerMixin",
     "shader.WorldShaderLevelMixin",

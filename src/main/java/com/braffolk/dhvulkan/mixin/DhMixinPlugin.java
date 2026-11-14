@@ -1,5 +1,6 @@
 package com.braffolk.dhvulkan.mixin;
 
+import com.braffolk.dhvulkan.DhSupport;
 import net.neoforged.fml.loading.FMLLoader;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.ClassNode;
@@ -11,18 +12,26 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.Set;
 
-/** Selects the shutdown hooks matching DH's loaded SQL implementation. */
+/**
+ * Selects the shutdown hooks matching DH's loaded SQL implementation.
+ *
+ * <p>The DH class names in this class and in the hooks are the plain ones; with DH 3.3.0 the nested
+ * vsdh-dh330 library rewrites them to the {@code _neoforge} twins while these classes load.
+ */
 public final class DhMixinPlugin implements IMixinConfigPlugin {
     private static final String REPOSITORY = "com.seibel.distanthorizons.core.sql.repo.FullDataSourceV2Repo";
     private Boolean regenerationQueue;
 
-    /** Distant Horizons is optional: without it none of the DH hooks may load (their targets are missing). */
+    /**
+     * Distant Horizons is optional: without it, or with a DH that VSDH cannot serve, none of the DH hooks
+     * may load (their targets are missing or differ).
+     */
     public static boolean distantHorizonsInstalled() {
-        return FMLLoader.getLoadingModList().getModFileById("distanthorizons") != null;
+        return DhSupport.active();
     }
 
     @Override public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        // Every hook here (dh3.* and the DH composite in shared.*) serves DH; without DH none may load.
+        // Every hook here (dh3.* and the DH composite in shared.*) serves DH; without a usable DH none may load.
         if (!distantHorizonsInstalled()) return false;
         return switch (mixinClassName.substring(mixinClassName.lastIndexOf('.') + 1)) {
             case "MixinRegenQueryScope", "MixinUpdatePropagatorShutdown" -> hasRegenerationQueue();

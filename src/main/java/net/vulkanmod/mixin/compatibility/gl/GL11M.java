@@ -178,10 +178,12 @@ public class GL11M {
 
     @Overwrite(remap = false)
     public static void glFinish() {
+        // Submission and waiting belong to the frame loop (Renderer); nothing to do per call.
     }
 
     @Overwrite(remap = false)
     public static void glFlush() {
+        // See glFinish.
     }
 
     @Overwrite(remap = false)
@@ -215,7 +217,7 @@ public class GL11M {
 
     @Overwrite(remap = false)
     public static void glCopyTexSubImage2D(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int yoffset, @NativeType("GLint") int x, @NativeType("GLint") int y, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height) {
-
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCopyTexSubImage2D");
     }
 
     @Overwrite(remap = false)
@@ -392,10 +394,17 @@ public class GL11M {
 
     @Overwrite(remap = false)
     public static void glDrawBuffer(@NativeType("GLenum") int buf) {
+        // Attachments are written as the framebuffer has them; only a selection other than the default is lost.
+        if (buf != 0 && buf != 0x0404 && buf != 0x0405 && buf != 0x8CE0) {
+            net.vulkanmod.gl.GlEmulationLog.unimplemented("glDrawBuffer", "the draw buffer selection is ignored");
+        }
     }
 
     @Overwrite(remap = false)
     public static void glReadBuffer(@NativeType("GLenum") int src) {
+        if (src != 0 && src != 0x0404 && src != 0x0405 && src != 0x8CE0) {
+            net.vulkanmod.gl.GlEmulationLog.unimplemented("glReadBuffer", "the read buffer selection is ignored");
+        }
     }
 
     @Overwrite(remap = false)
@@ -458,18 +467,27 @@ public class GL11M {
 
     @Overwrite(remap = false)
     public static void glLogicOp(@NativeType("GLenum") int op) {
+        // Same state as RenderSystem.logicOp.
+        net.vulkanmod.vulkan.VRenderSystem.logicOpFun = op;
     }
 
     @Overwrite(remap = false)
     public static void glPointSize(@NativeType("GLfloat") float size) {
+        // Points are not drawn with a size here; no pack or vanilla path depends on it.
     }
 
     @Overwrite(remap = false)
     public static void glPolygonOffset(@NativeType("GLfloat") float factor, @NativeType("GLfloat") float units) {
+        // Same state as RenderSystem.polygonOffset; it takes effect with the next enablePolygonOffset.
+        net.vulkanmod.vulkan.VRenderSystem.polygonOffset(factor, units);
     }
 
     @Overwrite(remap = false)
     public static void glDepthRange(@NativeType("GLdouble") double zNear, @NativeType("GLdouble") double zFar) {
+        // The viewport depth range is fixed at 0..1; only another range is lost.
+        if (zNear != 0.0 || zFar != 1.0) {
+            net.vulkanmod.gl.GlEmulationLog.unimplemented("glDepthRange", "the depth range stays 0..1");
+        }
     }
 
     @Overwrite(remap = false)
@@ -538,22 +556,27 @@ public class GL11M {
 
     @Overwrite(remap = false)
     public static void glTexSubImage1D(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLsizei") int width, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") ByteBuffer pixels) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTexSubImage1D");
     }
 
     @Overwrite(remap = false)
     public static void glTexSubImage1D(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLsizei") int width, @NativeType("GLenum") int format, @NativeType("GLenum") int type, @NativeType("void const *") long pixels) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glTexSubImage1D");
     }
 
     @Overwrite(remap = false)
     public static void glCopyTexImage1D(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLenum") int internalFormat, @NativeType("GLint") int x, @NativeType("GLint") int y, @NativeType("GLsizei") int width, @NativeType("GLint") int border) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCopyTexImage1D");
     }
 
     @Overwrite(remap = false)
     public static void glCopyTexImage2D(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLenum") int internalFormat, @NativeType("GLint") int x, @NativeType("GLint") int y, @NativeType("GLsizei") int width, @NativeType("GLsizei") int height, @NativeType("GLint") int border) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCopyTexImage2D");
     }
 
     @Overwrite(remap = false)
     public static void glCopyTexSubImage1D(@NativeType("GLenum") int target, @NativeType("GLint") int level, @NativeType("GLint") int xoffset, @NativeType("GLint") int x, @NativeType("GLint") int y, @NativeType("GLsizei") int width) {
+        net.vulkanmod.gl.GlEmulationLog.unimplemented("glCopyTexSubImage1D");
     }
 
     private static void ensureViewport() {

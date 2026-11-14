@@ -27,6 +27,11 @@ sourceSets {
     dh33Early {
         compileClasspath = sourceSets.main.output + earlyDh + (sourceSets.main.compileClasspath - currentDh)
     }
+    // Load-time adapter for DH 3.3.0; packed as a nested library JAR (NeoForge reads Java coremods from the
+    // plugin layer). It sees the loader and ASM only, never the game, DH or the rest of VSDH.
+    dh330 {
+        compileClasspath = sourceSets.main.compileClasspath - currentDh
+    }
     test { resources.srcDir 'src/smoke/resources' }
     smoke {
         compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
@@ -65,11 +70,13 @@ neoForge {
     mods { vsdh { sourceSet sourceSets.main; sourceSet sourceSets.smoke } }
 }
 
-configurations { dh330Remapper }
+configurations { dhTools }
 
 dependencies {
 
-    dh330Remapper 'org.ow2.asm:asm-commons:9.9.1'
+    dhTools 'org.ow2.asm:asm-commons:9.9.1'
+    testImplementation sourceSets.dh330.output
+    testImplementation 'org.ow2.asm:asm-commons:9.9.1'
     implementation currentDh
     compileOnly 'io.github.llamalad7:mixinextras-neoforge:0.5.3'
     compileOnly files('libs/flywheel-neoforge-1.21.1-1.0.6.jar')
@@ -129,13 +136,31 @@ processResources {
     inputs.property 'rendererVersion', project.renderer_version
     filesMatching('META-INF/neoforge.mods.toml') { expand version: project.version, renderer_version: project.renderer_version }
 }
+// One JAR for every supported DH version: this nested library rewrites VSDH's DH references while
+// its classes load, only when DH 3.3.0 is installed (de.stranger.vsdh.dh330.Dh330CoreMod).
+def dh330LibraryName = "vsdh-dh330-${version}.jar".toString()
+tasks.register('dh330LibraryJar', Jar) {
+    group = 'build'
+    description = 'Builds the nested library with the load-time adapter for DH 3.3.0.'
+    archiveFileName = dh330LibraryName
+    destinationDirectory = layout.buildDirectory.dir('dh330')
+    from sourceSets.dh330.output
+    from('LICENSE', 'COPYING', 'NOTICE')
+    manifest {
+        attributes 'FMLModType': 'LIBRARY', 'Automatic-Module-Name': 'vsdh.dh330',
+                'Implementation-Title': 'VSDH DH 3.3.0 adapter', 'Implementation-Version': project.version
+    }
+}
 tasks.named('jar', Jar) {
+    dependsOn 'dh330LibraryJar'
+    inputs.file tasks.named('dh330LibraryJar').flatMap { it.archiveFile }
     from sourceSets.dh33Early.output
     from('LICENSE', 'COPYING', 'NOTICE')
     from('docs/upstream') { into 'META-INF/vsdh/attribution' }
 }
 tasks.named('sourcesJar', Jar) {
     from sourceSets.dh33Early.allSource
+    from sourceSets.dh330.allSource
     from('LICENSE', 'COPYING', 'NOTICE')
     from('docs/upstream') { into 'META-INF/vsdh/attribution' }
 }
@@ -190,10 +215,19 @@ tasks.named('jar') {
                 stripped.renameTo(embeddedJar)
             }
 
+            def dh330Library = tasks.named('dh330LibraryJar').get().archiveFile.get().asFile
+            ant.copy(file: dh330Library, todir: jarjarDir)
+
             def metadataFile = new File(jarjarDir, "metadata.json")
             if (metadataFile.exists()) {
                 def slurper = new groovy.json.JsonSlurper()
                 def metadata = slurper.parseText(metadataFile.text)
+                metadata.jars.add([
+                        identifier: [group: 'de.stranger.vsdh', artifact: 'vsdh-dh330'],
+                        version: [range: "[${project.version},)".toString(), artifactVersion: project.version.toString()],
+                        path: "META-INF/jarjar/${dh330Library.name}".toString(),
+                        isObfuscated: false
+                ])
                 metadata.jars.each { jarEntry ->
                     def m = (jarEntry.path =~ /-(natives-[a-z0-9-]+)\.jar$/)
                     if (m) {
@@ -209,22 +243,28 @@ tasks.named('jar') {
     }
 }
 
-tasks.register('jarDh330', JavaExec) {
-    group = 'build'
-    description = 'Builds the separate VSDH JAR for the NeoForge namespace of DH 3.3.0.'
-    def standardJar = tasks.named('jar', Jar)
-    dependsOn standardJar
-    def reference = file(providers.gradleProperty('dh330Jar').getOrElse('libs/DistantHorizons-3.3.0-1.21.1-fabric-neoforge.jar'))
-    def source = file('tools/RemapDh330.java')
-    def output = layout.buildDirectory.file("libs/VSDH-neoforge-1.21.1-${version}-dh330.jar")
+tasks.register('verifyDhLinks', JavaExec) {
+    group = 'verification'
+    description = 'Checks the single VSDH JAR against DH JARs: every DH class and member it references exists under the name that DH version uses.'
+    def vsdhJar = tasks.named('jar', Jar)
+    dependsOn vsdhJar
+    def source = file('tools/VerifyDhLinks.java')
+    // Reference files are never shipped; -PdhJars=a;b;c overrides the list.
+    def references = providers.gradleProperty('dhJars').map { it.split(';') as List }.getOrElse([
+            'build/reference/dh-matrix/DistantHorizons-3.2.0-b-1.21.1-fabric-neoforge.jar',
+            'build/reference/dh-matrix/DistantHorizons-3.3.0-1.21.1-fabric-neoforge.jar',
+            'build/reference/dh-matrix/DistantHorizons-3.3.1-1.21.1-fabric-neoforge.jar',
+            'build/reference/DistantHorizons-3.3.2-1.21.1-fabric-neoforge.jar',
+            'build/reference/iris-client/libs/DistantHorizons-3.3.3-1.21.1-fabric-neoforge.jar'
+    ]).collect { file(it) }
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
-    classpath = configurations.dh330Remapper
+    classpath = configurations.dhTools + sourceSets.dh330.output
     mainClass = source.absolutePath
-    args reference.absolutePath, standardJar.get().archiveFile.get().asFile.absolutePath, output.get().asFile.absolutePath
-    inputs.file reference
+    args vsdhJar.get().archiveFile.get().asFile.absolutePath
+    args references.collect { it.absolutePath }
     inputs.file source
-    inputs.file standardJar.flatMap { it.archiveFile }
-    outputs.file output
+    inputs.files references
+    inputs.file vsdhJar.flatMap { it.archiveFile }
 }
 
 tasks.register('verifyBundledLwjgl') {
@@ -248,6 +288,7 @@ tasks.register('verifyBundledLwjgl') {
                 "META-INF/jarjar/lwjgl-vma-${lwjglVersion}-natives-linux.jar",
                 "META-INF/jarjar/lwjgl-vma-${lwjglVersion}-natives-macos.jar",
                 "META-INF/jarjar/lwjgl-vma-${lwjglVersion}-natives-macos-arm64.jar",
+                "META-INF/jarjar/${dh330LibraryName}",
         ].collect { it.toString() }
 
         def outer = new java.util.zip.ZipFile(outputJar)

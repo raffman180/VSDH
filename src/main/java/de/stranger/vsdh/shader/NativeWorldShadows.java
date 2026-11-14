@@ -38,6 +38,46 @@ public final class NativeWorldShadows implements AutoCloseable {
     private ShadowCuller lastCuller=ShadowCuller.none();
     private static final java.util.regex.Pattern SHADOW_COLOUR=java.util.regex.Pattern.compile("shadowcolor[0-7]");
 
+    /**
+     * Memory the shadow images may take: a sixth of the dedicated GPU memory, never below the old fixed 512 MiB and
+     * at most 3 GiB. A 12 GB card allows about 2 GiB, enough for an 8192² map with two depth planes and two colour
+     * targets (1 GiB, Jurgens CINEMATIC); a 4 GB card keeps roughly the old limit.
+     */
+    static long shadowBudgetBytes(long deviceMiB) {
+        return Math.clamp(deviceMiB / 6, 512L, 3072L) * 1024 * 1024;
+    }
+
+    /**
+     * The share above, but no more than three quarters of the memory still free on the device heap: on a card that
+     * is already full (DH, a large atlas, 1440p targets) Windows would otherwise move memory to the shared heap,
+     * which shows up as stutter instead of an error. The old fixed 512 MiB always remains allowed.
+     */
+    static long shadowBudgetBytes(long deviceMiB, long freeBytes) {
+        long floor = 512L * 1024 * 1024;
+        return Math.max(floor, Math.min(shadowBudgetBytes(deviceMiB), freeBytes / 4 * 3));
+    }
+
+    /** The shadow colour targets this plan allocates: written, stored to, sampled, and always 0 and 1. */
+    static java.util.TreeSet<Integer> colourIndices(WorldPackPlan plan) {
+        var indices=new java.util.TreeSet<>(plan.shadow().outputs());indices.add(0);indices.add(1);
+        indices.addAll(plan.chain().shadowStorage());
+        indices.addAll(sampledColours(plan));
+        return indices;
+    }
+
+    /**
+     * Bytes of all shadow images of a plan (two D32 depth planes plus the colour targets); 0 without a shadow program.
+     * Needs no device, so pack preparation can size the map before anything is allocated.
+     */
+    static long estimateBytes(WorldPackPlan plan) {
+        if(plan.shadow()==null)return 0;
+        long texels=(long)plan.directives().shadowMapResolution()*plan.directives().shadowMapResolution();
+        long bytes=Math.multiplyExact(texels,8);
+        for(int index:colourIndices(plan))
+            bytes=Math.addExact(bytes,Math.multiplyExact(texels,plan.directives().shadowColour(index).format().used().bytesPerPixel()));
+        return bytes;
+    }
+
     public NativeWorldShadows(WorldPackPlan plan) {
         RenderSystem.assertOnRenderThread();this.plan=plan;
         if(plan.shadow()==null)throw new IllegalArgumentException("Pack has no native shadow program");
@@ -45,12 +85,13 @@ public final class NativeWorldShadows implements AutoCloseable {
         if(size<=0||size>DeviceManager.deviceProperties.limits().maxImageDimension2D())throw new IllegalArgumentException("Unsupported shadow resolution: "+size);
         if(plan.directives().shadowDepthMipmap(0)||plan.directives().shadowDepthMipmap(1))
             throw new IllegalArgumentException("Native depth shadow mipmaps are not implemented");
-        var indices=new java.util.TreeSet<>(plan.shadow().outputs());indices.add(0);indices.add(1);
-        var storage=plan.chain().shadowStorage();indices.addAll(storage);
-        indices.addAll(sampledColours(plan));
-        long bytes=Math.multiplyExact((long)size*size,8);
-        for(int index:indices)bytes=Math.addExact(bytes,Math.multiplyExact((long)size*size,plan.directives().shadowColour(index).format().used().bytesPerPixel()));
-        if(bytes>512L*1024*1024)throw new IllegalArgumentException("Shadow buffers exceed 512 MiB: "+bytes);
+        var indices=colourIndices(plan);
+        var storage=plan.chain().shadowStorage();
+        long bytes=estimateBytes(plan);
+        var memory=net.vulkanmod.vulkan.memory.MemoryManager.getInstance();
+        long budget=shadowBudgetBytes(memory.getDeviceMemoryMB(),memory.getDeviceHeapFreeBytes());
+        if(bytes>budget)throw new IllegalArgumentException("Shadow buffers need "+(bytes>>20)+" MiB, more than the "
+                +(budget>>20)+" MiB this GPU allows; choose a smaller shadowMapResolution or profile");
         try {
             for(int index:indices) {
                 var format=plan.directives().shadowColour(index).format().used();

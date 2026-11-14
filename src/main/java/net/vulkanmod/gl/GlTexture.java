@@ -256,6 +256,24 @@ public class GlTexture {
     }
 
     public static void texSubImage2D(int target, int level, int xOffset, int yOffset, int width, int height, int format, int type, long pixels) {
+        try {
+            texSubImage2DAddress(level, xOffset, yOffset, width, height, format, type, pixels);
+        } catch (IllegalArgumentException | IllegalStateException unsupported) {
+            skipUnsupportedUpload(unsupported);
+        }
+    }
+
+    /**
+     * Real GL accepts uploads this emulation cannot convert (other channel counts or types into an RGBA8 image).
+     * A mod's texture then stays blank, as it did before these entries were wired up, instead of ending the
+     * render thread with an exception.
+     */
+    private static void skipUnsupportedUpload(RuntimeException reason) {
+        GlEmulationLog.warnOnce("texSubImage2D.unsupported",
+                "glTexSubImage2D upload skipped, not supported by the Vulkan texture emulation: {}", reason.getMessage());
+    }
+
+    private static void texSubImage2DAddress(int level, int xOffset, int yOffset, int width, int height, int format, int type, long pixels) {
         if (width == 0 || height == 0)
             return;
 
@@ -278,8 +296,8 @@ public class GlTexture {
             }
         }
 
-        if (src != null)
-            boundTexture.uploadSubImage(xOffset, yOffset, width, height, format, type, src, getUnpackLayout(width));
+        if (src != null && boundTexture.acceptsLevelRegion(level, xOffset, yOffset, width, height))
+            boundTexture.uploadSubImage(level, xOffset, yOffset, width, height, format, type, src, getUnpackLayout(width));
     }
 
     private static ByteBuffer unpackBufferView(GlBuffer buffer, long offset) {
@@ -295,6 +313,14 @@ public class GlTexture {
     }
 
     public static void texSubImage2D(int target, int level, int xOffset, int yOffset, int width , int height, int format, int type, @Nullable ByteBuffer pixels) {
+        try {
+            texSubImage2DBuffer(level, xOffset, yOffset, width, height, format, type, pixels);
+        } catch (IllegalArgumentException | IllegalStateException unsupported) {
+            skipUnsupportedUpload(unsupported);
+        }
+    }
+
+    private static void texSubImage2DBuffer(int level, int xOffset, int yOffset, int width , int height, int format, int type, @Nullable ByteBuffer pixels) {
         if (width == 0 || height == 0)
             return;
 
@@ -316,8 +342,8 @@ public class GlTexture {
             src = pixels;
         }
 
-        if (src != null)
-            boundTexture.uploadSubImage(xOffset, yOffset, width, height, format, type, src, getUnpackLayout(width));
+        if (src != null && boundTexture.acceptsLevelRegion(level, xOffset, yOffset, width, height))
+            boundTexture.uploadSubImage(level, xOffset, yOffset, width, height, format, type, src, getUnpackLayout(width));
     }
 
     public static void compressedTexImage2D(int target, int level, int internalFormat, int width, int height, int border) {
@@ -579,6 +605,7 @@ public class GlTexture {
     int magFilter = GL11.GL_LINEAR;
 
     boolean clamp = true;
+    boolean wrapExplicit;
     int wrapS = GL30.GL_CLAMP_TO_EDGE;
     int wrapT = GL30.GL_CLAMP_TO_EDGE;
 
@@ -737,7 +764,25 @@ public class GlTexture {
         vulkanImage.updateTextureSampler(maxLod, samplerFlags);
     }
 
-    private void uploadSubImage(int xOffset, int yOffset, int width, int height, int format, int type,
+    /**
+     * A sub-image upload names its mip level. It is taken only when the image has that level and the region fits
+     * inside it (level 0 included): GL reports GL_INVALID_VALUE there, while a copy outside the Vulkan image is
+     * undefined and can lose the device.
+     */
+    private boolean acceptsLevelRegion(int level, int xOffset, int yOffset, int width, int height) {
+        if (level < 0 || level >= vulkanImage.mipLevels) {
+            GlEmulationLog.warnOnce("texSubImage2D.level", "glTexSubImage2D to a mip level the texture does not have; upload skipped");
+            return false;
+        }
+        int levelWidth = Math.max(1, vulkanImage.width >> level), levelHeight = Math.max(1, vulkanImage.height >> level);
+        if (xOffset < 0 || yOffset < 0 || (long) xOffset + width > levelWidth || (long) yOffset + height > levelHeight) {
+            GlEmulationLog.warnOnce("texSubImage2D.levelRegion", "glTexSubImage2D region exceeds its mip level; upload skipped");
+            return false;
+        }
+        return true;
+    }
+
+    private void uploadSubImage(int level, int xOffset, int yOffset, int width, int height, int format, int type,
                                 ByteBuffer pixels, TextureUploadLayout layout) {
         boolean rgba8Image = vulkanImage.format == VK_FORMAT_R8G8B8A8_UNORM || vulkanImage.format == VK_FORMAT_R8G8B8A8_SRGB;
         int sourcePixelSize = sourcePixelSize(format, type);
@@ -790,7 +835,7 @@ public class GlTexture {
                 }
             }
 
-            this.vulkanImage.uploadSubTextureAsync(0, width, height, xOffset, yOffset, 0, 0, width, upload);
+            this.vulkanImage.uploadSubTextureAsync(level, width, height, xOffset, yOffset, 0, 0, width, upload);
         } finally {
             if (normalize) MemoryUtil.memFree(upload);
         }
@@ -933,12 +978,22 @@ public class GlTexture {
 
     void setWrapS(int v) {
         wrapS = v;
+        wrapExplicit = true;
         updateClampMode();
     }
 
     void setWrapT(int v) {
         wrapT = v;
+        wrapExplicit = true;
         updateClampMode();
+    }
+
+    /**
+     * True only when the owner asked for clamp-to-edge through glTexParameter. AbstractTexture.setFilter runs before
+     * every RenderType draw and must not drop that request; textures that never set a wrap mode keep repeating.
+     */
+    public boolean clampToEdgeRequested() {
+        return wrapExplicit && clamp;
     }
 
     private void updateClampMode() {

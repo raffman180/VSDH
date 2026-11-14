@@ -55,7 +55,9 @@ public abstract class RenderSystemMixin {
     }
 
     @Overwrite(remap = false)
-    public static void setupDefaultState(int x, int y, int width, int height) { }
+    public static void setupDefaultState(int x, int y, int width, int height) {
+        // GL default state only; the Vulkan pipeline state starts from VRenderSystem's own defaults.
+    }
 
     @Overwrite(remap = false)
     public static void enableColorLogicOp() {
@@ -81,10 +83,17 @@ public abstract class RenderSystemMixin {
     }
 
     @Overwrite(remap = false)
-    public static void glGenBuffers(Consumer<Integer> consumer) {}
+    public static void glGenBuffers(Consumer<Integer> consumer) {
+        // Vanilla 1.21.1 has no caller; a mod that asks must get its id, an empty body never ran the consumer.
+        assertOnRenderThreadOrInit();
+        consumer.accept(net.vulkanmod.gl.GlBuffer.glGenBuffers());
+    }
 
     @Overwrite(remap = false)
-    public static void glGenVertexArrays(Consumer<Integer> consumer) {}
+    public static void glGenVertexArrays(Consumer<Integer> consumer) {
+        assertOnRenderThreadOrInit();
+        consumer.accept(net.vulkanmod.gl.GlVertexArray.genVertexArray());
+    }
 
     @Overwrite(remap = false)
     public static int maxSupportedTextureSize() {

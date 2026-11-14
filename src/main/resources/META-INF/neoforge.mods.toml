@@ -9,7 +9,7 @@ displayName="VSDH (development build)"
 authors="Stranger; Braffolk and upstream contributors (rendering)"
 description='''
 Vulkan renderer with shader packs; renders Distant Horizons natively when DH is installed (optional).
-Development target: Minecraft 1.21.1, NeoForge 21.1.264, DH 3.2.0-b and 3.3.1–3.3.3.
+Development target: Minecraft 1.21.1, NeoForge 21.1.264, DH 3.2.0-b and 3.3.0–3.3.3.
 Experimental shaderpack tests cover Complementary Reimagined and BSL with the native renderer.
 Pick a shader pack under Video Settings > Shaders (no restart needed). Not every pack or GPU is tested.
 '''
@@ -25,14 +25,14 @@ type="required"
 versionRange="[21.1.264]"
 side="CLIENT"
 [[dependencies.vsdh]]
-modId="vulkanmod"
+modId="vsdh_renderer"
 type="required"
 versionRange="[${renderer_version}]"
 side="CLIENT"
 [[dependencies.vsdh]]
 modId="distanthorizons"
 type="optional"
-versionRange="[3.2.0-b],[3.3.1],[3.3.2],[3.3.3]"
+versionRange="[3.2.0-b],[3.3.0],[3.3.1],[3.3.2],[3.3.3]"
 side="CLIENT"
 [[dependencies.vsdh]]
 modId="iris"
@@ -53,6 +53,12 @@ versionRange="[0,)"
 side="CLIENT"
 reason="Embeddium and the Vulkan renderer in VSDH both replace the terrain renderer; remove Embeddium."
 [[dependencies.vsdh]]
+modId="vulkanmod"
+type="incompatible"
+versionRange="[0,)"
+side="CLIENT"
+reason="VSDH already contains its own copy of the Vulkan renderer (VulkanMod Reforged); remove the separate VulkanMod."
+[[dependencies.vsdh]]
 modId="oculus"
 type="incompatible"
 versionRange="[0,)"
@@ -63,7 +69,7 @@ reason="VSDH loads shader packs itself; remove Oculus."
 config="vsdh.mixins.json"
 
 [[mods]]
-modId="vulkanmod"
+modId="vsdh_renderer"
 version="${renderer_version}"
 displayName="VSDH Vulkan Renderer"
 authors="xCollateral, VulkanMod contributors, Rindw; VSDH adaptations"
@@ -72,12 +78,12 @@ description="Unofficial VSDH fork of VulkanMod Reforged for Minecraft 1.21.1."
 [[mixins]]
 config="vulkanmod.mixins.json"
 
-[[dependencies.vulkanmod]]
+[[dependencies.vsdh_renderer]]
 modId="neoforge"
 type="required"
 versionRange="[21.1.264]"
 side="CLIENT"
-[[dependencies.vulkanmod]]
+[[dependencies.vsdh_renderer]]
 modId="minecraft"
 type="required"
 versionRange="[1.21.1]"
