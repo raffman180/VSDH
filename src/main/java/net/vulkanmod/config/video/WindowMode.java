@@ -1,30 +1,20 @@
 package net.vulkanmod.config.video;
 
+/**
+ * A window or exclusive fullscreen. The borderless ("windowed fullscreen") mode was removed on 15.11.2026: its
+ * presentation was not smooth enough on the player's machine, while exclusive fullscreen was.
+ */
 public enum WindowMode {
-    WINDOWED(0),
-    WINDOWED_FULLSCREEN(1),
-    EXCLUSIVE_FULLSCREEN(2);
+    WINDOWED,
+    EXCLUSIVE_FULLSCREEN;
 
-    public final int mode;
-
-    WindowMode(int mode) {
-        this.mode = mode;
-    }
-
-    public static WindowMode fromValue(int value) {
-        return switch (value) {
-            case 0 -> WINDOWED;
-            case 1 -> WINDOWED_FULLSCREEN;
-            case 2 -> EXCLUSIVE_FULLSCREEN;
-
-            default -> throw new IllegalStateException("Unexpected value: " + value);
-        };
+    public static WindowMode of(boolean fullscreen) {
+        return fullscreen ? EXCLUSIVE_FULLSCREEN : WINDOWED;
     }
 
     public static String getComponentName(WindowMode windowMode) {
         return switch (windowMode) {
             case WINDOWED -> "vulkanmod.options.windowMode.windowed";
-            case WINDOWED_FULLSCREEN -> "vulkanmod.options.windowMode.windowedFullscreen";
             case EXCLUSIVE_FULLSCREEN -> "options.fullscreen";
         };
     }

@@ -117,6 +117,30 @@ class ShadowCullerTest {
         }
     }
 
+    /** A contained area queues its sections without testing them: none of them may have been rejected. */
+    @Test void everyBoxInsideAContainedBoxIsVisible() {
+        var random = new Random(0xA4EA);
+        int contained = 0;
+        for (int scene = 0; scene < 300; scene++) {
+            var culler = randomCuller(random);
+            for (int i = 0; i < 300; i++) {
+                float w = 16 + random.nextFloat() * 112;
+                float x = random.nextFloat() * 384 - 192, y = random.nextFloat() * 384 - 192, z = random.nextFloat() * 384 - 192;
+                if (!culler.contains(x, y, z, x + w, y + w, z + w)) continue;
+                contained++;
+                assertTrue(culler.visible(x, y, z, x + w, y + w, z + w));
+                for (int inner = 0; inner < 8; inner++) {
+                    float sw = random.nextFloat() * w;
+                    float sx = x + random.nextFloat() * (w - sw), sy = y + random.nextFloat() * (w - sw), sz = z + random.nextFloat() * (w - sw);
+                    assertTrue(culler.visible(sx, sy, sz, Math.min(sx + sw, x + w), Math.min(sy + sw, y + w), Math.min(sz + sw, z + w)),
+                            "scene " + scene + " box " + i);
+                }
+            }
+        }
+        assertTrue(contained > 500, "the test must exercise contained boxes, found " + contained);
+        assertTrue(ShadowCuller.none().contains(-1e6f, -1e6f, -1e6f, 1e6f, 1e6f, 1e6f));
+    }
+
     /** Any point that lies between the light and a seen point must stay in a kept box. */
     @Test void neverDropsACasterOfSomethingSeen() {
         var random = new Random(0xCA57);

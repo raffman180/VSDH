@@ -38,10 +38,16 @@ public abstract class DeviceManager {
     private static boolean geometryShaderEnabled, fragmentStoresEnabled, vertexStoresEnabled;
 
     private static boolean dxgiInteropEnabled;
+    private static boolean attachmentFeedbackLoopEnabled;
     private static long deviceLuid;
 
     /** Windows: shared D3D11 textures and fences can be imported (DXGI presentation, net.vulkanmod.vulkan.present). */
     public static boolean isDxgiInteropEnabled() { return dxgiInteropEnabled; }
+    /**
+     * VK_EXT_attachment_feedback_loop_layout: an image may be sampled while it is an attachment of the
+     * same pass (GL-style feedback, used by shader packs). Enabled only where the device offers it.
+     */
+    public static boolean isAttachmentFeedbackLoopEnabled() { return attachmentFeedbackLoopEnabled; }
     /** The device LUID (LowPart in the low 32 bits) for picking the same DXGI adapter. */
     public static long deviceLuid() { return deviceLuid; }
 
@@ -297,6 +303,17 @@ public abstract class DeviceManager {
                 createInfo.pNext(vulkan12);
                 dxgiInteropEnabled = true;
             }
+            attachmentFeedbackLoopEnabled = false;
+            if (attachmentFeedbackLoopAvailable(stack)) {
+                deviceExtensions.add(org.lwjgl.vulkan.EXTAttachmentFeedbackLoopLayout.VK_EXT_ATTACHMENT_FEEDBACK_LOOP_LAYOUT_EXTENSION_NAME);
+                var feedback = org.lwjgl.vulkan.VkPhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT.calloc(stack).sType$Default()
+                        .attachmentFeedbackLoopLayout(true);
+                feedback.pNext(createInfo.pNext());
+                createInfo.pNext(feedback.address());
+                attachmentFeedbackLoopEnabled = true;
+            }
+            org.slf4j.LoggerFactory.getLogger("VulkanMod").info("Attachment feedback loops: {}",
+                    attachmentFeedbackLoopEnabled ? "VK_EXT_attachment_feedback_loop_layout" : "not supported (snapshot copies)");
             createInfo.ppEnabledExtensionNames(asPointerBuffer(deviceExtensions));
 
             createInfo.ppEnabledLayerNames(Vulkan.ENABLE_VALIDATION_LAYERS ? asPointerBuffer(Vulkan.VALIDATION_LAYERS) : null);
@@ -324,6 +341,15 @@ public abstract class DeviceManager {
      * -Dvsdh.dxgiPresent: auto (default: D3D12 on NVIDIA, where it was measured faster, see
      * docs/PERFORMANCE.md), d3d12/true, d3d11 (slower, kept for comparison), false.
      */
+    private static boolean attachmentFeedbackLoopAvailable(MemoryStack stack) {
+        String name = org.lwjgl.vulkan.EXTAttachmentFeedbackLoopLayout.VK_EXT_ATTACHMENT_FEEDBACK_LOOP_LAYOUT_EXTENSION_NAME;
+        if (!device.getUnsupportedExtensions(java.util.Set.of(name)).isEmpty()) return false;
+        var feedback = org.lwjgl.vulkan.VkPhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT.calloc(stack).sType$Default();
+        var features = VkPhysicalDeviceFeatures2.calloc(stack).sType$Default().pNext(feedback.address());
+        org.lwjgl.vulkan.VK11.vkGetPhysicalDeviceFeatures2(physicalDevice, features);
+        return feedback.attachmentFeedbackLoopLayout();
+    }
+
     private static boolean dxgiInteropAvailable(MemoryStack stack) {
         String mode = dxgiMode();
         if (mode.equals("false")) return false;

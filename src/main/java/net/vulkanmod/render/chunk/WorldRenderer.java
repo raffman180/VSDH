@@ -252,6 +252,7 @@ public class WorldRenderer {
 
     public void allChanged() {
         AdaptiveChunkUploadBudget.reset();
+        net.vulkanmod.render.optimization.ChunkCatchUp.reset();
         if (this.level != null) {
             AeronauticsWorldLayers.initialize();
 
@@ -291,6 +292,7 @@ public class WorldRenderer {
     public void setLevel(@Nullable ClientLevel level) {
         clearShadowDraws();
         AdaptiveChunkUploadBudget.reset();
+        net.vulkanmod.render.optimization.ChunkCatchUp.reset();
         this.lastCameraX = Float.MIN_VALUE;
         this.lastCameraY = Float.MIN_VALUE;
         this.lastCameraZ = Float.MIN_VALUE;
@@ -536,7 +538,17 @@ public class WorldRenderer {
     @FunctionalInterface
     public interface ShadowBoxTest {
         boolean visible(float minX, float minY, float minZ, float maxX, float maxY, float maxZ);
+        /**
+         * True only when every box inside this one is {@link #visible}; lets a whole area skip its
+         * per-section tests. May always answer false.
+         */
+        default boolean contains(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) { return false; }
     }
+
+    /** -Dvsdh.shadowSectionList=false: the full walk over every section, as before (A/B); =verify: both, compared. */
+    private static final String SHADOW_LIST_MODE = System.getProperty("vsdh.shadowSectionList", "true");
+    private final ShadowSectionList shadowSections = new ShadowSectionList();
+    private long shadowVerifyFrames, shadowVerifyListNanos, shadowVerifyWalkNanos;
 
     /** Separate light visibility: never reuse the camera's occlusion-filtered section queues. */
     public void prepareShadowDraws() {
@@ -548,10 +560,75 @@ public class WorldRenderer {
      * tested first; because the test is monotone, a rejected area cannot hold a kept section.
      */
     public void prepareShadowDraws(ShadowBoxTest test,double cameraX,double cameraY,double cameraZ) {
-        for(int i=0;i<shadowDrawList.size();i++)shadowDrawList.get(i).clear();
-        shadowSectionsQueued=0;shadowSectionsCulled=0;
         var indirect=shadowIndirectBuffer();
         if(indirect!=null)indirect.reset();
+        if(SHADOW_LIST_MODE.equals("false")){prepareShadowDrawsByWalk(test,cameraX,cameraY,cameraZ);return;}
+        if(SHADOW_LIST_MODE.equals("verify")) {
+            long t0=System.nanoTime();
+            prepareShadowDrawsByWalk(test,cameraX,cameraY,cameraZ);
+            long t1=System.nanoTime();
+            int queued=shadowSectionsQueued,culled=shadowSectionsCulled;
+            var expected=new ArrayList<RenderSection>(queued);
+            for(int i=0;i<shadowDrawList.size();i++)for(var section:shadowDrawList.get(i))expected.add(section);
+            long t2=System.nanoTime();
+            prepareShadowDrawsByList(test,cameraX,cameraY,cameraZ);
+            long t3=System.nanoTime();
+            var actual=new ArrayList<RenderSection>(shadowSectionsQueued);
+            for(int i=0;i<shadowDrawList.size();i++)for(var section:shadowDrawList.get(i))actual.add(section);
+            // Sections compiled by a worker between the two passes may differ for one frame; identity otherwise.
+            if(queued!=shadowSectionsQueued||culled!=shadowSectionsCulled||!expected.equals(actual))
+                Initializer.LOGGER.warn("SHADOW_LIST mismatch: walk queued={} culled={}, list queued={} culled={}, sameOrder={}",
+                        queued,culled,shadowSectionsQueued,shadowSectionsCulled,expected.equals(actual));
+            shadowVerifyWalkNanos+=t1-t0;shadowVerifyListNanos+=t3-t2;
+            if(++shadowVerifyFrames%2000==0) {
+                Initializer.LOGGER.info("SHADOW_LIST verify frames={} walkUs={} listUs={} sections={} drawable={} queued={} rebuilds={}",shadowVerifyFrames,
+                        shadowVerifyWalkNanos/2000/1000.0,shadowVerifyListNanos/2000/1000.0,sectionGrid==null?0:sectionGrid.sections.length,
+                        shadowSections.size,shadowSectionsQueued,shadowSections.rebuilds);
+                shadowVerifyWalkNanos=0;shadowVerifyListNanos=0;
+            }
+            return;
+        }
+        prepareShadowDrawsByList(test,cameraX,cameraY,cameraZ);
+    }
+
+    /** The kept list of drawable sections, one run per area: nothing is read from a section the light rejects. */
+    private void prepareShadowDrawsByList(ShadowBoxTest test,double cameraX,double cameraY,double cameraZ) {
+        for(int i=0;i<shadowDrawList.size();i++)shadowDrawList.get(i).clear();
+        shadowSectionsQueued=0;shadowSectionsCulled=0;
+        if(sectionGrid==null){shadowSections.clear();return;}
+        var list=shadowSections;
+        list.refresh(sectionGrid);
+        final int areaWidth=ChunkAreaManager.WIDTH<<4, areaHeight=ChunkAreaManager.HEIGHT<<4;
+        final RenderSection[] sections=list.sections;
+        final int[] xs=list.x,ys=list.y,zs=list.z;
+        for(int run=0;run<list.runs;run++) {
+            var area=list.runArea[run];
+            int from=list.runStart[run],to=list.runStart[run+1];
+            boolean all=true;
+            if(test!=null) {
+                float ax=(float)(area.position.x()-cameraX),ay=(float)(area.position.y()-cameraY),az=(float)(area.position.z()-cameraZ);
+                if(!test.visible(ax,ay,az,ax+areaWidth,ay+areaHeight,az+areaWidth)){shadowSectionsCulled+=to-from;continue;}
+                all=test.contains(ax,ay,az,ax+areaWidth,ay+areaHeight,az+areaWidth);
+            }
+            StaticQueue<RenderSection> queue=null;
+            for(int i=from;i<to;i++) {
+                if(!all) {
+                    float sx=(float)(xs[i]-cameraX),sy=(float)(ys[i]-cameraY),sz=(float)(zs[i]-cameraZ);
+                    if(!test.visible(sx,sy,sz,sx+16,sy+16,sz+16)){shadowSectionsCulled++;continue;}
+                }
+                if(queue==null) {
+                    queue=shadowDrawQueues.get(area);
+                    if(queue==null){queue=new StaticQueue<>(512);shadowDrawQueues.put(area,queue);shadowDrawAreas.add(area);shadowDrawList.add(queue);}
+                }
+                queue.add(sections[i]);
+                shadowSectionsQueued++;
+            }
+        }
+    }
+
+    private void prepareShadowDrawsByWalk(ShadowBoxTest test,double cameraX,double cameraY,double cameraZ) {
+        for(int i=0;i<shadowDrawList.size();i++)shadowDrawList.get(i).clear();
+        shadowSectionsQueued=0;shadowSectionsCulled=0;
         if(sectionGrid==null)return;
         int areas=sectionGrid.chunkAreaManager.size;
         if(shadowAreaState.length!=areas)shadowAreaState=new byte[areas];
@@ -589,7 +666,7 @@ public class WorldRenderer {
     public int shadowSectionsQueued() {return shadowSectionsQueued;}
     /** Non-empty sections the last light pass rejected. */
     public int shadowSectionsCulled() {return shadowSectionsCulled;}
-    public void clearShadowDraws() {shadowDrawQueues.clear();shadowDrawAreas.clear();shadowDrawList.clear();}
+    public void clearShadowDraws() {shadowDrawQueues.clear();shadowDrawAreas.clear();shadowDrawList.clear();shadowSections.clear();}
     /** Smoke diagnostics only: uploaded light casters absent from the camera's current queue. */
     public int shadowOffCameraSections() {
         var visible=Collections.newSetFromMap(new IdentityHashMap<RenderSection,Boolean>());

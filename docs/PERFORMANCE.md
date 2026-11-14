@@ -514,3 +514,132 @@ Keine automatische Grenze im Code (sichtbare Abwägung, entscheidet der Nutzer).
 GPU-Abstand `composite1`/`deferred1` zu Iris: ausgeschlossen sind Zielformate (wie Iris), `IS_IRIS`-Pfad (gesetzt),
 Speicher-Nutzungsflags (nur wo nötig), Lichtstrahl-Probenzahl (fest). Ohne GPU-Profiler (Nsight/RenderDoc)
 keine weitere Spur.
+
+### Ruckeln beim Umschauen im Monkeytalk-Pack (14.11. abends)
+
+Kopie des 128-Mod-Packs, Eclipse Unstable HIGH, 2560x1440 (DXGI, randlos), Flug 0,3 Blöcke/Tick mit 6°/Tick Drehung
+(`-Dvsdh.flight.turn`, neu im Testclient). Zwei Läufe: 93 / 96 FPS, Median 10,1 / 9,9 ms, 15 % der Frames > 16,7 ms,
+76 > 25 ms. Spike-Zeilen ≥ 18 ms: 201 von 276 Present-Wartezeit, 72 sonstige, je 1–2 GC/gpuWait. JFR: in langen Frames
+25 von 60 Render-Thread-Samples in `D3d12Presenter.present` (Win32Com.invoke). GPU je Frame konstant ≈ 9,6 ms
+(größte Pässe: dhWater 1,95, translucent 1,5–1,8, composite3 1,64, composite1 0,82, composite 0,65 ms); GPU_SPIKE
+außerhalb des Ladens klein. Deutung: GPU-begrenzt bei etwa 100 FPS, CPU nahe daran; Schwankungen landen als Present-
+Wartezeit in einzelnen Frames. Empfehlung für Spieler: FPS-Grenze unter dem Mittelwert (z. B. 80) oder Eclipse eine
+Stufe niedriger. Offene VSDH-Kandidaten: dhWater und translucent gegen Iris im selben Pack vergleichen.
+
+### Eclipse: VSDH gegen Iris je Pass (14.11. abends, Testclients, 1440p, DH 3.3.3, Standardprofil, Flug)
+
+VSDH 119,3 FPS, Median 8,23 ms, p99 19,6 ms; Iris 114,9 FPS, Median 8,47 ms, p99 18,0 ms. GPU je Frame: VSDH 7,65–7,99 ms,
+Iris 8,00–8,14 ms. Wasser/Transparentes: VSDH dhWater 1,73–1,79 + translucent 0,48–0,57 = 2,2–2,4 ms, Iris translucent
+(enthält DH-Wasser) 1,70–1,76 ms, also VSDH ≈ 0,5 ms langsamer. composite3 1,58–1,62 gegen 1,48–1,51 ms (+0,1),
+composite1 0,67–0,69 gegen 0,71 ms. Iris finalize 0,45 ms gegen VSDH final+copyBack 0,14 ms. Offen: Ursache der
+DH-Wasser-Differenz (Tiefentest gegen Minecraft-Tiefe/Überzeichnung prüfen; Bildvergleich nötig).
+Ursache der DH-Wasser-Differenz (Fable, 14.11. abends; je ein aufgeteilter Lauf pro Client): (1) Feedback-Kopien –
+Eclipse liest Ziele, die es im selben Pass schreibt (`dh_water`: colortex11; `gbuffers_water`: colortex11, colortex7);
+VSDH kopiert vorher einen Schnappschuss (`NativeColorTargets.feedbackImage`), etwa 3 × 0,1 ms = 0,23–0,25 ms, Iris bindet
+die Textur direkt. (2) `dhDepthTex` in DH-Programmen ist bei VSDH der opake Schnappschuss, bei Iris die laufende DH-Tiefe
+mit bereits gezeichnetem Wasser; der 30-Schritt-SSR-Marsch läuft dadurch länger (Obergrenze ≈ 0,14 ms). Reihenfolge,
+Tiefentest, Culling, Blending, Draw-Liste und `far` wie bei Iris/DH. Behebung bräuchte `VK_EXT_attachment_feedback_loop_layout`
+(150–250 Zeilen, Mehr-Pack-Bildvergleich); nicht umgesetzt. Messschalter `-Dvsdh.gpuProfileFeedback=true`.
+
+### Feedback-Schleifen statt Schnappschuss-Kopien (14.11. 19:54–20:02, Fable)
+
+Umgesetzt: Pack-Programme, die ein Farbziel lesen, in das sie im selben Pass zeichnen, binden den Anhang selbst
+(`VK_EXT_attachment_feedback_loop_layout`: Bildnutzung, Feedback-Layout in Render-Pass und Deskriptor, Pipeline-Flag).
+Entscheidung je Programm und Bild aus dem Plan (`FeedbackLoops`, `NativeShaderChain.loops`); DH-Programme, die
+`dhDepthTex`/`dhDepthTex0` lesen, bekommen die laufende DH-Tiefe als Tiefen-Feedback (wie Iris), `dhDepthTex1` bleibt
+die getrennte opake Kopie. Ohne die Erweiterung oder mit `-Dvsdh.feedbackLoops=false` bleibt die Kopie
+(`NativeColorTargets.feedbackImage`). Testrechner (NVIDIA): Erweiterung vorhanden und aktiv
+(Logzeile `Attachment feedback loops: VK_EXT_attachment_feedback_loop_layout`).
+Eclipse laut Log: `dh_water=[11], gbuffers_hand_water=[11], gbuffers_water=[7, 11]`, DH-Tiefe live in `dh_water`.
+Nachtrag 14.11. nachts: Die Live-DH-Tiefe ist wieder aus (Standard: opake Kopie, `-Dvsdh.dhDepthFeedbackLoop=true`
+schaltet sie ein). Der Nutzer meldete Flackern in der Ferne; `dh_water` liest `dhDepthTex` an fremden Pixeln, während
+derselbe Pass sie schreibt (Datenrennen). Die Zahlen unten enthalten die Live-Tiefe (Anteil höchstens ≈ 0,14 ms).
+
+Messung Eclipse Unstable, Testclient, 2560x1440 Fenster, DH 3.3.3, feste Szene (`run-vsdh-026-profile.ps1 -NoJfr
+-Extra -Ptest1440p`, `-Dvsdh.gpuProfileFeedback=true`), je 2 Läufe abwechselnd, Mittel der Profilfenster 7–9 (je 5 s,
+gleicher Szenenabschnitt), GPU-ms je Frame:
+
+| | Kopien 1 | Kopien 2 | Schleifen 1 | Schleifen 2 |
+|---|---|---|---|---|
+| gesamt | 11,02 | 11,52 | 8,63 | 9,15 |
+| Wasser (beforeFeedback + feedbackCopy + dhWater + translucent) | 3,38 | 3,40 | 2,76 | 2,55 |
+| davon feedbackCopy | 0,22 | 0,22 | – | – |
+| composite | 1,66 | 2,12 | 1,32 | 1,39 |
+| composite1 | 1,20 | 1,16 | 0,92 | 1,05 |
+| composite3 | 1,17 | 1,65 | 0,95 | 1,24 |
+| composite4 | 1,22 | 0,83 | 0,38 | 0,51 |
+| BENCH_FPS | 104,0 | 98,1 | 117,3 | 121,8 |
+
+Wasser/Transparentes: −0,6 bis −0,85 ms. Die Composite-Pässe sind ebenfalls schneller, obwohl sie nicht angefasst
+wurden; Ursache nicht geklärt (im Bild kein Unterschied erkennbar), deshalb den Gesamtgewinn von etwa 2,3 ms nicht als
+gesichert lesen, bis er wiederholt ist. Kein Iris-Lauf in derselben Sitzung.
+
+Bilder (1280x720, Eclipse, je ein Lauf, aufgenommen während der Nutzer ein anderes Spiel offen hatte – nur als
+Sichtprüfung brauchbar): Schleifen gegen Iris mittlere Abweichung 6,5, Kopien gegen Iris 6,7, Schleifen gegen Kopien
+7,0, Iris gegen Iris vom 10.11. 7,6 (Wellenphase, DH-Fortschritt). Kein Artefakt an Wasser, Nah/Fern-Übergang oder
+Spiegelung zu sehen. Complementary, Photon, BSL: noch NICHT verglichen (Läufe abgebrochen, weil der Nutzer spielte).
+
+### Schattenpass: Liste der zeichenbaren Sektionen (14.11.)
+
+`WorldRenderer.prepareShadowDraws` lief je Frame über alle Sektionen des Gitters (im 128-Mod-Pack über 10 000;
+5,9 % der Render-Thread-Samples in `mt-turn1.jfr`, fast alles im Box-Test je Sektion). Jetzt `ShadowSectionList`:
+nicht leere Sektionen mit Bereich, nach Bereich gruppiert, Koordinaten daneben; neu aufgebaut nur, wenn eine
+Sektion leer/nicht leer wird oder umzieht (`ShadowSectionList.changed()`). Ein vom Licht ganz erfasster Bereich
+(`ShadowCuller.contains`) übernimmt seine Sektionen ohne Einzeltest. Gleiche Sektionen je Bereich in gleicher
+Reihenfolge. `-Dvsdh.shadowSectionList=false` = alter Durchlauf, `=verify` = beide mit Vergleich.
+Prüfung: `verify` in einem Eclipse-Lauf, 2000 Frames ohne Abweichung; kleine Testszene (1944 Sektionen, 93 zeichenbar):
+53 µs → 11 µs je Frame (Zeit während eines fremden Spiels gemessen, nur Größenordnung). Im großen Pack nicht gemessen.
+
+Weitere Render-Thread-Allokationen aus demselben JFR entfernt: `PackTexturePlan.key` (String je Sampler und Draw,
+16 MB/30 s; `NativeWorldTextures.resolve` merkt sich die Antwort) und `Integer`-Boxing im DH-Puffercache
+(27 MB/30 s; `Int2ObjectOpenHashMap`). Kein FPS-Anspruch.
+
+Frame-Begrenzung: kein eigener Schalter. Der vorhandene Regler „Max. Bildrate“ der Video-Seite bekommt den Hinweis
+im Tooltip (`vsdh.options.framerateLimit.tooltip`, deutsch und englisch). Beobachtung im JFR des Nutzer-Packs:
+15 DH-Weltgenerator-Threads liefen im Flug durchgehend; DHs CPU-Last-Einstellung ist Sache des Spielers.
+
+### Tick-Frames im 128-Mod-Pack: Biom-Abstand, Sprite-Upload, Uniform-Wege (14.11. nachts, Fable; NUR Code + vorhandene JFR)
+
+Kein Spieltest (vom Nutzer untersagt). Grundlage: `mt-turn1.jfr`/`.csv` (Eclipse HIGH, 1440p, Drehflug) und
+`mt-profile1.jfr`. Vorsicht bei Anteilen: der Render-Thread hat in 30 s nur 188 (turn1) bzw. 313 (profile1) Samples,
+davon 95 bzw. 215 Java-Samples (15 DH-Weltgenerator-Threads belegen den Sampler). Anteile sind grobe Werte.
+
+Befund zur Glätte: Frames > 16,7 ms (436 von 2777) folgen einander meist im Abstand 40–59 ms (203 von 435 Abständen),
+also im Takt des Client-Ticks; danach folgt oft ein 2–4-ms-Frame. Der Tick liegt bei 34 von 188 Samples (18 %):
+`ClientLevel.animateTick` 15 (davon 12 in `BiomeManager.getBiome` aus `doAnimateTick:421`), Raffman's Detailed Map 7–8
+(davon 5 über `calculateBlockTint` → `getBiome`), `TextureManager.tick` 7 (4 `memcpy` im Staging-Puffer,
+3 Interpolation), `tickEntities` 3. Present-Wartezeit 65 Samples (34,6 %), `vkWaitForFences` in `preInitFrame` 16 (8,5 %):
+Treiber/GPU, nicht änderbar.
+
+Umgesetzt (alle ergebnisgleich, je ein A/B-Schalter):
+
+| Änderung | Dateien | Schalter | Anteil im Profil | Schätzung |
+|---|---|---|---|---|
+| Fiddle-Werte je Biomzelle merken | `BiomeFiddleCache`, `BiomeManagerCornerMixin` | `-Dvsdh.biomeFiddleCache=false` | 17 von 95 Java-Samples (turn1) im Abstandsteil von `getBiome` | Mikrobenchmark: zufällige Partikel-Positionen 172 → 79 ns je Abfrage (−54 %), Farbton-Flächen 57 → 41 ns (−28 %) |
+| Nur den gelesenen Ausschnitt eines Sprite-Blatts stagen | `SubImageRange`, `VTextureSelector.uploadSubTexture` | `-Dvsdh.tightSpriteUpload=false` | 4–5 Samples `StagingBuffer.copyBuffer` (2,1 % / 1,6 %) | kopierte Bytes je animiertem Sprite um die Frame-Anzahl kleiner (32 Frames: 1/32); nicht gemessen |
+| Uniform-Lieferant je Member einmal bestimmen | `UniformRoutes`, `WorldUniforms.write`, `Std140Layout` (Typ beim Member) | `-Dvsdh.uniformRoutes=false` | `WorldUniforms.write` 10 von 188 (5,3 %) bzw. 5 von 313 (1,6 %) | etwa die Hälfte davon (4–6 String-Hash-Abfragen je Member weniger, kein `ConcurrentHashMap.computeIfAbsent`); nicht gemessen |
+| Framebuffer-Suche ohne Lambda je Render-Pass-Beginn | `SwapChain.getFramebufferId`, `Framebuffer.getFramebufferId` | – (trivial) | 17 MB / 30 s Allokation | nur Allokation |
+
+Der Mikrobenchmark (Scratchpad `perf/bench/Bench.java`, eine Variante je JVM, Rechner nicht im Leerlauf) zeigt auch:
+bei zufälligen Positionen war der Positionsspeicher allein (`BiomeCornerCache`) langsamer als Vanilla (172 gegen 152 ns
+netto), erst mit dem Zellspeicher lohnt er sich. Absolut ergibt der Benchmark nur etwa 0,2 ms je Tick für die 1334
+Vanilla-Abfragen, das Profil deutet auf mehr; welcher Wert im Spiel gilt, ist offen. Kein FPS- oder Glätte-Anspruch
+vor einer Flugmessung (mehrere Paare, Mediane).
+
+Render-Thread-Allokation ist im Pack kein Hebel: 785 MB in 30 s gegen 5,8 GB des Server-Threads und 1–2,4 GB je
+DH-Weltgenerator-Thread (zusammen über 25 GB). Größter Einzelposten auf dem Render-Thread:
+`CubicSampler.gaussianSampleVec3` (Himmel-/Nebelfarbe, 5 Läufe je Frame: Vanilla 2, DH `getFogColor` 2, `renderSky` 1;
+etwa 220 MB / 30 s `Vec3`). Nicht umgesetzt: ein Merker je Frame bräuchte Eingriffe in `ClientLevel.getSkyColor` und
+`FogRenderer.setupColor`, die viele Mods anfassen; geschätzter Gewinn unter 0,5 % der Framezeit.
+
+Nicht angefasst, Kandidaten: animierte Sprites nur hochladen, wenn sichtbar (wie Sodium; Risiko eingefrorener
+Animationen bei Mods mit eigenen Zeichenwegen); `NativeWorldShadows`-Sichtbarkeitstest (`ShadowCuller.outsideCube`,
+6 Samples); `SectionGraph.update` (1,6–2,6 %).
+
+Mod-Posten für den Spieler: Raffman's Detailed Map (`DioramaSession.tick`, `ClientMapUpdater.tick`: 7–8 von 95
+Java-Samples in turn1, 42 von 215 in profile1), Subtle Effects (`BiomeEffectsManager.tick`, `FireflyManager.tick`:
+60 von 215 in profile1 vor dem Positionsspeicher, in turn1 nicht mehr sichtbar), Distant Horizons (15 Weltgenerator-
+Threads dauerhaft aktiv, `RenderBufferHandler.buildRenderList` 3 Samples).
+
+Prüfung: `gradlew --offline build verifyDhLinks` grün, 138 Tests (neu: `BiomeFiddleCacheTest`, `SubImageRangeTest`,
+`UniformRoutesTest`). Im Spiel NICHT geprüft.

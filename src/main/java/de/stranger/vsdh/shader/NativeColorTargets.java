@@ -19,6 +19,8 @@ public final class NativeColorTargets implements AutoCloseable {
     private long feedbackBytes;
     private final Target[] targets = new Target[32];
     private final java.util.Set<Integer> storage;
+    /** Targets some geometry program samples while drawing into them, bound live (FeedbackLoops). */
+    private final java.util.Set<Integer> loops;
     private boolean initialized, closed;
 
     private static final class Target {
@@ -39,10 +41,23 @@ public final class NativeColorTargets implements AutoCloseable {
 
     /** @param storage targets a shader stores into as colorimgN; they get storage usage on every copy. */
     public NativeColorTargets(ShaderTargetLayout layout, long budgetBytes, java.util.Set<Integer> storage) {
+        this(layout, budgetBytes, storage, java.util.Set.of());
+    }
+
+    /**
+     * @param loops targets to create with attachment-feedback-loop usage; pass none unless the device has
+     *              the extension enabled. A format the device refuses with that usage keeps the snapshot copy.
+     */
+    public NativeColorTargets(ShaderTargetLayout layout, long budgetBytes, java.util.Set<Integer> storage,
+                              java.util.Set<Integer> loops) {
         RenderSystem.assertOnRenderThread();
         this.layout = layout;
         this.budgetBytes = budgetBytes;
         this.storage = java.util.Set.copyOf(storage);
+        var usable = new java.util.HashSet<Integer>();
+        for (var spec : layout.targets())
+            if (loops.contains(spec.index()) && loopUsageSupported(spec, this.storage.contains(spec.index()))) usable.add(spec.index());
+        this.loops = java.util.Set.copyOf(usable);
         // Validate EVERY target before the first allocation, including format/mipmap device support.
         var indices = new java.util.HashSet<Integer>();
         for (var spec : layout.targets()) {
@@ -77,6 +92,15 @@ public final class NativeColorTargets implements AutoCloseable {
         return (side == Side.MAIN) != target.swapped ? target.main : target.alt;
     }
 
+    /**
+     * -Dvsdh.gpuProfileFeedback=true (with -Dvsdh.gpuProfile=true): the GPU profile lists the feedback copies as
+     * "feedbackCopy" and the work between the last mark and each copy as "beforeFeedback". Diagnostics only.
+     */
+    private static final boolean PROFILE_FEEDBACK = Boolean.getBoolean("vsdh.gpuProfileFeedback");
+
+    /** Whether the target's images carry feedback-loop usage and may be sampled as attachments. */
+    boolean loop(int index) { return loops.contains(index); }
+
     /** Geometry reads the image as it stood before the draw without aliasing its output. */
     VulkanImage feedbackImage(int index, VulkanImage source) {
         var target = target(index);
@@ -88,10 +112,12 @@ public final class NativeColorTargets implements AutoCloseable {
             feedbackBytes += bytes;
         }
         boolean mipmaps = source.mipLevels > 1 && source.getSampler() == getTextureSampler(target.mipSampler);
+        if (PROFILE_FEEDBACK) net.vulkanmod.vulkan.queries.GpuTimestamps.mark("beforeFeedback");
         try (var scope = Renderer.getInstance().temporaryRenderTarget()) {
             if (mipmaps) NativeImageOps.copyColourMipChain(source, target.feedback);
             else NativeImageOps.copyBase(source, target.feedback);
         }
+        if (PROFILE_FEEDBACK) net.vulkanmod.vulkan.queries.GpuTimestamps.mark("feedbackCopy");
         sampler(target.feedback, target, mipmaps);
         return target.feedback;
     }
@@ -167,16 +193,28 @@ public final class NativeColorTargets implements AutoCloseable {
         return targets[index];
     }
     private VulkanImage allocate(ShaderTargetLayout.Target spec) {
-        int storageUsage = storage.contains(spec.index()) ? VK_IMAGE_USAGE_STORAGE_BIT : 0;
         VulkanImage image = VulkanImage.builder(spec.width(), spec.height()).setFormat(VulkanTargetFormat.of(spec.format()))
-                .setUsage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
-                        | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | storageUsage)
+                .setUsage(usage(storage.contains(spec.index()), loops.contains(spec.index())))
                 .setMipLevels(spec.levels()).setLevelViews(spec.levels() > 1)
                 .setLinearFiltering(!spec.format().integer()).setClamp(true).createVulkanImage();
         try {
             image.updateTextureSampler(policy(spec, false));
             return image;
         } catch (Throwable failure) { image.free(); throw failure; }
+    }
+    private static int usage(boolean storage, boolean loop) {
+        return VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+                | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
+                | (storage ? VK_IMAGE_USAGE_STORAGE_BIT : 0) | (loop ? VulkanImage.FEEDBACK_LOOP_USAGE : 0);
+    }
+    private static boolean loopUsageSupported(ShaderTargetLayout.Target spec, boolean storage) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            var props = org.lwjgl.vulkan.VkImageFormatProperties.calloc(stack);
+            int result = vkGetPhysicalDeviceImageFormatProperties(DeviceManager.physicalDevice, VulkanTargetFormat.of(spec.format()),
+                    VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, usage(storage, true), 0, props);
+            return result == VK_SUCCESS && props.maxExtent().width() >= spec.width() && props.maxExtent().height() >= spec.height()
+                    && props.maxMipLevels() >= spec.levels();
+        }
     }
     private static void sampler(VulkanImage image, Target target, boolean mipmaps) {
         image.updateTextureSampler(mipmaps ? target.mipSampler : target.baseSampler);

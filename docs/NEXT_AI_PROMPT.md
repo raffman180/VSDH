@@ -722,3 +722,79 @@ den tatsächlich geprüften Stand bringen. Weiter implementieren und testen.
 - 14.11.2026: Öffentliches Repository https://github.com/raffman180/VSDH (LGPL-3.0, Standardzweig `main` = Stand 258f0f3 von
   `codex/renderer-shaders`). Lokaler Zweig verfolgt `origin/main`. Noch keine CurseForge-Veröffentlichung; vorher Spieltests,
   Version/Name ohne „dev“ und NeoForge-Bereich prüfen.
+
+- 14.11.2026 abends: Veröffentlichungs-Vorbereitung 0.27.0-beta (kompiliert, 124 Unit-Tests, verifyDhLinks PASS, NICHT im Spiel):
+  Version `0.27.0-beta`, Name „VSDH“, Logo (`vsdh_logo.png`, Projekt-Icon `docs/curseforge/icon-400.png`), Links auf GitHub,
+  `credits` in mods.toml, englische Projektbeschreibung `docs/curseforge/DESCRIPTION.md`, `CHANGELOG.md`, `dist/0.27.0-beta`
+  mit SHA256SUMS. Frame-Diagnosezeilen nur noch mit `-Dvsdh.chunkDiag=true` (Testclients setzen es). Testskripte auf
+  0.27.0-beta umgestellt. Vor dem Upload offen: Release-Matrix/Smoke/Menü-/Weltwechsel mit der Einzel-JAR, NeoForge-Bereich.
+
+## Tick-Frames und Uniform-Wege (14.11.2026 nachts, Fable) – im Spiel noch zu prüfen
+
+Nur aus Code und den vorhandenen JFR-Aufnahmen gearbeitet (Spieltests waren untersagt). Neu und ergebnisgleich:
+`BiomeFiddleCache` (`-Dvsdh.biomeFiddleCache=false`), `SubImageRange` in `VTextureSelector.uploadSubTexture`
+(`-Dvsdh.tightSpriteUpload=false`), `UniformRoutes` in `WorldUniforms.write` (`-Dvsdh.uniformRoutes=false`).
+Build, 138 Tests und `verifyDhLinks` grün. Nächste Schritte, sobald der Nutzer Tests freigibt:
+1. `run-vsdh-026-flight.ps1` in Paaren je Schalter (Mediane, Frames > 16,7 ms; im 128-Mod-Pack mit `-Dvsdh.flight.turn`).
+2. Animierte Texturen ansehen (Wasser, Lava, Feuer, Portal, Mod-Sprites, interpolierte Sprites) mit
+   `tightSpriteUpload` an und aus; Smoke-Lauf mit Validation-Layern, falls das SDK da ist.
+3. `zzUniformProbe.zip` gegen Iris mit `uniformRoutes` an und aus (gleiche Werte erwartet).
+4. Kandidaten aus `docs/PERFORMANCE.md` (Ende): Himmel-/Nebelfarbe je Frame merken, sichtbare Sprites, Schattentest.
+
+## Flackern in der Ferne (14.11.2026 nachts, Fable) – im Spiel noch zu bestätigen
+
+Nutzer meldete mit der Abend-JAR „alles weiter weg flackert etwas" (Eclipse Unstable, DH 3.3.3, 1440p). Per
+Code-Analyse (kein Spieltest erlaubt) der DH-Tiefen-Feedback-Schleife zugeordnet: `dh_water` schreibt Tiefe und
+Eclipses Spiegelungs-Marsch liest `dhDepthTex` an anderen Pixeln desselben Passes, ohne Barriere dazwischen
+(undefiniert, auch im Feedback-Layout). Standard ist wieder die opake Kopie; `-Dvsdh.dhDepthFeedbackLoop=true`
+bindet die Live-Tiefe. Farb-Schleifen und Schattenliste bleiben an. Stand: kompiliert, 133 Unit-Tests,
+`verifyDhLinks` PASS; die Dist-JAR in `dist/0.27.0-beta` ist NICHT neu gepackt.
+
+Sobald der Nutzer Spieltests freigibt (Memory: keine Testclients, solange er spielt):
+1. Eclipse, DH-Wasser am Horizont und der Übergang nah/fern: ruhig? Log muss `DH depth read from the opaque copy
+   (dhDepthTex in [dh_water])` zeigen und keine Zeile `DH depth feedback loop`.
+2. Bleibt Flackern: `-Dvsdh.feedbackLoops=false` (Farb-Schleifen aus), dann `-Dvsdh.shadowSectionList=false`, je
+   einzeln; `=verify` darf kein `SHADOW_LIST mismatch` loggen. Jurgens-Shader hat gar keine Schleife (weder Farbe
+   noch DH-Tiefe): flackert es dort ebenfalls, liegt es nicht an den Schleifen.
+3. Gegenprobe `-Dvsdh.dhDepthFeedbackLoop=true`: kommt das Flackern zurück, ist die Ursache bestätigt.
+4. Eine korrekte Live-Tiefe bräuchte Selbstabhängigkeit des Subpasses plus Barriere (BY_REGION | FEEDBACK_LOOP)
+   zwischen den Draws und hilft nicht gegen Überdeckung innerhalb eines Draws: nicht weiterverfolgen, solange der
+   Gewinn (Obergrenze ≈ 0,14 ms) so klein ist.
+
+## Offene Läufe nach den Feedback-Schleifen (14.11.2026 abends, Fable)
+
+Code steht (kompiliert, 129 Unit-Tests, `verifyDhLinks` PASS); Stand und Zahlen in `docs/PERFORMANCE.md` (Ende).
+Der Nutzer spielte (Rocket League, dann CS2), deshalb fehlen diese Läufe. Vor JEDEM Lauf prüfen: kein `javaw.exe`
+mit „PrismLauncher“, kein `cs2`/`RocketLeague` oder anderes Spiel; läuft eines an, Client sofort stoppen und das
+Ergebnis verwerfen. Jeder Lauf mit Wachhund (Log länger als 6 Minuten still → stoppen), nie zwei Clients.
+
+1. Bildvergleich gegen Iris: `run-vsdh-026-compare.ps1 -Only <Pack>` für Eclipse, ComplementaryReimagined, photon,
+   BSL; dazu je ein Lauf mit Kopien: `run-vsdh-026-single.ps1 -Pack <Pack> -Tag fbcopy -Extra
+   '-PtestSysProps=vsdh.feedbackLoops=false,vsdh.shadowSectionList=verify'`. Auf Wasser, Nah/Fern-Übergang,
+   Transparentes und Spiegelungen achten; mehrere Läufe, die Szene schwankt (Iris gegen Iris ≈ 7,6 mittlere Abweichung).
+   Logzeilen: `Attachment feedback loops (colortex sampled while drawn into): {…}` nennt die Programme je Pack,
+   `SHADOW_LIST mismatch` darf nicht erscheinen.
+2. GPU je Pass für ein zweites Pack mit Schleifen (laut Logzeile wählen), je 2 Läufe mit und ohne
+   `vsdh.feedbackLoops=false`: `run-vsdh-026-profile.ps1 -Pack <Pack> -Tag fbA1 -NoJfr -Extra '-Ptest1440p',
+   '-PtestSysProps=vsdh.gpuProfileFeedback=true'`. Eclipse wiederholen und klären, warum auch `composite`,
+   `composite3`, `composite4` mit Schleifen schneller waren; einen Iris-Lauf derselben Sitzung dazunehmen
+   (`run-iris-gpu-profile.ps1 -Pack Eclipse -HighResolution`).
+3. `run-vsdh-026-release-matrix.ps1` einmal; danach Smoke, Menü- und Weltwechsel wie vor jeder Veröffentlichung.
+4. Schattenliste im großen Pack messen (`-Dvsdh.shadowSectionList=verify` loggt `walkUs`/`listUs`).
+5. Ohne Validation-Layer geprüft: bei installiertem Vulkan-SDK einmal mit Layern starten (Feedback-Layout, Flags).
+
+- 14.11. spät: Farb-Feedback-Loops standardmäßig aus (`-Dvsdh.feedbackLoops=true` schaltet sie ein): Im Monkeytalk-Pack „bewegte sich das Wasser komisch mit“ (Kamera), wahrscheinlich Lesen von colortex7/11 während überlappende Wasserfragmente schreiben. Nicht im Spiel bestätigt.
+
+- 14.11. spät: Vollbild ist standardmäßig randlos (`Config.exclusiveFullscreen=false`, Fenstermodus „Exklusives Vollbild“ schaltet es ein). Ohne Borderless Window schaltete das exklusive Vollbild beim Start und bei jedem Alt-Tab den Bildschirm um; der Nutzer hörte den Ton kurz auf ein anderes Gerät springen. Kompiliert, 140 Unit-Tests, nicht im Spiel geprüft: F11 hin und zurück, Alt-Tab, Start mit `fullscreen:true`, Optionswechsel aller drei Modi, mit und ohne Borderless Window.
+
+- 14.11. nachts: „Wasser bewegt sich noch immer mit“ nach Wechsel Jurgens → Eclipse in der Welt. Nur Code + Logs, KEINE Codeänderung. `WorldShaderSession.replaceInWorld` erreicht denselben VSDH-Zustand wie ein Weltbeitritt (Sitzung, Uniforms, Kette, SSBOs, Custom-Images, Builder, Materialtabelle, Bereiche); kein überlebender Zustand gefunden. Rest-Unterschiede: Vanillas `LevelRenderer.allChanged()` läuft nicht (andere Mods), DH-LOD-Puffer bleiben. Laut Nutzer-Logs wurde Eclipse mit abgeschalteten Farb-Schleifen nie frisch gestartet, der Bezug zum Wechsel ist unbelegt. Zuerst im Spiel klären (nur nach frischem „go“ des Nutzers): Eclipse frisch starten ohne Wechsel; nach Wechsel F3+A, dann Fenstergröße ändern; Eclipse `WATER_INTERACTION=0`; `-Dvsdh.liveShaderSwitch=false`; `-Dvsdh.uniformDump=gbuffers_water`. Verdächtige im Pack-Pfad: Vorframe-Spiegelung `colortex5` (Eclipse `lib/specular.glsl:2196-2216`), Wellen-Simulation `WATER_INTERACTION 2` (`dimensions/prepare*.csh`, SSBO, `waveSim`), Jurgens `rippleImg*`. Vergleich mit Iris: `build/reference/iris-client`, gleiche Welt und Kamera. Details: `docs/MIGRATION_STATUS.md` (oben).
+
+- 14.11. spät: „Wasser bewegt sich mit“ gefunden und behoben. Ursache: Abschnitte werden erst gebaut, wenn der Sichtgraph sie erreicht; nach Drehen/Laufen fehlte das nahe Gelände ~1 s und das flache DH-Wasser schien durch (Walk-Serie im Testclient, ohne DH sichtbar als Lücken an Chunk-Grenzen). Nicht schuld: Uniforms (Dumps pro Bild geprüft, `-Dvsdh.uniformDumpEvery=N`), Halbtausch/copyBack, UniformRoutes, Culling, Viertel-SSR, Beta von 14.11. hatte es auch. Fix: `SectionGraph.prebuildHidden` (4 nächste nie gebaute Abschnitte pro Bild, nur ohne wartende sichtbare). Walk-Test bestätigt; im Modpack und Flight-Messung mit Fix noch offen.
+
+- 15.11. früh: DH-Projektion folgt der Kamera (Bobbing, FOV), unbebaute Abschnitte offen im Sichtgraph, ChunkCatchUp. Pack-Wechsel-Lücke im Testclient von ~4 Aufnahmen auf ≤1. Gehtest (ground) zeigt in Screenshot-Differenzen keinen Unterschied durch den DH-Fix; die Differenzen mischen Bob-Phasen und sind kein sauberes Maß. Bestätigung im Modpack durch den Nutzer offen.
+
+- 15.11. 00:40: Eigentliche Ursache von „Wasser und Schatten rutschen beim Gehen mit“ (nur mit Shader, nur beim Gehen): View Bobbing steckte in gbufferProjection (Dump: Nebendiagonalen ≠ 0), Packs erwarten reine Projektion. Fix: Bob in die Modelview (`CameraBobbing`, `WorldShaderGameMixin`, wie Iris). 145 Unit-Tests, verifyDhLinks PASS. ACHTUNG: Der Mixin ist im Client NICHT gestartet worden (Nutzer testete selbst, Testlauf abgebrochen); JAR liegt im Modpack (SHA256 47DF11D6…). Zuerst klären: startet das Spiel, ist der Fehler weg? Danach ground-Test gegen Iris wiederholen.
+
+- 15.11. 01:00: Pack-Cache für sofortigen Shader-Wechsel (LRU 3, Vorwärmen beim Öffnen der Shader-Seite), 147 Unit-Tests, verifyDhLinks PASS, im Client NICHT gestartet. Offen: Testläufe (Bobbing-Mixin startet? Wechsel-Zeiten mit Cache, „Shader pack … prepared in N ms“ im Log) und Borderless gegen exklusives Vollbild messen (Nutzer: Borderless nicht smooth, exklusiv perfekt; Borderless = DXGI-Flip-Pfad). Die Modpack-JAR (47DF11D6…, Bobbing-Fix) hat der Nutzer noch nicht gestartet; sein Vollbild-Vergleich stammt aus dem Lauf 00:25–00:28 mit der JAR davor.
+
+- 15.11. 00:45: Nutzer bestätigt: Wasser/Schatten/Shader-Wechsel funktionieren („sonst funktioniert alles“). Borderless auf Wunsch des Nutzers ganz entfernt (Vollbild = exklusiv, `WindowMode` nur noch Fenster/Vollbild, `exclusiveFullscreen`/`windowedFullscreen` aus der Config). Der Ton kann beim Alt-Tab im exklusiven Vollbild wieder kurz das Gerät wechseln; dem Nutzer bekannt.

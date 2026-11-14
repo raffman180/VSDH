@@ -152,7 +152,13 @@ public class Framebuffer {
     }
 
     protected long getFramebufferId(RenderPass renderPass) {
-        return this.framebufferIds.computeIfAbsent(renderPass, renderPass1 -> createFramebuffer(renderPass));
+        // Looked up for every render pass begin: no capturing lambda on the hit path.
+        long id = this.framebufferIds.getLong(renderPass);
+        if (id == this.framebufferIds.defaultReturnValue() && !this.framebufferIds.containsKey(renderPass)) {
+            id = createFramebuffer(renderPass);
+            this.framebufferIds.put(renderPass, id);
+        }
+        return id;
     }
 
     public VkViewport.Buffer viewport(MemoryStack stack) {

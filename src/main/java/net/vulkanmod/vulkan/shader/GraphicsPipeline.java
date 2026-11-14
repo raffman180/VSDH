@@ -218,6 +218,8 @@ public class GraphicsPipeline extends Pipeline {
             pipelineInfo.basePipelineHandle(VK_NULL_HANDLE);
             pipelineInfo.basePipelineIndex(-1);
 
+            // Zero unless the pass samples its own attachments (shader pack feedback loops).
+            pipelineInfo.flags(state.renderPass.feedbackLoopPipelineFlags());
             if (!Vulkan.DYNAMIC_RENDERING) {
                 pipelineInfo.renderPass(state.renderPass.getId());
                 pipelineInfo.subpass(0);

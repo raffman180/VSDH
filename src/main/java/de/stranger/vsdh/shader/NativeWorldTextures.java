@@ -128,9 +128,22 @@ public final class NativeWorldTextures implements AutoCloseable {
             return (props.optimalTilingFeatures()&org.lwjgl.vulkan.VK10.VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)!=0;
         }
     }
+    /**
+     * The immutable plan's answer per program path and sampler. Asked for every sampler of every geometry draw;
+     * the plan builds a "program/sampler" string per lookup (16 MB of render-thread garbage in 30 s of a large pack).
+     */
+    private final java.util.HashMap<String,java.util.HashMap<String,Object>> resolved=new java.util.HashMap<>();
+    private static final Object NO_ASSET=new Object();
+    private PackTexturePlan.Asset resolve(String program,String sampler) {
+        var bySampler=resolved.get(program);
+        if(bySampler==null){bySampler=new java.util.HashMap<>();resolved.put(program,bySampler);}
+        Object found=bySampler.get(sampler);
+        if(found==null){var asset=plan.resolve(program,sampler);found=asset==null?NO_ASSET:asset;bySampler.put(sampler,found);}
+        return found==NO_ASSET?null:(PackTexturePlan.Asset)found;
+    }
     public VulkanImage image(String program,String sampler) {
         if(closed)throw new IllegalStateException("Closed pack textures");
-        var asset=plan.resolve(program,sampler);if(asset==null)return null;
+        var asset=resolve(program,sampler);if(asset==null)return null;
         if(asset instanceof PackTexturePlan.GameImage) {
             int id=Minecraft.getInstance().getTextureManager().getTexture(InventoryMenu.BLOCK_ATLAS).getId();
             var texture=GlTexture.getTexture(id);

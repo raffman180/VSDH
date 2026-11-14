@@ -116,6 +116,8 @@ public final class PackExpressions {
             if(source==null) throw new IllegalArgumentException("Unresolved custom uniform: "+name);
             source.read(frame,destination);
         }
+        /** Whether {@link #write} fills a member of this name; fixed for the life of this runtime. */
+        public boolean provides(String name) { return sources.containsKey(name); }
         public boolean write(Std140Layout.Member member,Std140Layout layout,ByteBuffer destination) {
             var source=sources.get(member.name()); if(source==null)return false;
             var shape=shapes.get(member.name());

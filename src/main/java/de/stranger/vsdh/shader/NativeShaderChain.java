@@ -32,9 +32,11 @@ public final class NativeShaderChain implements AutoCloseable {
         VulkanImage resolve(String program, SamplerPlan.Binding input);
     }
     /** Views are keyed by the images themselves: target halves swap roles between frames. */
-    private record ViewKey(List<Long> colours, long depth) {
+    private record ViewKey(List<Long> colours, long depth, int loops) {
         ViewKey { colours = List.copyOf(colours); }
     }
+    /** Bit of {@link ViewKey#loops} for the depth attachment; bit N stands for colour attachment N. */
+    private static final int DEPTH_LOOP = 1 << 31;
     public record View(Framebuffer framebuffer, RenderPass pass) implements AutoCloseable {
         @Override public void close() { pass.cleanUp(); framebuffer.cleanUp(false); }
     }
@@ -60,8 +62,18 @@ public final class NativeShaderChain implements AutoCloseable {
     private final int width, height;
 
     public NativeShaderChain(ShaderChainPlan plan, int width, int height, long colorBudgetBytes) {
+        this(plan, width, height, colorBudgetBytes, Map.of());
+    }
+
+    /**
+     * @param geometryReads colour targets each geometry program samples (FeedbackLoops.colourReads); those it
+     *                      also draws into are bound live as feedback loops. Empty: always snapshot copies.
+     */
+    public NativeShaderChain(ShaderChainPlan plan, int width, int height, long colorBudgetBytes,
+                             Map<String, java.util.Set<Integer>> geometryReads) {
         RenderSystem.assertOnRenderThread();
         this.plan = plan;
+        this.geometryReads = Map.copyOf(geometryReads);
         this.width = width;
         this.height = height;
         var layout = ShaderTargetLayout.of(plan.targets(), width, height,
@@ -72,7 +84,27 @@ public final class NativeShaderChain implements AutoCloseable {
             pass.images().values().forEach(image -> storage.add(image.target()));
         }
         for (var compute : plan.setup()) compute.images().values().forEach(image -> storage.add(image.target()));
-        targets = new NativeColorTargets(layout, colorBudgetBytes, storage);
+        var loops = new java.util.HashSet<Integer>();
+        for (var step : plan.targets().schedule().steps()) {
+            if (step.fullscreen()) continue;
+            var reads = this.geometryReads.getOrDefault(FeedbackLoops.bare(step.program()), java.util.Set.of());
+            var writes = plan.targets().writes(step.program());
+            loops.addAll(FeedbackLoops.loops(step, writes, reads));
+            plan.targets().schedule().stepAfterDeferred(step.program())
+                    .ifPresent(late -> loops.addAll(FeedbackLoops.loops(late, writes, reads)));
+        }
+        targets = new NativeColorTargets(layout, colorBudgetBytes, storage, loops);
+        if (!loops.isEmpty()) {
+            var described = new java.util.TreeMap<String, java.util.Set<Integer>>();
+            for (var step : plan.targets().schedule().steps()) {
+                if (step.fullscreen()) continue;
+                String name = FeedbackLoops.bare(step.program());
+                var found = new java.util.TreeSet<>(loops(name, false));
+                found.addAll(loops(name, true));
+                if (!found.isEmpty()) described.put(name, found);
+            }
+            org.slf4j.LoggerFactory.getLogger("VSDH").info("Attachment feedback loops (colortex sampled while drawn into): {}", described);
+        }
         swappable = swappable(plan);
         try {
             for (var compute : plan.setup()) setup.add(runtimeCompute(compute));
@@ -92,7 +124,7 @@ public final class NativeShaderChain implements AutoCloseable {
                         runtime.add(new RuntimePass(source, null, List.of(), computes));
                         continue;
                     }
-                    View view = source.outputs().isEmpty() ? null : view(source.outputs(), null);
+                    View view = source.outputs().isEmpty() ? null : view(source.outputs(), null, 0);
                     // Iris presents FINAL with blending disabled. Earlier passes can blend into
                     // their scheduled destination, whose existing contents are loaded by the pass.
                     int blend = stage == ShaderChainPlan.Stage.FINAL ? 0
@@ -227,7 +259,7 @@ public final class NativeShaderChain implements AutoCloseable {
                 && finalImage.format == output.format) return finalImage;
         if (finalImage != null) {
             lastViews.clear();
-            var stale = views.remove(new ViewKey(List.of(finalImage.getId()), 0));
+            var stale = views.remove(new ViewKey(List.of(finalImage.getId()), 0, 0));
             if (stale != null) stale.close();
             finalImage.free();
         }
@@ -294,7 +326,7 @@ public final class NativeShaderChain implements AutoCloseable {
                     net.vulkanmod.vulkan.queries.GpuTimestamps.mark(source.name() + "/mips");
                 uniforms.update(source, runtime.pipeline());
                 bindTargets(source, runtime.pipeline());
-                View output = runtime.external() ? externalView(finalImage(finalOutput)) : view(runtime.outputs(), null);
+                View output = runtime.external() ? externalView(finalImage(finalOutput)) : view(runtime.outputs(), null, 0);
                 // Layout transitions and barriers recorded so far, apart from the pass itself (Iris: sN/setupM).
                 if (net.vulkanmod.vulkan.queries.GpuTimestamps.ENABLED) {
                     runtime.pipeline().transitionInputs();
@@ -321,6 +353,11 @@ public final class NativeShaderChain implements AutoCloseable {
 
     /** Borrowed geometry outputs on the same schedule; no fallback onto the normal world framebuffer. */
     public View geometry(String program, boolean afterDeferred, VulkanImage depth) {
+        return geometry(program, afterDeferred, depth, false);
+    }
+
+    /** @param depthLoop the program samples {@code depth} itself while drawing into it (DH depth, FeedbackLoops) */
+    public View geometry(String program, boolean afterDeferred, VulkanImage depth, boolean depthLoop) {
         RenderSystem.assertOnRenderThread();
         requireUsable();
         var memo = afterDeferred ? geometryOutputsLate : geometryOutputs;
@@ -331,8 +368,34 @@ public final class NativeShaderChain implements AutoCloseable {
             attachments = plan.targets().writes(program).stream()
                     .map(index -> new ShaderChainPlan.Attachment(index, step.write(index))).toList();
             memo.put(program, attachments);
+            var loops = loops(program, afterDeferred);
+            int mask = 0;
+            for (int i = 0; i < attachments.size(); i++) if (loops.contains(attachments.get(i).target())) mask |= 1 << i;
+            geometryLoopMasks.put(attachments, mask);
         }
-        return view(attachments, depth);
+        return view(attachments, depth, geometryLoopMasks.get(attachments) | (depthLoop && depth != null ? DEPTH_LOOP : 0));
+    }
+
+    private final Map<String, java.util.Set<Integer>> geometryReads;
+    private final Map<String, java.util.Set<Integer>> loopMemo = new HashMap<>(), loopMemoLate = new HashMap<>();
+    /** By list identity, like {@link #lastViews}: the lists are the memoised ones of {@link #geometry}. */
+    private final java.util.IdentityHashMap<List<ShaderChainPlan.Attachment>, Integer> geometryLoopMasks = new java.util.IdentityHashMap<>();
+
+    /** Targets this program samples from the half it draws into at that moment, bound live (see FeedbackLoops). */
+    private java.util.Set<Integer> loops(String program, boolean afterDeferred) {
+        var memo = afterDeferred ? loopMemoLate : loopMemo;
+        var found = memo.get(program);
+        if (found == null) {
+            var reads = geometryReads.getOrDefault(program, java.util.Set.of());
+            var step = (afterDeferred ? plan.targets().schedule().stepAfterDeferred(program) : plan.targets().schedule().step(program));
+            var result = new java.util.HashSet<Integer>();
+            if (step.isPresent() && !reads.isEmpty())
+                for (int index : FeedbackLoops.loops(step.get(), plan.targets().writes(program), reads))
+                    if (targets.loop(index)) result.add(index);
+            found = java.util.Set.copyOf(result);
+            memo.put(program, found);
+        }
+        return found;
     }
 
     /**
@@ -348,8 +411,11 @@ public final class NativeShaderChain implements AutoCloseable {
         var step = (afterDeferred ? plan.targets().schedule().stepAfterDeferred(program)
                 : plan.targets().schedule().step(program)).orElseThrow();
         var source = targets.image(index, step.read(index));
-        if (plan.targets().writes(program).contains(index) && source == targets.image(index, step.write(index)))
+        if (plan.targets().writes(program).contains(index) && source == targets.image(index, step.write(index))) {
+            // Live attachment where the pass was built as a feedback loop, else a snapshot from before the draw.
+            if (loops(program, afterDeferred).contains(index)) return source;
             return targets.feedbackImage(index, source);
+        }
         return source;
     }
 
@@ -361,7 +427,7 @@ public final class NativeShaderChain implements AutoCloseable {
             attachments=sceneAttachments(program,afterDeferred);
             memo.put(program,attachments);
         }
-        return view(attachments,depth);
+        return view(attachments,depth,0);
     }
 
     private List<ShaderChainPlan.Attachment> sceneAttachments(String program,boolean afterDeferred) {
@@ -383,11 +449,11 @@ public final class NativeShaderChain implements AutoCloseable {
 
     /** Last answer per attachment list: images are looked up per frame, but rarely change. */
     private final java.util.IdentityHashMap<List<ShaderChainPlan.Attachment>, CachedView> lastViews = new java.util.IdentityHashMap<>();
-    private record CachedView(VulkanImage[] colors, VulkanImage depth, View view) {}
+    private record CachedView(VulkanImage[] colors, VulkanImage depth, int loops, View view) {}
 
-    private View view(List<ShaderChainPlan.Attachment> attachments, VulkanImage depth) {
+    private View view(List<ShaderChainPlan.Attachment> attachments, VulkanImage depth, int loops) {
         var last = lastViews.get(attachments);
-        if (last != null && last.depth() == depth && last.colors().length == attachments.size()) {
+        if (last != null && last.depth() == depth && last.loops() == loops && last.colors().length == attachments.size()) {
             boolean same = true;
             for (int i = 0; same && i < attachments.size(); i++) {
                 var a = attachments.get(i);
@@ -395,32 +461,35 @@ public final class NativeShaderChain implements AutoCloseable {
             }
             if (same) return last.view();
         }
-        View found = lookupView(attachments, depth);
+        View found = lookupView(attachments, depth, loops);
         VulkanImage[] colors = new VulkanImage[attachments.size()];
         for (int i = 0; i < colors.length; i++) colors[i] = targets.image(attachments.get(i).target(), attachments.get(i).side());
-        lastViews.put(attachments, new CachedView(colors, depth, found));
+        lastViews.put(attachments, new CachedView(colors, depth, loops, found));
         return found;
     }
 
-    private View lookupView(List<ShaderChainPlan.Attachment> attachments, VulkanImage depth) {
+    private View lookupView(List<ShaderChainPlan.Attachment> attachments, VulkanImage depth, int loops) {
         if (attachments.isEmpty() || attachments.size() > DeviceManager.deviceProperties.limits().maxColorAttachments())
             throw new IllegalArgumentException("Invalid shader color output count: " + attachments.size());
         VulkanImage[] colors = attachments.stream().map(a -> targets.image(a.target(), a.side())).toArray(VulkanImage[]::new);
         var ids = new ArrayList<Long>(colors.length);
         for (VulkanImage color : colors) ids.add(color.getId());
-        ViewKey key = new ViewKey(ids, depth == null ? 0 : depth.getId());
-        return views.computeIfAbsent(key, ignored -> createView(colors, depth));
+        ViewKey key = new ViewKey(ids, depth == null ? 0 : depth.getId(), loops);
+        return views.computeIfAbsent(key, ignored -> createView(colors, depth, loops));
     }
     private View externalView(VulkanImage color) {
         if (color == null) throw new IllegalArgumentException("Missing presentation image");
-        ViewKey key = new ViewKey(List.of(color.getId()), 0);
-        return views.computeIfAbsent(key, ignored -> createView(new VulkanImage[]{color}, null));
+        ViewKey key = new ViewKey(List.of(color.getId()), 0, 0);
+        return views.computeIfAbsent(key, ignored -> createView(new VulkanImage[]{color}, null, 0));
     }
-    private static View createView(VulkanImage[] colors, VulkanImage depth) {
+    private static View createView(VulkanImage[] colors, VulkanImage depth, int loops) {
         var framebuffer = Framebuffer.builder(colors, depth).ownsAttachments(false).build();
         try {
             var builder = RenderPass.builder(framebuffer).setLoadOp(VK_ATTACHMENT_LOAD_OP_LOAD);
             if (depth != null) builder.getDepthAttachmentInfo().setOps(VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE);
+            // Attachments the pass samples itself use the feedback-loop layout (their images carry the usage).
+            for (int i = 0; i < colors.length; i++) if ((loops & 1 << i) != 0) builder.getColorAttachmentInfo(i).setFeedbackLoop();
+            if ((loops & DEPTH_LOOP) != 0) builder.getDepthAttachmentInfo().setFeedbackLoop();
             return new View(framebuffer, builder.build());
         } catch (Throwable failure) { framebuffer.cleanUp(false); throw failure; }
     }

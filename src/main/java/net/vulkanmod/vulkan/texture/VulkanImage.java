@@ -384,6 +384,11 @@ public class VulkanImage {
                 srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
                 sourceStage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
             }
+            // VK_EXT_attachment_feedback_loop_layout: attachment and sampled image of one pass.
+            case FEEDBACK_LOOP_LAYOUT -> {
+                srcAccessMask = feedbackLoopAccess(image);
+                sourceStage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+            }
             default -> throw new RuntimeException("Unexpected value:" + image.currentLayout);
         }
 
@@ -415,11 +420,26 @@ public class VulkanImage {
                 dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
                 destinationStage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
             }
+            case FEEDBACK_LOOP_LAYOUT -> {
+                dstAccessMask = feedbackLoopAccess(image);
+                destinationStage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+            }
             default -> throw new RuntimeException("Unexpected value:" + newLayout);
         }
 
         transitionLayout(stack, commandBuffer, image, image.currentLayout, newLayout,
                 sourceStage, srcAccessMask, destinationStage, dstAccessMask);
+    }
+
+    /** VK_IMAGE_LAYOUT_ATTACHMENT_FEEDBACK_LOOP_OPTIMAL_EXT. */
+    public static final int FEEDBACK_LOOP_LAYOUT = 1000339000;
+    /** VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT. */
+    public static final int FEEDBACK_LOOP_USAGE = 0x00080000;
+
+    private static int feedbackLoopAccess(VulkanImage image) {
+        return VK_ACCESS_SHADER_READ_BIT | (isDepthFormat(image.format)
+                ? VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+                : VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
     }
 
     public static void transitionLayout(MemoryStack stack, VkCommandBuffer commandBuffer, VulkanImage image, int oldLayout, int newLayout,

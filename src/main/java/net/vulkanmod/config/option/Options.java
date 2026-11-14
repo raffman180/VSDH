@@ -118,14 +118,11 @@ public abstract class Options {
                 WindowMode.values(),
                 value -> {
                     minecraftOptions.fullscreen().set(value == WindowMode.EXCLUSIVE_FULLSCREEN);
-                    config.windowedFullscreen = (value == WindowMode.WINDOWED_FULLSCREEN);
                     fullscreenDirty = true;
                 },
-                () -> minecraftOptions.fullscreen().get() ? WindowMode.EXCLUSIVE_FULLSCREEN
-                        : config.windowedFullscreen ? WindowMode.WINDOWED_FULLSCREEN
-                        : WindowMode.WINDOWED)
+                () -> WindowMode.of(minecraftOptions.fullscreen().get()))
                 .setTranslator(value -> Component.translatable(WindowMode.getComponentName(value)))
-                .setTooltip(Component.translatable("vulkanmod.options.windowMode.tooltip"));
+                .setTooltip(Component.translatable("vsdh.options.windowMode.tooltip"));
 
         resolutionOption.setActivationFn(() -> windowModeOption.getNewValue() == WindowMode.EXCLUSIVE_FULLSCREEN);
         RefreshRate.setActivationFn(() -> windowModeOption.getNewValue() == WindowMode.EXCLUSIVE_FULLSCREEN);
@@ -150,7 +147,7 @@ public abstract class Options {
                                      window.setFramerateLimit(value);
                                  },
                                  () -> minecraftOptions.framerateLimit().get())
-                                .setTooltip(Component.translatable("vulkanmod.options.framerateLimit.tooltip")),
+                                .setTooltip(Component.translatable("vsdh.options.framerateLimit.tooltip")),
                          new SwitchOption(Component.translatable("options.vsync"),
                                  value -> {
                                      minecraftOptions.enableVsync().set(value);

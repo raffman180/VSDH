@@ -13,6 +13,9 @@ public final class ChunkFrameDiagnostics {
     static final float SPIKE_FRAME_MS = Float.parseFloat(System.getProperty("vsdh.spikeMs", "25"));
     private static final long MIN_LOG_INTERVAL_NANOS = Long.getLong("vsdh.spikeLogMs", 250L) * 1_000_000L;
 
+    /** Spike and buffer lines in the log only on request (-Dvsdh.chunkDiag=true or -Dvsdh.spikeMs=...); players' logs stay quiet. */
+    static final boolean LOG_LINES = Boolean.getBoolean("vsdh.chunkDiag") || System.getProperty("vsdh.spikeMs") != null;
+
     private static final long STATS_INTERVAL_NANOS = 30_000_000_000L;
 
     private static List<GarbageCollectorMXBean> gcBeans;
@@ -164,7 +167,7 @@ public final class ChunkFrameDiagnostics {
         long buildNanos = workerBuildNanosTotal.getAndSet(0);
         long buildMaxNanos = workerBuildNanosMax.getAndSet(0);
 
-        if (isSpike(frameMs)) {
+        if (LOG_LINES && isSpike(frameMs)) {
             long now = System.nanoTime();
             if (now - lastLogNanos >= MIN_LOG_INTERVAL_NANOS) {
                 Initializer.LOGGER.info(formatSpikeLine(frameMs, gcDeltaMs, suppressedSpikes,
@@ -205,6 +208,7 @@ public final class ChunkFrameDiagnostics {
     }
 
     private static void logPeriodicBufferStats() {
+        if (!LOG_LINES) return;
         long now = System.nanoTime();
         if (now - lastStatsLogNanos < STATS_INTERVAL_NANOS) {
             return;

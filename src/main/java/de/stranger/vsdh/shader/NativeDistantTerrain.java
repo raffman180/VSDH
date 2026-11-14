@@ -20,8 +20,22 @@ public final class NativeDistantTerrain implements AutoCloseable {
         this.plan = worldPlan.distant();
         var targets = worldPlan.chain().targets();
         try {
-            depth = createDepth(width, height);
-            opaqueDepth = createDepth(width, height);
+            if (FeedbackLoops.distantDepthEnabled() && loopDepthSupported(width, height))
+                for (var source : plan.programs())
+                    if (FeedbackLoops.distantDepthLoop(PackUsage.activeSamplers(java.util.List.of(source)))) liveDepth.add(source);
+            if (!liveDepth.isEmpty())
+                org.slf4j.LoggerFactory.getLogger("VSDH").info("DH depth feedback loop (dhDepthTex bound live): {}",
+                        liveDepth.stream().map(source -> FeedbackLoops.bare(source.path())).sorted().toList());
+            else {
+                var copied = plan.programs().stream()
+                        .filter(source -> FeedbackLoops.distantDepthLoop(PackUsage.activeSamplers(java.util.List.of(source))))
+                        .map(source -> FeedbackLoops.bare(source.path())).sorted().toList();
+                if (!copied.isEmpty())
+                    org.slf4j.LoggerFactory.getLogger("VSDH").info("DH depth read from the opaque copy (dhDepthTex in {}); "
+                            + "-Dvsdh.dhDepthFeedbackLoop=true binds the live depth", copied);
+            }
+            depth = createDepth(width, height, !liveDepth.isEmpty());
+            opaqueDepth = createDepth(width, height, false);
             terrain = new NativeDistantPass(plan.terrain(), NativeBlend.forProgram(targets,"dh_terrain",targets.writes("dh_terrain").size()));
             water = new NativeDistantPass(plan.water(), NativeBlend.forProgram(targets,"dh_water",targets.writes("dh_water").size()), true);
             if (plan.generic() != null)
@@ -32,10 +46,31 @@ public final class NativeDistantTerrain implements AutoCloseable {
         }
     }
 
-    private static VulkanImage createDepth(int width, int height) {
+    private static VulkanImage createDepth(int width, int height, boolean loop) {
         int usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
-                | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+                | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | (loop ? VulkanImage.FEEDBACK_LOOP_USAGE : 0);
         return VulkanImage.createDepthImage(VK_FORMAT_D32_SFLOAT, width, height, usage, false, true);
+    }
+
+    /**
+     * DH programs that sample dhDepthTex/dhDepthTex0 read the opaque copy: stable for the whole water pass.
+     * Only with -Dvsdh.dhDepthFeedbackLoop=true (and the feedback-loop layout) do they read the full DH depth
+     * while drawing into it, as under Iris; that read races with the depth writes of the same pass and made
+     * distant water flicker (FeedbackLoops.DISTANT_DEPTH_REQUESTED). The full and the opaque depth stay two
+     * images either way.
+     */
+    private final java.util.Set<PackProgramSource.Prepared> liveDepth = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+    boolean liveDepth(PackProgramSource.Prepared source) { return liveDepth.contains(source); }
+    boolean anyLiveDepth() { return !liveDepth.isEmpty(); }
+    private static boolean loopDepthSupported(int width, int height) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            var props = org.lwjgl.vulkan.VkImageFormatProperties.calloc(stack);
+            int usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+                    | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VulkanImage.FEEDBACK_LOOP_USAGE;
+            return vkGetPhysicalDeviceImageFormatProperties(net.vulkanmod.vulkan.device.DeviceManager.physicalDevice, VK_FORMAT_D32_SFLOAT,
+                    VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, usage, 0, props) == VK_SUCCESS
+                    && props.maxExtent().width() >= width && props.maxExtent().height() >= height;
+        }
     }
 
     void beginFrame() {
@@ -81,7 +116,7 @@ public final class NativeDistantTerrain implements AutoCloseable {
     private void draw(WorldShaderSession session, Batch batch, PackProgramSource.Prepared source,
                       NativeDistantPass pipeline, boolean translucent) {
         if (batch.size == 0) return;
-        var target = session.chain().geometry(source.path().substring(source.path().lastIndexOf('/') + 1), translucent, depth);
+        var target = session.chain().geometry(source.path().substring(source.path().lastIndexOf('/') + 1), translucent, depth, liveDepth(source));
         session.writeDistant(pipeline, source, translucent);
         try (var stack = MemoryStack.stackPush()) {
             var offset = stack.malloc(12);

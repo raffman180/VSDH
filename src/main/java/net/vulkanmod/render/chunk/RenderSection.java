@@ -75,10 +75,11 @@ public class RenderSection {
         if (this.chunkArea != null) {
             this.reset();
         }
-
         this.xOffset = x;
         this.yOffset = y;
         this.zOffset = z;
+        // After the writes: a list built from this epoch on must see the new origin.
+        ShadowSectionList.changed();
     }
 
     public VBO getBlockLayerVbo() { return this.blockLayerVbo; }
@@ -310,6 +311,24 @@ public class RenderSection {
         return flag;
     }
 
+    /**
+     * Never built since it entered the grid and no build in flight: a candidate for building before the camera first
+     * looks at it (SectionGraph.prebuildHidden).
+     */
+    public boolean awaitsFirstBuild() {
+        return this.dirty && this.compileStatus.compiledSection == CompiledSection.UNCOMPILED && this.compileStatus.buildTask == null;
+    }
+
+    /** Never compiled since it entered the grid (a build may be in flight). */
+    public boolean isUncompiled() {
+        return this.compileStatus.compiledSection == CompiledSection.UNCOMPILED;
+    }
+
+    /** Whether its chunk can be built now; sections at the edge of loaded terrain wait for the server. */
+    public boolean chunkRenderReady() {
+        return ChunkStatusMap.INSTANCE.chunkRenderReady(this.xOffset >> 4, this.zOffset >> 4);
+    }
+
     public void setNotDirty() {
         this.dirty = false;
         this.playerChanged = false;
@@ -341,6 +360,7 @@ public class RenderSection {
 
     public void setChunkArea(ChunkArea chunkArea) {
         this.chunkArea = chunkArea;
+        ShadowSectionList.changed();
 
         this.frustumIndex = chunkArea.getFrustumIndex(xOffset, yOffset, zOffset);
     }
@@ -362,7 +382,9 @@ public class RenderSection {
     }
 
     public void setCompletelyEmpty(boolean b) {
+        boolean changed = this.completelyEmpty != b;
         this.completelyEmpty = b;
+        if (changed) ShadowSectionList.changed(); // after the write, see setOrigin
     }
 
     public void setContainsBlockEntities(boolean b) {
@@ -430,7 +452,9 @@ public class RenderSection {
         this.compileStatus.consecutiveBuildFailures = 0;
         this.dirty = true;
         this.visibility = 0;
+        boolean drawable = !this.completelyEmpty;
         this.completelyEmpty = true;
+        if (drawable) ShadowSectionList.changed();
         this.containsBlockEntities = false;
 
         Throwable failure = null;

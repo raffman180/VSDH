@@ -357,7 +357,12 @@ public class SwapChain extends Framebuffer {
 
     @Override
     protected long getFramebufferId(RenderPass renderPass) {
-        long[] framebuffers = this.FBO_map.computeIfAbsent(renderPass.id, renderPass1 -> createFramebuffers(renderPass));
+        // Looked up for every render pass begin: no capturing lambda on the hit path.
+        long[] framebuffers = this.FBO_map.get(renderPass.id);
+        if (framebuffers == null) {
+            framebuffers = createFramebuffers(renderPass);
+            if (framebuffers != null) this.FBO_map.put(renderPass.id, framebuffers);
+        }
         return framebuffers[Renderer.getCurrentImage()];
     }
 

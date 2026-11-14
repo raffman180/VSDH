@@ -20,7 +20,9 @@ public final class Std140Layout {
     public record Member(String name, String type, int offset, int size, int alignment,
                          int arrayLength, int arrayStride, int matrixStride) {}
     private final List<Member> members;
-    private final Map<String, Member> names;
+    /** A member with its parsed type: one lookup per write instead of a second one in the type table. */
+    private record Slot(Member member, TypeInfo info) {}
+    private final Map<String, Slot> names;
     private final int size;
 
     public Std140Layout(List<Uniform> uniforms) {
@@ -53,16 +55,19 @@ public final class Std140Layout {
             blockAlignment = Math.max(blockAlignment, alignment);
         }
         members = List.copyOf(ordered);
-        names = Map.copyOf(indexed);
+        var slots = new LinkedHashMap<String, Slot>();
+        indexed.forEach((name, member) -> slots.put(name, new Slot(member, typeInfo(member.type()))));
+        names = Map.copyOf(slots);
         size = align(cursor, blockAlignment);
     }
 
     public List<Member> members() { return members; }
     public int size() { return size; }
-    public Member member(String name) {
-        Member member = names.get(name);
-        if (member == null) throw new IllegalArgumentException("Unknown uniform " + name);
-        return member;
+    public Member member(String name) { return slot(name).member; }
+    private Slot slot(String name) {
+        Slot slot = names.get(name);
+        if (slot == null) throw new IllegalArgumentException("Unknown uniform " + name);
+        return slot;
     }
 
     /** Parsed once per GLSL type: the write path runs for every active uniform in every frame. */
@@ -83,8 +88,9 @@ public final class Std140Layout {
 
     /** Write scalar/vector/matrix float values in column-major order without disturbing padding. */
     public void putFloats(ByteBuffer destination, String name, int arrayIndex, float... values) {
-        Member member = member(name);
-        TypeInfo info = typeInfo(member.type);
+        Slot slot = slot(name);
+        Member member = slot.member;
+        TypeInfo info = slot.info;
         if (!info.floats())
             throw new IllegalArgumentException("Not a float uniform: " + member.type);
         int offset = elementOffset(destination, member, arrayIndex);
@@ -103,8 +109,9 @@ public final class Std140Layout {
     }
 
     public void putInts(ByteBuffer destination, String name, int arrayIndex, int... values) {
-        Member member = member(name);
-        if (!typeInfo(member.type).ints())
+        Slot slot = slot(name);
+        Member member = slot.member;
+        if (!slot.info.ints())
             throw new IllegalArgumentException("Not an integer uniform: " + member.type);
         int offset = elementOffset(destination, member, arrayIndex);
         int count = member.type.length() <= 4 ? 1 : member.type.charAt(member.type.length() - 1) - '0';

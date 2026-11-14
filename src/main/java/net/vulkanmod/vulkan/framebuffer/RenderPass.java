@@ -44,16 +44,16 @@ public class RenderPass {
             VkAttachmentReference.Buffer colorRefs = colors.length == 0 ? null : VkAttachmentReference.calloc(colors.length, stack);
             for (int i = 0; i < colors.length; i++) {
                 AttachmentInfo info = colors[i];
-                describe(descriptions.get(i), info, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-                colorRefs.get(i).attachment(i).layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                describe(descriptions.get(i), info, info.attachmentLayout());
+                colorRefs.get(i).attachment(i).layout(info.attachmentLayout());
             }
             VkSubpassDescription.Buffer subpass = VkSubpassDescription.calloc(1, stack);
             subpass.pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS).pColorAttachments(colorRefs);
             subpass.colorAttachmentCount(colors.length);
             if (depthAttachmentInfo != null) {
-                describe(descriptions.get(colors.length), depthAttachmentInfo, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+                describe(descriptions.get(colors.length), depthAttachmentInfo, depthAttachmentInfo.attachmentLayout());
                 VkAttachmentReference depthRef = VkAttachmentReference.calloc(stack)
-                        .attachment(colors.length).layout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+                        .attachment(colors.length).layout(depthAttachmentInfo.attachmentLayout());
                 subpass.pDepthStencilAttachment(depthRef);
             }
             VkRenderPassCreateInfo info = VkRenderPassCreateInfo.calloc(stack).sType$Default()
@@ -81,6 +81,8 @@ public class RenderPass {
         boolean loads = depth != null && depth.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD;
         boolean presents = false;
         boolean samples = depth != null && depth.finalLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        boolean feedback = depth != null && depth.feedbackLoop;
+        for (AttachmentInfo color : colors) feedback |= color.feedbackLoop;
         int stages = depth == null ? 0 : VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
         int writes = depth == null ? 0 : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
         int reads = depth == null ? 0 : VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
@@ -91,6 +93,11 @@ public class RenderPass {
             stages |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
             writes |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
             reads |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        }
+        if (feedback) {
+            // The pass samples its own attachments: their earlier writes must be visible to the shader.
+            stages |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            reads |= VK_ACCESS_SHADER_READ_BIT;
         }
         int count = (loads ? 1 : 0) + (presents ? 1 : 0) + (samples ? 1 : 0);
         if (count == 0) return null;
@@ -108,9 +115,19 @@ public class RenderPass {
 
     private void transitionForRendering(VkCommandBuffer cmd, MemoryStack stack) {
         for (int i = 0; i < colors.length; i++)
-            framebuffer.getColorAttachment(i).transitionImageLayout(stack, cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+            framebuffer.getColorAttachment(i).transitionImageLayout(stack, cmd, colors[i].attachmentLayout());
         if (depthAttachmentInfo != null)
-            framebuffer.getDepthAttachment().transitionImageLayout(stack, cmd, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+            framebuffer.getDepthAttachment().transitionImageLayout(stack, cmd, depthAttachmentInfo.attachmentLayout());
+    }
+    /** Whether colour attachment {@code index} may be sampled by the pass itself (feedback loop layout). */
+    public boolean colorFeedbackLoop(int index) { return colors[index].feedbackLoop; }
+    public boolean depthFeedbackLoop() { return depthAttachmentInfo != null && depthAttachmentInfo.feedbackLoop; }
+    /** VkPipelineCreateFlags a pipeline drawing in this pass needs for its feedback loops. */
+    public int feedbackLoopPipelineFlags() {
+        int flags = depthFeedbackLoop() ? 0x04000000 /* DEPTH_STENCIL_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT */ : 0;
+        for (AttachmentInfo color : colors)
+            if (color.feedbackLoop) flags |= 0x02000000; // COLOR_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT
+        return flags;
     }
     private VkClearValue.Buffer clearValues(MemoryStack stack) {
         VkClearValue.Buffer values = VkClearValue.calloc(attachmentCount, stack);
@@ -134,9 +151,9 @@ public class RenderPass {
     }
     private void recordFinalLayouts(VkCommandBuffer cmd) {
         for (int i = 0; i < colors.length; i++)
-            completeFinalLayout(cmd, framebuffer.getColorAttachment(i), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, colors[i].finalLayout);
+            completeFinalLayout(cmd, framebuffer.getColorAttachment(i), colors[i].attachmentLayout(), colors[i].finalLayout);
         if (depthAttachmentInfo != null)
-            completeFinalLayout(cmd, framebuffer.getDepthAttachment(), VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, depthAttachmentInfo.finalLayout);
+            completeFinalLayout(cmd, framebuffer.getDepthAttachment(), depthAttachmentInfo.attachmentLayout(), depthAttachmentInfo.finalLayout);
     }
     private static void completeFinalLayout(VkCommandBuffer cmd, VulkanImage image, int attachmentLayout, int finalLayout) {
         // The render pass transitions only the attached base mip. Keep the remaining levels in
@@ -164,13 +181,13 @@ public class RenderPass {
         if (colors.length > 0) {
             VkRenderingAttachmentInfo.Buffer attachments = VkRenderingAttachmentInfo.calloc(colors.length, stack);
             for (int i = 0; i < colors.length; i++) attachments.get(i).sType$Default()
-                    .imageView(framebuffer.getColorAttachment(i).getLevelImageView(0)).imageLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+                    .imageView(framebuffer.getColorAttachment(i).getLevelImageView(0)).imageLayout(colors[i].attachmentLayout())
                     .loadOp(colors[i].loadOp).storeOp(colors[i].storeOp).clearValue(values.get(i));
             info.pColorAttachments(attachments);
         }
         if (depthAttachmentInfo != null) {
             VkRenderingAttachmentInfo depth = VkRenderingAttachmentInfo.calloc(stack).sType$Default()
-                    .imageView(framebuffer.getDepthAttachment().getLevelImageView(0)).imageLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                    .imageView(framebuffer.getDepthAttachment().getLevelImageView(0)).imageLayout(depthAttachmentInfo.attachmentLayout())
                     .loadOp(depthAttachmentInfo.loadOp).storeOp(depthAttachmentInfo.storeOp).clearValue(values.get(colors.length));
             info.pDepthAttachment(depth);
             if (VulkanImage.hasStencilComponent(depthAttachmentInfo.format)) info.pStencilAttachment(depth);
@@ -202,6 +219,19 @@ public class RenderPass {
         int finalLayout;
         int loadOp;
         int storeOp;
+        boolean feedbackLoop;
+
+        /**
+         * The pass may sample this attachment while drawing into it (VK_EXT_attachment_feedback_loop_layout).
+         * The image needs FEEDBACK_LOOP usage and stays in the feedback layout after the pass.
+         */
+        public AttachmentInfo setFeedbackLoop() {
+            if (finalLayout == type.defaultLayout) finalLayout = VulkanImage.FEEDBACK_LOOP_LAYOUT;
+            feedbackLoop = true;
+            return this;
+        }
+
+        int attachmentLayout() { return feedbackLoop ? VulkanImage.FEEDBACK_LOOP_LAYOUT : type.defaultLayout; }
 
         public AttachmentInfo(Type type, int format) {
             this.type = type;

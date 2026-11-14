@@ -58,41 +58,133 @@ public final class ShaderPackStartup {
     }
 
     /** A prepared pack; shadowFrom/shadowTo differ when the shadow map was made smaller to fit the GPU. */
-    record Prepared(WorldPackSet set,int shadowFrom,int shadowTo,String packFile,boolean budgetKnown) {
+    record Prepared(WorldPackSet set,int shadowFrom,int shadowTo,String packFile,boolean budgetKnown,PackOptionsView view) {
         boolean shadowReduced() { return shadowTo!=shadowFrom; }
     }
 
-    private record Opened(WorldPackSet set,List<String> shadowResolutions) {}
+    private record Opened(WorldPackSet set,List<String> shadowResolutions,PackOptionsView view) {}
+
+    /**
+     * Prepared packs of this session, newest use last. Preparing a large pack takes many seconds (Eclipse: about 18 s
+     * of translation and compilation on a worker); the result holds no GPU objects, so switching back to a pack that
+     * was prepared before, with the same file, profile and options, is immediate. {@code -Dvsdh.packCache=0} turns it
+     * off; the number is how many packs are kept (default 3).
+     */
+    private static final int PACK_CACHE=Math.max(0,Integer.getInteger("vsdh.packCache",3));
+    private static final java.util.LinkedHashMap<PackPreparationKey,Preparation> PREPARATIONS=new java.util.LinkedHashMap<>(8,.75f,true);
+    /** One low-priority worker for packs prepared ahead (see {@link #warm}); requests never wait in its queue. */
+    private static final java.util.concurrent.ExecutorService WARM=java.util.concurrent.Executors.newSingleThreadExecutor(task->{
+        var thread=new Thread(task,"VSDH shaderpack warm-up");
+        thread.setDaemon(true);thread.setPriority(Thread.MIN_PRIORITY);
+        return thread;
+    });
+
+    private static final java.util.concurrent.locks.ReentrantLock PREPARING=new java.util.concurrent.locks.ReentrantLock();
+
+    /** Drops the cached preparation of this selection, so the next one runs again (shadow budget now known). */
+    private static void forget(Path directory,Selection selection) {
+        try {
+            var key=key(directory,PackFileFallback.resolve(directory,selection.name()),selection);
+            synchronized(PREPARATIONS) { PREPARATIONS.remove(key); }
+        } catch(IOException|RuntimeException unreadable) {
+            // Nothing cached under a key that cannot be built.
+        }
+    }
+
+    private static final class Preparation {
+        final CompletableFuture<Prepared> future=new CompletableFuture<>();
+        final java.util.concurrent.atomic.AtomicBoolean started=new java.util.concurrent.atomic.AtomicBoolean();
+        final Runnable work;
+        Preparation(java.util.concurrent.Callable<Prepared> compute) {
+            work=()->{
+                // One pack at a time: the translator and its switches were never meant to run for two packs at once.
+                PREPARING.lock();
+                try { future.complete(compute.call()); }
+                catch(IOException failure) { future.completeExceptionally(new CompletionException(failure)); }
+                catch(Throwable failure) { future.completeExceptionally(failure); }
+                finally { PREPARING.unlock(); }
+            };
+        }
+        /** Runs the work on the calling thread unless someone already started it. */
+        void runOnce() { if(started.compareAndSet(false,true))work.run(); }
+    }
+
+    private static PackPreparationKey key(Path directory,String packFile,Selection selection) throws IOException {
+        Path path=resolvePack(directory,packFile);
+        long size=Files.isRegularFile(path)?Files.size(path):-1;
+        return new PackPreparationKey(packFile,size,Files.getLastModifiedTime(path).toMillis(),selection.profile(),selection.options(),
+                selection.distant(),Boolean.getBoolean("vsdh.reduceTrig"),Boolean.getBoolean("vsdh.flatVolumes"));
+    }
+
+    /** The cached or new preparation of this selection; not started yet when new. */
+    private static Preparation preparation(Path directory,Selection selection) throws IOException {
+        String packFile=PackFileFallback.resolve(directory,selection.name());
+        var key=key(directory,packFile,selection);
+        synchronized(PREPARATIONS) {
+            var known=PREPARATIONS.get(key);
+            if(known!=null && !known.future.isCompletedExceptionally())return known;
+            var created=new Preparation(()->compute(directory,packFile,selection));
+            if(PACK_CACHE>0) {
+                PREPARATIONS.put(key,created);
+                var eldest=PREPARATIONS.entrySet().iterator();
+                while(PREPARATIONS.size()>PACK_CACHE && eldest.hasNext()){eldest.next();eldest.remove();}
+            }
+            return created;
+        }
+    }
+
+    /**
+     * Prepares a pack ahead on a low-priority worker so that choosing it later switches at once. Does nothing for the
+     * standard renderer, for an unreadable pack or with the cache off; a failure is reported when the pack is chosen.
+     */
+    public static void warm(Selection selection) {
+        if(selection.off() || PACK_CACHE==0)return;
+        try {
+            var preparation=preparation(FMLPaths.GAMEDIR.get().resolve("shaderpacks"),selection);
+            if(!preparation.started.get())WARM.execute(preparation::runOnce);
+        } catch(IOException|RuntimeException unreadable) {
+            // Chosen later, the same error reaches the player through the normal path.
+        }
+    }
 
     private static final String SHADOW_RESOLUTION="shadowMapResolution";
 
     private static CompletableFuture<Prepared> prepare(Path directory,Selection selection) {
-        return CompletableFuture.supplyAsync(()->{
-            try {
-                // A newer version may have replaced the configured file (v1.0 -> v1.0.1): use it, keep the saved choice.
-                String packFile=PackFileFallback.resolve(directory,selection.name());
-                if(!packFile.equals(selection.name()))LOGGER.warn("Shader pack {} not found; using {} instead",selection.name(),packFile);
-                var first=open(directory,packFile,selection,selection.options(),true);
-                int resolution=largestShadowResolution(first.set());
-                long budget=preparationShadowBudget();
-                if(budget<=0 || largestShadowBytes(first.set())<=budget)return new Prepared(first.set(),resolution,resolution,packFile,budget>0);
-                // Too large for this GPU: try the pack's own smaller values of shadowMapResolution, largest first,
-                // instead of dropping the whole pack at world join. The player's saved options stay unchanged.
-                for(int smaller:ShadowResolutionFallback.smallerResolutions(first.shadowResolutions(),resolution)) {
-                    var options=new HashMap<>(selection.options());
-                    options.put(SHADOW_RESOLUTION,Integer.toString(smaller));
-                    var retry=open(directory,packFile,selection,options,false);
-                    if(largestShadowBytes(retry.set())<=budget) {
-                        LOGGER.warn("Shadow map of {} reduced from {} to {} to fit {} MiB of GPU memory",
-                                selection.name(),resolution,smaller,budget>>20);
-                        return new Prepared(retry.set(),resolution,smaller,packFile,true);
-                    }
-                }
-                return new Prepared(first.set(),resolution,resolution,packFile,true); // the world join then reports the limit
-            } catch(IOException failure) {
-                throw new CompletionException(failure);
+        Preparation preparation;
+        try {
+            preparation=preparation(directory,selection);
+        } catch(IOException|RuntimeException failure) {
+            return CompletableFuture.failedFuture(new CompletionException(failure));
+        }
+        // A pack that waits in the warm-up queue starts now, on its own worker.
+        if(!preparation.started.get())Thread.ofVirtual().name("VSDH shaderpack preparation").start(preparation::runOnce);
+        // The settings page lists the options of the pack that was asked for, also when it came from the cache.
+        preparation.future.thenAccept(prepared->{ if(prepared.view()!=null)PackOptionsView.remember(prepared.view()); });
+        return preparation.future;
+    }
+
+    private static Prepared compute(Path directory,String packFile,Selection selection) throws IOException {
+        // A newer version may have replaced the configured file (v1.0 -> v1.0.1): use it, keep the saved choice.
+        if(!packFile.equals(selection.name()))LOGGER.warn("Shader pack {} not found; using {} instead",selection.name(),packFile);
+        long started=System.nanoTime();
+        var first=open(directory,packFile,selection,selection.options(),true);
+        LOGGER.info("Shader pack {} prepared in {} ms",packFile,(System.nanoTime()-started)/1_000_000);
+        int resolution=largestShadowResolution(first.set());
+        long budget=preparationShadowBudget();
+        if(budget<=0 || largestShadowBytes(first.set())<=budget)return new Prepared(first.set(),resolution,resolution,packFile,budget>0,first.view());
+        // Too large for this GPU: try the pack's own smaller values of shadowMapResolution, largest first,
+        // instead of dropping the whole pack at world join. The player's saved options stay unchanged.
+        for(int smaller:ShadowResolutionFallback.smallerResolutions(first.shadowResolutions(),resolution)) {
+            var options=new HashMap<>(selection.options());
+            options.put(SHADOW_RESOLUTION,Integer.toString(smaller));
+            var retry=open(directory,packFile,selection,options,false);
+            if(largestShadowBytes(retry.set())<=budget) {
+                LOGGER.warn("Shadow map of {} reduced from {} to {} to fit {} MiB of GPU memory",
+                        selection.name(),resolution,smaller,budget>>20);
+                return new Prepared(retry.set(),resolution,smaller,packFile,true,first.view());
             }
-        }, command->Thread.ofVirtual().name("VSDH shaderpack preparation").start(command));
+        }
+        return new Prepared(first.set(),resolution,resolution,packFile,true,first.view()); // the world join then reports the limit
     }
 
     private static Opened open(Path directory,String packFile,Selection selection,Map<String,String> options,boolean first) throws IOException {
@@ -104,9 +196,10 @@ public final class ShaderPackStartup {
                     throw new IOException("Unsupported value for shader option " + entry.getKey());
             }
             // The settings page lists this pack's options from the same opening (no second read).
+            PackOptionsView view=null;
             if(first) {
                 try {
-                    PackOptionsView.remember(PackOptionsView.read(pack,selection.name(),selection.profile(),language()));
+                    view=PackOptionsView.read(pack,selection.name(),selection.profile(),language());
                 } catch(RuntimeException unreadable) {
                     LOGGER.warn("Cannot list the options of {}: {}",selection.name(),unreadable.toString());
                 }
@@ -118,7 +211,7 @@ public final class ShaderPackStartup {
             // under Iris; -Dvsdh.flatVolumes=true restores the 2D atlas with a shader helper.
             dev.vitrail.glsl.GlslTranslator.nativeVolumes(!Boolean.getBoolean("vsdh.flatVolumes"));
             var values=pack.options().get(SHADOW_RESOLUTION).map(dev.vitrail.pack.option.PackOption::values).orElse(List.of());
-            return new Opened(WorldPackSet.prepare(pack,selection.distant()),values);
+            return new Opened(WorldPackSet.prepare(pack,selection.distant()),values,view);
         }
     }
 
@@ -275,6 +368,7 @@ public final class ShaderPackStartup {
             var prepared=current.pending.join();
             if(ShadowResolutionFallback.needsRecheck(prepared.budgetKnown(),largestShadowBytes(prepared.set()),preparationShadowBudget())) {
                 LOGGER.info("Shadow map of {} exceeds this GPU's shadow budget; preparing it again with the device known",name);
+                forget(FMLPaths.GAMEDIR.get().resolve("shaderpacks"),current.selection); // not the cached result again
                 request=new Request(current.selection,prepare(FMLPaths.GAMEDIR.get().resolve("shaderpacks"),current.selection));
                 return;
             }

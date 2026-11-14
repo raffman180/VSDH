@@ -145,9 +145,10 @@ public final class WorldUniforms implements ExpressionFrame {
     public void capture(Camera camera, Matrix4f view, Matrix4f renderedProjection, float partialTick, int width, int height) {
         Minecraft mc=Minecraft.getInstance(); var pos=camera.getPosition();
         captureSerial++;
-        if(written.size()>512){written.clear();dynamicMembers.clear();}
+        if(written.size()>512)written.clear();
         if(previousLevel!=mc.level) {
             previousLevel=mc.level;packValues.reset();expressions=plan.expressions().runtime();lastNanos=0;
+            written.clear(); // routes name the formulas of the runtime just replaced
         }
         ForwardDepthProjection.toLegacy(renderedProjection,legacyCameraProjection);
         if(UNIFORM_DUMP!=null&&frame%240==0)org.slf4j.LoggerFactory.getLogger("VSDH-Shaders").info(
@@ -225,7 +226,13 @@ public final class WorldUniforms implements ExpressionFrame {
         captureSerial++; // DH matrices arrive mid-frame
         copyDistantMatrix(frame.dhProjectionMatrix,distantProjection);
         copyDistantMatrix(frame.dhModelViewMatrix,distantView);
-        captureDistantMatrices(distantProjection.perspectiveNear(),frame.farClipPlane);
+        float near=distantProjection.perspectiveNear(); // DH's own, before the camera's transforms are carried in
+        if(DistantProjection.FOLLOW_CAMERA) {
+            DistantProjection.followCamera(distantProjection,legacyCameraProjection);
+            // The camera's view too: it carries the view bobbing now (CameraBobbing), DH's own rotation does not.
+            distantView.set(matrices.view);
+        }
+        captureDistantMatrices(near,frame.farClipPlane);
     }
     private static void copyDistantMatrix(com.seibel.distanthorizons.core.util.math.DhMat4f source,Matrix4f destination) {
         destination.set(source.m00,source.m10,source.m20,source.m30,
@@ -260,8 +267,10 @@ public final class WorldUniforms implements ExpressionFrame {
 
     /** -Dvsdh.uniformDump=<program suffix>: log that program's written globals every 240 frames. */
     private static final String UNIFORM_DUMP=System.getProperty("vsdh.uniformDump");
+    /** -Dvsdh.uniformDumpEvery=N: dump every N frames instead of every 240 (diagnostics). */
+    private static final int UNIFORM_DUMP_EVERY=Math.max(1,Integer.getInteger("vsdh.uniformDumpEvery",240));
     private void dump(NativeUniformProgram pass) {
-        if(UNIFORM_DUMP==null||frame%240!=0||!pass.programName().endsWith(UNIFORM_DUMP))return;
+        if(UNIFORM_DUMP==null||frame%UNIFORM_DUMP_EVERY!=0||!pass.programName().endsWith(UNIFORM_DUMP))return;
         var text=new StringBuilder("UNIFORM_DUMP ").append(pass.programName()).append(':');
         var buffer=pass.uniforms();
         for(var member:pass.activeUniforms()) {
@@ -282,8 +291,19 @@ public final class WorldUniforms implements ExpressionFrame {
             "of_NormalMatrix","of_PassColour","of_TextureMatrix","renderStage","alphaTestRef","of_GlintAlpha","entityId",
             "blockEntityId","entityColor","currentRenderedItemId","gtextureSize","blendFunc","fogStart","fogEnd","fogDensity",
             "fogMode","fogShape","fogColor");
-    private final java.util.IdentityHashMap<NativeUniformProgram,long[]> written=new java.util.IdentityHashMap<>();
-    private final java.util.IdentityHashMap<NativeUniformProgram,java.util.List<Std140Layout.Member>> dynamicMembers=new java.util.IdentityHashMap<>();
+    /** Per program: when it was last written in full, and its members with the provider that fills each. */
+    private static final class PassState {
+        long serial=Long.MIN_VALUE; int space=-1;
+        Std140Layout.Member[] all,dynamic; byte[] allRoutes,dynamicRoutes;
+    }
+    private final java.util.IdentityHashMap<NativeUniformProgram,PassState> written=new java.util.IdentityHashMap<>();
+    private byte[] routes(Std140Layout.Member[] members) {
+        byte[] routes=new byte[members.length]; // all GENERIC: the full provider order
+        if(UniformRoutes.ENABLED) for(int i=0;i<members.length;i++)
+            routes[i]=UniformRoutes.route(members[i].name(),expressions::provides,PackWorldValues.NAMES,
+                    BuiltinWorldValues.NAMES,IrisStandardValues.NAMES,zeroFilled);
+        return routes;
+    }
     private long captureSerial;
     private float cameraNear=.05f;
     private void write(NativeUniformProgram pass,DrawSpace space,int renderStage,float alphaRef) {
@@ -303,20 +323,43 @@ public final class WorldUniforms implements ExpressionFrame {
         // A program drawn many times in one frame (terrain layers, particles, entities, DH batches)
         // writes its frame-constant members once per frame and space; later draws refresh only what
         // can change between draws. This was a quarter of the render thread's time at uncapped FPS.
-        long[] state=written.get(pass);
-        boolean full=state==null||state[0]!=captureSerial||state[1]!=space.ordinal();
+        PassState state=written.get(pass);
+        if(state==null){state=new PassState();written.put(pass,state);}
+        boolean full=state.serial!=captureSerial||state.space!=space.ordinal();
+        if(full){state.serial=captureSerial;state.space=space.ordinal();}
+        Std140Layout.Member[] members; byte[] routes;
         if(full) {
-            if(state==null){state=new long[2];written.put(pass,state);}
-            state[0]=captureSerial;state[1]=space.ordinal();
+            if(state.all==null) {
+                state.all=pass.activeUniforms().toArray(new Std140Layout.Member[0]);
+                state.allRoutes=routes(state.all);
+            }
+            members=state.all;routes=state.allRoutes;
+        } else {
+            if(state.dynamic==null) {
+                state.dynamic=pass.activeUniforms().stream().filter(m->PER_DRAW.contains(m.name()))
+                        .toArray(Std140Layout.Member[]::new);
+                state.dynamicRoutes=routes(state.dynamic);
+            }
+            members=state.dynamic;routes=state.dynamicRoutes;
         }
-        var members=full?pass.activeUniforms():dynamicMembers.computeIfAbsent(pass,
-                p->p.activeUniforms().stream().filter(m->PER_DRAW.contains(m.name())).toList());
-        for (var member:members) {
-            if(expressions.write(member,layout,buffer)||packValues.write(member,layout,buffer))continue;
-            if(builtins.write(member,layout,buffer))continue;
-            if(standard.write(member,layout,buffer,space==DrawSpace.FULLSCREEN))continue;
+        for (int index=0;index<members.length;index++) {
+            var member=members[index];
+            // The provider that knows this name was found once (UniformRoutes); its write still decides,
+            // and a write that declines takes the full order below.
+            byte route=routes[index];
+            if(route==UniformRoutes.CUSTOM){if(expressions.write(member,layout,buffer))continue;route=UniformRoutes.GENERIC;}
+            else if(route==UniformRoutes.PACK){if(packValues.write(member,layout,buffer))continue;route=UniformRoutes.GENERIC;}
+            else if(route==UniformRoutes.BUILTIN){if(builtins.write(member,layout,buffer))continue;route=UniformRoutes.GENERIC;}
+            else if(route==UniformRoutes.STANDARD){if(standard.write(member,layout,buffer,space==DrawSpace.FULLSCREEN))continue;route=UniformRoutes.GENERIC;}
+            else if(route==UniformRoutes.ZERO){zero(member,buffer);continue;}
             String name=member.name();
-            if(zeroFilled.contains(name)){zero(member,buffer);continue;} float[] matrix=switch(name) {
+            if(route==UniformRoutes.GENERIC) {
+                if(expressions.write(member,layout,buffer)||packValues.write(member,layout,buffer))continue;
+                if(builtins.write(member,layout,buffer))continue;
+                if(standard.write(member,layout,buffer,space==DrawSpace.FULLSCREEN))continue;
+                if(zeroFilled.contains(name)){zero(member,buffer);continue;}
+            }
+            float[] matrix=switch(name) {
                 case "of_ModelViewMatrix"->drawView;
                 case "of_ProjectionMatrix"->drawProjection;
                 case "of_ModelViewProjectionMatrix"->drawMvp;
@@ -359,7 +402,7 @@ public final class WorldUniforms implements ExpressionFrame {
         if(plan.distant()!=null){System.arraycopy(dhProjection,0,dhPrevious,0,16);dhHistory=true;}
         frame=(frame+1)%720720;
     }
-    public void reset() { matrices.reset();lastNanos=0;dhHistory=false;written.clear();dynamicMembers.clear(); }
+    public void reset() { matrices.reset();lastNanos=0;dhHistory=false;written.clear(); }
     @Override public long frameCounter() { return frame; }
     @Override public void read(String name,Val out) {
         if(builtins.read(name,out)||standard.read(name,out)||packValues.read(name,out))return;

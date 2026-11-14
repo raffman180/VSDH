@@ -191,26 +191,7 @@ public abstract class WindowMixin {
                 this.wasOnFullscreen = true;
             }
         }
-        else if (config.windowedFullscreen) {
-            VideoModeSet.VideoMode videoMode = VideoModeManager.getOsVideoMode();
-
-            if (!this.wasOnFullscreen) {
-                this.windowedX = this.x;
-                this.windowedY = this.y;
-                this.windowedWidth = this.width;
-                this.windowedHeight = this.height;
-            }
-
-            int width = videoMode.width;
-            int height = videoMode.height;
-
-            GLFW.glfwSetWindowAttrib(this.window, GLFW_DECORATED, GLFW_FALSE);
-            GLFW.glfwSetWindowMonitor(this.window, 0L, 0, 0, width, height, -1);
-
-            this.width = width;
-            this.height = height;
-            this.wasOnFullscreen = true;
-        } else {
+        else {
             this.x = this.windowedX;
             this.y = this.windowedY;
             this.width = this.windowedWidth;

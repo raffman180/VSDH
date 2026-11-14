@@ -263,6 +263,16 @@ public abstract class NativeGraphicsProgram implements NativeUniformProgram, Aut
         return false;
     }
 
+    /** The layout a bound image is sampled in: the feedback-loop layout while it is an attachment of the pass. */
+    private int sampledLayout(VulkanImage image, Framebuffer target, boolean loops) {
+        if (loops) {
+            if (image == target.getDepthAttachment()) return VulkanImage.FEEDBACK_LOOP_LAYOUT;
+            for (int i = 0; i < target.getColorAttachmentCount(); i++)
+                if (image == target.getColorAttachment(i)) return VulkanImage.FEEDBACK_LOOP_LAYOUT;
+        }
+        return storedImage(image) ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    }
+
     protected void renderDraw(Framebuffer target, RenderPass pass, PipelineState state, java.util.function.Consumer<org.lwjgl.vulkan.VkCommandBuffer> draw) {
         RenderSystem.assertOnRenderThread();
         requireOpen();
@@ -274,23 +284,26 @@ public abstract class NativeGraphicsProgram implements NativeUniformProgram, Aut
             for (int i = 0; i < target.getColorAttachmentCount(); i++)
                 if (image == target.getColorAttachment(i)) throw new IllegalArgumentException("Colour image is also an attachment: " + name);
         }
-        for (var entry : sampledDescriptors.entrySet()) {
-            int wanted = storedImage(images.get(entry.getKey())) ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            if (entry.getValue().getLayout() != wanted) entry.getValue().setLayout(wanted);
-        }
+        // An attachment of this very pass may be sampled only where the pass was built as a feedback loop
+        // (NativeShaderChain decides that from the plan); anything else is a wiring error.
+        boolean loops = pass.feedbackLoopPipelineFlags() != 0;
         for (String name : samplers.keySet()) {
             VulkanImage image = images.get(name);
             if (image == null) throw new IllegalStateException("Missing shader image " + name);
             for (int i = 0; i < target.getColorAttachmentCount(); i++)
-                if (image == target.getColorAttachment(i)) throw new IllegalArgumentException("Shader image feedback: " + name);
-            if (image == target.getDepthAttachment()) throw new IllegalArgumentException("Shader depth feedback: " + name);
+                if (image == target.getColorAttachment(i) && !pass.colorFeedbackLoop(i)) throw new IllegalArgumentException("Shader image feedback: " + name);
+            if (image == target.getDepthAttachment() && !pass.depthFeedbackLoop()) throw new IllegalArgumentException("Shader depth feedback: " + name);
+        }
+        for (var entry : sampledDescriptors.entrySet()) {
+            int wanted = sampledLayout(images.get(entry.getKey()), target, loops);
+            if (entry.getValue().getLayout() != wanted) entry.getValue().setLayout(wanted);
         }
         Renderer renderer = Renderer.getInstance();
         renderer.endRenderPass();
         try (MemoryStack stack = MemoryStack.stackPush()) {
             var command = Renderer.getCommandBuffer();
             for (var image : images.values())
-                image.transitionImageLayout(stack, command, storedImage(image) ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                image.transitionImageLayout(stack, command, sampledLayout(image, target, loops));
             target.beginRenderPass(command, pass, stack);
             vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.getHandle(state));
             // Registered so its descriptor ring is reset every frame; without it the ring grew until the

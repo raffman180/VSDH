@@ -6,3 +6,4 @@ libs/*.jar
 .idea/
 dist/
 libs/*.download
+/logs/

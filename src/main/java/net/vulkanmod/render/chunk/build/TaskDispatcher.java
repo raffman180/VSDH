@@ -290,6 +290,10 @@ public class TaskDispatcher {
         long uploadByteBudget = Initializer.CONFIG.adaptiveChunkUploads
                 ? AdaptiveChunkUploadBudget.uploadByteBudget()
                 : ChunkSchedulingPolicy.fixedUploadByteBudget();
+        if (net.vulkanmod.render.optimization.ChunkCatchUp.active()) {
+            uploadTimeBudgetNanos = Math.max(uploadTimeBudgetNanos, net.vulkanmod.render.optimization.ChunkCatchUp.UPLOAD_TIME_BUDGET_NANOS);
+            uploadByteBudget = Math.max(uploadByteBudget, net.vulkanmod.render.optimization.ChunkCatchUp.UPLOAD_BYTE_BUDGET);
+        }
         StagingBuffer stagingBuffer = Vulkan.getStagingBuffer();
         long uploadStartBytes = stagingBuffer.getUsedBytes();
 
@@ -368,9 +372,11 @@ public class TaskDispatcher {
     private int getMaxUploadsPerFrame() {
         int configuredUploads = Initializer.CONFIG.chunkUploadsPerFrame;
         int pendingUploads = this.compileResults.size() + (this.activeCompileResult == null ? 0 : 1);
-        return Initializer.CONFIG.adaptiveChunkUploads
+        int budget = Initializer.CONFIG.adaptiveChunkUploads
                 ? AdaptiveChunkUploadBudget.chooseBudget(configuredUploads, pendingUploads)
                 : clampMaxUploadsPerFrame(configuredUploads);
+        return net.vulkanmod.render.optimization.ChunkCatchUp.active()
+                ? Math.max(budget, net.vulkanmod.render.optimization.ChunkCatchUp.UPLOADS_PER_FRAME) : budget;
     }
 
     public static int clampMaxUploadsPerFrame(int uploadsPerFrame) {

@@ -1,17 +1,22 @@
 modLoader="javafml"
 loaderVersion="[4,)"
 license="LGPL-3.0-only"
+issueTrackerURL="https://github.com/raffman180/VSDH/issues"
 
 [[mods]]
 modId="vsdh"
 version="${version}"
-displayName="VSDH (development build)"
+displayName="VSDH"
+displayURL="https://github.com/raffman180/VSDH"
+logoFile="vsdh_logo.png"
 authors="Stranger; Braffolk and upstream contributors (rendering)"
+credits="VulkanMod (xCollateral) and VulkanMod Reforged (Rindw); distant-horizons-vulkanmod (Braffolk); Vitrail shader code (avpbynf); Distant Horizons (James Seibel). See NOTICE."
 description='''
-Vulkan renderer with shader packs; renders Distant Horizons natively when DH is installed (optional).
-Development target: Minecraft 1.21.1, NeoForge 21.1.264, DH 3.2.0-b and 3.3.0–3.3.3.
-Experimental shaderpack tests cover Complementary Reimagined and BSL with the native renderer.
-Pick a shader pack under Video Settings > Shaders (no restart needed). Not every pack or GPU is tested.
+Beta. Vulkan renderer with shader packs; renders Distant Horizons natively when DH is installed (optional).
+Minecraft 1.21.1, NeoForge 21.1.264; DH 3.2.0-b and 3.3.0-3.3.3, one JAR for all.
+Pick a shader pack under Video Settings > Shaders; it applies at once, also inside a world.
+Contains its own Vulkan renderer: do not install VulkanMod, Sodium, Iris, Embeddium or Oculus with it.
+Tested mainly on Windows with an NVIDIA GPU; not every shader pack, mod or GPU is supported yet.
 '''
 
 [[dependencies.vsdh]]

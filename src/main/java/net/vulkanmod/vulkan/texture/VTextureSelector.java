@@ -135,6 +135,18 @@ public abstract class VTextureSelector {
         if(texture == null)
             throw new NullPointerException("Texture is null at index: " + activeTexture);
 
+        // VSDH: stage only the bytes the copy reads (one animation frame, not the sheet of all frames).
+        if (SubImageRange.ENABLED && buffer.position() == 0) {
+            long start = SubImageRange.start(width, height, unpackSkipRows, unpackSkipPixels, unpackRowLength,
+                    texture.formatSize, buffer.limit());
+            long length = SubImageRange.length(width, height, unpackRowLength, texture.formatSize);
+            if (start >= 0 && length < buffer.limit()) {
+                texture.uploadSubTextureAsync(mipLevel, width, height, xOffset, yOffset, 0, 0, unpackRowLength,
+                        buffer.slice((int) start, (int) length));
+                return;
+            }
+        }
+
         texture.uploadSubTextureAsync(mipLevel, width, height, xOffset, yOffset, unpackSkipRows, unpackSkipPixels, unpackRowLength, buffer);
     }
 

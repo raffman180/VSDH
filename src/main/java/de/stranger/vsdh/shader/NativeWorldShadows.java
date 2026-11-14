@@ -175,7 +175,10 @@ public final class NativeWorldShadows implements AutoCloseable {
         var world=WorldRenderer.getInstance();
         var cameraPosition=camera.getPosition();
         var culler=culler(uniforms);
-        world.prepareShadowDraws(culler.shape()==ShadowCuller.Shape.NONE?null:culler::visible,cameraPosition.x,cameraPosition.y,cameraPosition.z);
+        world.prepareShadowDraws(culler.shape()==ShadowCuller.Shape.NONE?null:new WorldRenderer.ShadowBoxTest() {
+            @Override public boolean visible(float minX,float minY,float minZ,float maxX,float maxY,float maxZ) {return culler.visible(minX,minY,minZ,maxX,maxY,maxZ);}
+            @Override public boolean contains(float minX,float minY,float minZ,float maxX,float maxY,float maxZ) {return culler.contains(minX,minY,minZ,maxX,maxY,maxZ);}
+        },cameraPosition.x,cameraPosition.y,cameraPosition.z);
         lastCuller=culler;
         int previousTexture=RenderSystem.getShaderTexture(0);
         int previousOverlay=RenderSystem.getShaderTexture(1), previousLightmap=RenderSystem.getShaderTexture(2);

@@ -646,12 +646,17 @@ public final class WorldShaderSession implements MainPass {
                 NativeStorageBuffers.install(storage);
                 customImages=new NativeCustomImages(plan.chain().images(),worldDepth.width,worldDepth.height);
                 NativeCustomImages.install(customImages);
-                chain=new NativeShaderChain(plan.chain(),worldDepth.width,worldDepth.height,colorBudget);
+                chain=new NativeShaderChain(plan.chain(),worldDepth.width,worldDepth.height,colorBudget,
+                        FeedbackLoops.enabled()?FeedbackLoops.colourReads(PackUsage.programs(plan)):java.util.Map.of());
                 textures=new NativeWorldTextures(plan.textures());
                 if(plan.distant()!=null) {
                     distant=new NativeDistantTerrain(plan,worldDepth.width,worldDepth.height);
                     var dhRead=PackUsage.activeSamplers(plan.distant().programs());
-                    distant.opaqueSnapshot(read.contains("dhDepthTex1")||dhRead.contains("dhDepthTex")||dhRead.contains("dhDepthTex0")||dhRead.contains("dhDepthTex1"));
+                    // DH programs reading dhDepthTex get the opaque copy unless they are bound to the live depth.
+                    boolean copyRead=false;
+                    for(var program:plan.distant().programs())
+                        copyRead|=!distant.liveDepth(program)&&FeedbackLoops.distantDepthLoop(PackUsage.activeSamplers(java.util.List.of(program)));
+                    distant.opaqueSnapshot(read.contains("dhDepthTex1")||dhRead.contains("dhDepthTex1")||copyRead);
                 }
                 if(plan.shadow()!=null) {
                     shadows=new NativeWorldShadows(plan);
@@ -793,9 +798,10 @@ public final class WorldShaderSession implements MainPass {
             if(supplied!=null){pipeline.bindImage(sampler,supplied);continue;}
             if(depthName(sampler)){pipeline.bindImage(sampler,depth.image(sampler));continue;}
             if(distantDepth(sampler)) {
-                // A DH program cannot sample its live depth attachment. During opaque draws the
-                // snapshot is clear, and during water it holds the opaque terrain's final depth.
-                pipeline.bindImage(sampler,distant.image(dh?"dhDepthTex1":sampler));
+                // A DH program samples its live depth attachment only as a feedback loop (as Iris binds it).
+                // Otherwise it reads the opaque copy: clear during opaque draws, the opaque terrain's
+                // final depth during water.
+                pipeline.bindImage(sampler,distant.image(dh&&(sampler.equals("dhDepthTex1")||!distant.liveDepth(source))?"dhDepthTex1":sampler));
                 continue;
             }
             if(shadowName(sampler)) {

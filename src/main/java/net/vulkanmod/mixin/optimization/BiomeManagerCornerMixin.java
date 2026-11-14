@@ -3,6 +3,7 @@ package net.vulkanmod.mixin.optimization;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.world.level.biome.BiomeManager;
 import net.vulkanmod.render.optimization.BiomeCornerCache;
+import net.vulkanmod.render.optimization.BiomeFiddleCache;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -17,6 +18,10 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * the sampled render-thread time. Other threads (chunk builders, the integrated server, Distant Horizons) are
  * left alone. Not required: if another mod replaces the call, vanilla behaviour stays.
  * {@code -Dvsdh.biomeCornerCache=false} switches it off (A/B checks).
+ *
+ * <p>A position that is not remembered (the ambient-particle probes are random) takes its eight distances from
+ * {@link BiomeFiddleCache}: the per-cell part of the arithmetic is remembered, the result is bit-identical.
+ * {@code -Dvsdh.biomeFiddleCache=false} keeps the vanilla distance call for those.
  */
 @Mixin(BiomeManager.class)
 public abstract class BiomeManagerCornerMixin {
@@ -27,6 +32,9 @@ public abstract class BiomeManagerCornerMixin {
 
     @Unique
     private BiomeCornerCache vsdh$corners;
+
+    @Unique
+    private BiomeFiddleCache vsdh$fiddles;
 
     @Redirect(method = "getBiome", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/level/biome/BiomeManager;getFiddledDistance(JIIIDDD)D"), require = 0)
@@ -48,7 +56,16 @@ public abstract class BiomeManagerCornerMixin {
             return corners.hitDistance(corner);
         }
 
-        double distance = getFiddledDistance(seed, x, y, z, xNoise, yNoise, zNoise);
+        double distance;
+        if (BiomeFiddleCache.ENABLED) {
+            BiomeFiddleCache fiddles = this.vsdh$fiddles;
+            if (fiddles == null || fiddles.seed() != seed) {
+                fiddles = this.vsdh$fiddles = new BiomeFiddleCache(seed);
+            }
+            distance = fiddles.distance(x, y, z, xNoise, yNoise, zNoise);
+        } else {
+            distance = getFiddledDistance(seed, x, y, z, xNoise, yNoise, zNoise);
+        }
         corners.record(corner, distance);
         return distance;
     }

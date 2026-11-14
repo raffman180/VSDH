@@ -109,6 +109,24 @@ public final class ShadowCuller {
         };
     }
 
+    /**
+     * True only when the whole box lies inside the kept volume, so that every box inside it is
+     * {@link #visible}. Conservative for {@link Shape#SAFE_ZONE} (the near cube alone is not counted).
+     */
+    public boolean contains(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+        if (shape == Shape.NONE) return true;
+        if (minX < -limit || maxX > limit || minY < -limit || maxY > limit || minZ < -limit || maxZ > limit) return false;
+        if (shape == Shape.DISTANCE) return true;
+        for (int i = 0; i < planeCount; i++) {
+            int o = i * 4;
+            float a = planes[o], b = planes[o + 1], c = planes[o + 2], d = planes[o + 3];
+            // The corner least far along the inward normal decides whether all of it is inside.
+            float px = a < 0 ? maxX : minX, py = b < 0 ? maxY : minY, pz = c < 0 ? maxZ : minZ;
+            if (a * px + b * py + c * pz + d < 0) return false;
+        }
+        return true;
+    }
+
     private static boolean outsideCube(float half, float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
         return maxX < -half || minX > half || maxY < -half || minY > half || maxZ < -half || minZ > half;
     }

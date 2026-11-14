@@ -15,6 +15,7 @@ import net.vulkanmod.render.chunk.build.RenderRegionBuilder;
 import net.vulkanmod.render.chunk.build.TaskDispatcher;
 import net.vulkanmod.render.chunk.frustum.VFrustum;
 import net.vulkanmod.render.optimization.AdaptiveChunkUploadBudget;
+import net.vulkanmod.render.optimization.ChunkCatchUp;
 import net.vulkanmod.render.optimization.ChunkFrameDiagnostics;
 import net.vulkanmod.render.optimization.ChunkSchedulingPolicy;
 import net.vulkanmod.render.optimization.DelayedRebuildQueue;
@@ -49,6 +50,8 @@ public class SectionGraph {
 
     public RenderRegionBuilder renderRegionCache;
     int nonEmptyChunks;
+    /** Visible sections of the last update that were never compiled (ChunkCatchUp). */
+    private int visibleUncompiled;
 
     public SectionGraph(Level level, SectionGrid sectionGrid, TaskDispatcher taskDispatcher) {
         this.level = level;
@@ -87,6 +90,7 @@ public class SectionGraph {
         }
 
         this.enqueueVisibleRebuilds();
+        ChunkCatchUp.observe(this.visibleUncompiled);
 
         this.minecraft.getProfiler().pop();
     }
@@ -160,6 +164,7 @@ public class SectionGraph {
 
         this.lastFrame++;
         this.nonEmptyChunks = 0;
+        this.visibleUncompiled = 0;
     }
 
     private void resetUpdateQueues() {
@@ -196,13 +201,22 @@ public class SectionGraph {
             if (renderSection.isDirty()) {
                 this.rebuildQueue.ensureCapacity(1);
                 this.rebuildQueue.add(renderSection);
+                // Only what can be built now: unloaded edge chunks would keep the catch-up budget on for good.
+                if (renderSection.isUncompiled() && renderSection.chunkRenderReady()) this.visibleUncompiled++;
             }
 
-            byte dirs = (byte) (renderSection.getVisibilityDirs() & renderSection.getDirections());
+            // A section that was never compiled has no visibility data yet (0): the walk used to stop there, so after
+            // a world join or pack switch the visible set grew one ring of sections per compile and the near ground
+            // filled in over seconds. Treat it as open until its own data arrives (-Dvsdh.openUncompiled=false).
+            byte visible = OPEN_UNCOMPILED && !renderSection.isCompiled() ? ALL_DIRECTIONS : renderSection.getVisibilityDirs();
+            byte dirs = (byte) (visible & renderSection.getDirections());
 
             visitAdjacentNodes(renderSection, dirs);
         }
     }
+
+    private static final boolean OPEN_UNCOMPILED = !"false".equalsIgnoreCase(System.getProperty("vsdh.openUncompiled"));
+    private static final byte ALL_DIRECTIONS = 0x3F;
 
     private void enqueueVisibleRebuilds() {
         long nowNanos = System.nanoTime();
@@ -267,6 +281,7 @@ public class SectionGraph {
 
         int readyCount = this.pendingRebuilds.size();
         if (readyCount == 0) {
+            this.prebuildHidden();
             return;
         }
 
@@ -276,6 +291,10 @@ public class SectionGraph {
         long scheduleTimeBudgetNanos = Initializer.CONFIG.adaptiveChunkUploads
                 ? AdaptiveChunkUploadBudget.chooseRebuildScheduleTimeBudgetNanos(readyCount)
                 : ChunkSchedulingPolicy.fixedRebuildTimeBudgetNanos(readyCount);
+        if (ChunkCatchUp.active()) {
+            maxScheduledRebuilds = Math.max(maxScheduledRebuilds, Math.min(readyCount, ChunkCatchUp.REBUILD_SCHEDULES_PER_FRAME));
+            scheduleTimeBudgetNanos = Math.max(scheduleTimeBudgetNanos, ChunkCatchUp.REBUILD_TIME_BUDGET_NANOS);
+        }
         int scheduledRebuilds = 0;
         int processedRebuilds = 0;
 
@@ -325,6 +344,60 @@ public class SectionGraph {
                     this.pendingRebuilds.addFirst(section);
                 }
                 break;
+            }
+        }
+        this.prebuildHidden();
+    }
+
+    /**
+     * -Dvsdh.prebuildHidden=false turns it off. Sections are compiled only once the camera's graph reaches them, so
+     * everything behind the player at join, or beside the path, started building only when turned to or walked
+     * past: for about a second the nearby ground was missing and Distant Horizons' flat far water showed through
+     * (flat wedges on the water that moved with the camera, measured in the walk test of 14.11.2026). While no
+     * visible section waits, the nearest few never-built sections of a scan window are built ahead.
+     */
+    private static final boolean PREBUILD_HIDDEN = !"false".equalsIgnoreCase(System.getProperty("vsdh.prebuildHidden"));
+    private static final int PREBUILD_SCAN = 512, PREBUILD_PER_FRAME = 4;
+    private final RenderSection[] prebuildPicks = new RenderSection[PREBUILD_PER_FRAME];
+    private final double[] prebuildDistances = new double[PREBUILD_PER_FRAME];
+    private int prebuildCursor;
+
+    private void prebuildHidden() {
+        if (!PREBUILD_HIDDEN || !this.pendingRebuilds.isEmpty() || !this.taskDispatcher.hasTaskCapacity()) return;
+        RenderSection[] sections = this.sectionGrid.sections;
+        int count = sections == null ? 0 : sections.length;
+        if (count == 0) return;
+        Vec3 camera = this.minecraft.gameRenderer.getMainCamera().getPosition();
+        int picked = 0;
+        for (int scanned = 0, limit = Math.min(PREBUILD_SCAN, count); scanned < limit; scanned++) {
+            if (this.prebuildCursor >= count) this.prebuildCursor = 0;
+            RenderSection section = sections[this.prebuildCursor++];
+            if (section == null || !section.awaitsFirstBuild() || section.getLastFrame() == this.lastFrame
+                    || this.pendingRebuildSet.contains(section)) continue;
+            double dx = section.xOffset() + 8 - camera.x, dy = section.yOffset() + 8 - camera.y, dz = section.zOffset() + 8 - camera.z;
+            double distance = dx * dx + dy * dy + dz * dz;
+            // Keep the nearest few, sorted by distance.
+            int at = picked < PREBUILD_PER_FRAME ? picked++ : PREBUILD_PER_FRAME;
+            if (at == PREBUILD_PER_FRAME) {
+                if (distance >= this.prebuildDistances[PREBUILD_PER_FRAME - 1]) continue;
+                at = PREBUILD_PER_FRAME - 1;
+            }
+            while (at > 0 && this.prebuildDistances[at - 1] > distance) {
+                this.prebuildPicks[at] = this.prebuildPicks[at - 1];
+                this.prebuildDistances[at] = this.prebuildDistances[at - 1];
+                at--;
+            }
+            this.prebuildPicks[at] = section;
+            this.prebuildDistances[at] = distance;
+        }
+        long now = System.nanoTime();
+        for (int i = 0; i < picked; i++) {
+            RenderSection section = this.prebuildPicks[i];
+            this.prebuildPicks[i] = null;
+            if (!this.taskDispatcher.hasTaskCapacity()) continue;
+            if (section.rebuildChunkAsync(this.taskDispatcher, this.renderRegionCache)) {
+                section.setNotDirty();
+                section.markRebuildScheduled(now);
             }
         }
     }
@@ -388,6 +461,8 @@ public class SectionGraph {
             if (renderSection.isDirty()) {
                 this.rebuildQueue.ensureCapacity(1);
                 this.rebuildQueue.add(renderSection);
+                // Only what can be built now: unloaded edge chunks would keep the catch-up budget on for good.
+                if (renderSection.isUncompiled() && renderSection.chunkRenderReady()) this.visibleUncompiled++;
             }
 
             byte dirs = (byte) (renderSection.adjDirs & renderSection.getDirections());

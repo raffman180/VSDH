@@ -1,5 +1,87 @@
 # VSDH — Prüfstand 0.26.0-dev, 11.11.2026
 
+## Stand 14.11.2026 nachts (0.27.0-beta, „Wasser bewegt sich mit“ nach Shader-Wechsel in der Welt; Fable, NUR Code + Logs)
+
+- Meldung: Monkeytalk-Pack, neuester Build, Jurgens 1.0.1 → Eclipse Unstable IN der Welt, Wasser „bewegt sich noch
+  immer mit“. Kein Spieltest (untersagt). KEINE Codeänderung: es wurde kein Zustand gefunden, der den Wechsel
+  überlebt, und ein Fix auf Verdacht wäre nicht prüfbar gewesen.
+- Geprüft, jeweils gleich wie beim Weltbeitritt: `WorldShaderSession.replaceInWorld` baut Sitzung, `WorldUniforms`
+  (Kamera, Vorframe-Matrizen, `frameTimeCounter`, `frameCounter`, Formeln, `written`/PER_DRAW), `WorldMatrices`,
+  Kette, SSBOs, Custom-Images, Schatten, DH-Tiefen und alle Programme neu; nichts davon ist statisch. Builder und
+  synchrone Builder werden mit der neuen Materialtabelle neu erzeugt (`TaskDispatcher.createThreads`), alle Bereiche
+  und `DrawBuffers` (Stride/Bias je Bereich) entstehen mit dem neuen `SectionGrid` neu, Flüssigkeitsquads tragen
+  Material/`fluid`/`at_midBlock` aus dem neuen Build. DH-Zeichnungen (`VulkanRenderEngine.packFrame`, Versätze) sind
+  je Frame. `vsdh.tightSpriteUpload` kann nur Texel eines Animationsframes betreffen, nie die Lage zur Kamera.
+- Unterschiede zum Weltbeitritt, die bleiben: (1) Vanillas `LevelRenderer.allChanged()` läuft nicht (nur
+  `WorldRenderer.allChanged`), andere Mods mit Hook darauf erfahren nichts (Iris ruft die Vanilla-Methode);
+  (2) DHs LOD-Puffer bleiben (packunabhängig); (3) `WorldRenderer.setLevel` setzt Kamera-Merker zurück, `allChanged`
+  positioniert das Gitter stattdessen direkt neu.
+- Logs des Nutzers (`2026-11-14-4..7`): Eclipse wurde mit abgeschalteten Farb-Schleifen NIE frisch gestartet, nur
+  per Wechsel erreicht (22:09). Die frischen Eclipse-Starts (20:22, 21:52) liefen noch mit Schleifen. Der Bezug zum
+  Wechsel ist damit nicht belegt.
+- Verdächtige im Pack-Pfad (alle kameragebunden, unabhängig vom Wechsel): Eclipse `lib/specular.glsl:2196-2216`
+  (Wasserspiegelung/-brechung aus dem Vorframe `colortex5` mit `cameraPosition - previousCameraPosition` und
+  `gbufferPrevious*`); Eclipse Profil HIGH `WATER_INTERACTION 2` (`dimensions/prepare*.csh`, SSBO
+  `previousCameraPositionWave2`/`water_move_compensationSSBO`, `waveSim`-Bilder, Fenster folgt der Kamera);
+  Jurgens `rippleImgA/B`, `waterLvlImg`, `trailImg` (gleiches Prinzip); LPV `cameraPosition - floor(previousCameraPosition)`.
+- Code-Review: ja. Kompilieren, 140 Unit-Tests, `verifyDhLinks`: grün (unveränderter Baum). Im Spiel: NICHT geprüft.
+- Nächster Schritt (Nutzer, je 1 Minute): Eclipse frisch starten und ohne Wechsel beitreten; nach einem Wechsel
+  F3+A, dann Fenstergröße ändern; Eclipse-Option `WATER_INTERACTION` auf 0; `-Dvsdh.liveShaderSwitch=false`;
+  `-Dvsdh.uniformDump=gbuffers_water` loggt `cameraPosition`/`previousCameraPosition`/`frameTimeCounter`.
+
+## Stand 14.11.2026 nachts (0.27.0-beta, Tick-Frames und Uniform-Wege; Fable, NUR Code + vorhandene JFR)
+
+- Kein Spieltest. Auswertung von `mt-turn1`/`mt-profile1` (128-Mod-Pack): lange Frames folgen dem 50-ms-Tick; im Tick
+  liegen `getBiome` (Vanilla-Partikel, Detailed Map), Sprite-Uploads und Mod-Code.
+- Neu, ergebnisgleich, je mit Schalter: `BiomeFiddleCache` (`-Dvsdh.biomeFiddleCache=false`), nur der gelesene
+  Ausschnitt eines Sprite-Blatts wird gestagt (`SubImageRange`, `-Dvsdh.tightSpriteUpload=false`), Uniform-Lieferant je
+  Member einmal bestimmt (`UniformRoutes`, `-Dvsdh.uniformRoutes=false`), `Std140Layout` hält den Typ beim Member,
+  Framebuffer-Suche ohne Lambda.
+- Code-Review: ja. Kompilieren, 138 Unit-Tests, `verifyDhLinks`: grün. Im Spiel: NICHT geprüft, kein FPS-Anspruch.
+- Offen: Flugmessung in Paaren mit den drei Schaltern; Bildvergleich animierter Texturen (Wasser, Lava, Feuer,
+  Mod-Sprites) mit `tightSpriteUpload` an/aus; Pack-Uniforms mit `zzUniformProbe` und `uniformRoutes` an/aus.
+  Details: `docs/PERFORMANCE.md` (Ende).
+
+## Stand 14.11.2026 nachts (0.27.0-beta, Flackern in der Ferne nach den Feedback-Schleifen; Fable)
+
+- Meldung des Nutzers (eigenes Pack, Eclipse Unstable, DH 3.3.3, 1440p): „Alles weiter weg flackert etwas", seit dem
+  Umbau vom Abend. Nur Code-Analyse, KEIN Spieltest (vom Nutzer untersagt).
+- Wahrscheinlichste Ursache: die Tiefen-Feedback-Schleife auf der DH-Tiefe. Eclipses `dh_water`
+  (`dimensions/DH_translucent.fsh`, `rayTrace`) marschiert für die Spiegelung mit zeitlich wechselndem Versatz durch
+  `dhDepthTex` an FREMDEN Pixeln, während derselbe Pass (ein Render-Pass, alle DH-Wasser-Draws, Tiefenschreiben an)
+  diese Tiefe schreibt. Ohne Barriere zwischen Schreiben und späterem Lesen ist das in Vulkan auch im
+  Feedback-Layout ein Datenrennen; `RenderPass` hat keine Selbstabhängigkeit, im Pass wird keine Barriere
+  aufgezeichnet. Vor dem Umbau las `dh_water` die vollständige, unveränderliche opake Kopie.
+- Behoben: DH-Programme lesen `dhDepthTex`/`dhDepthTex0` wieder aus der opaken Kopie (`dhDepthTex1`-Bild). Die
+  Live-Tiefe gibt es nur noch mit `-Dvsdh.dhDepthFeedbackLoop=true` (`FeedbackLoops.DISTANT_DEPTH_REQUESTED`).
+  Logzeile: `DH depth read from the opaque copy (dhDepthTex in [dh_water])`.
+- Unverändert Standard: Farb-Feedback-Schleifen (`-Dvsdh.feedbackLoops=false` schaltet sie und die DH-Tiefe ab) und
+  die Schattenliste (`-Dvsdh.shadowSectionList=false|verify`). Farb-Schleifen sind nach dem Buchstaben der
+  Spezifikation dasselbe Rennen, wo sich Fragmente eines Passes überdecken; Eclipse liest dort nur den eigenen Pixel
+  (`colortex11`: Ergebnis unabhängig von der Reihenfolge; `colortex7`: nur im DH-Übergangsring, Wasser ohne opaken
+  Grund dahinter). Bleibt Flackern, zuerst `-Dvsdh.feedbackLoops=false` prüfen, dann `-Dvsdh.shadowSectionList=false`.
+- Schattenliste: kein Fehler gefunden (gleiche Bedingungen und Reihenfolge wie der alte Durchlauf, alle Schreiber
+  auf dem Render-Thread). Gehärtet: `RenderSection` meldet `ShadowSectionList.changed()` jetzt NACH dem Schreiben
+  von Ursprung/`completelyEmpty`.
+- Kompiliert, 133 Unit-Tests (neu `FeedbackLoopsTest.theDistantDepthLoopIsOptIn`), `verifyDhLinks` PASS
+  (3.2.0-b, 3.3.0–3.3.3). Im Spiel NICHT geprüft: ob das Flackern weg ist.
+
+## Stand 14.11.2026 abends (0.27.0-beta, Feedback-Schleifen und Schattenliste; Fable)
+
+- Neu: Anhang-Feedback für Pack-Programme (`FeedbackLoops`, `VK_EXT_attachment_feedback_loop_layout`), DH-Programme
+  lesen die laufende DH-Tiefe; Rückfall auf Kopien ohne Erweiterung oder mit `-Dvsdh.feedbackLoops=false`.
+  `ShadowSectionList` für den Schattenpass (`-Dvsdh.shadowSectionList=false|verify`). Zwei allokationsfreie
+  Render-Thread-Stellen. Tooltip der Bildraten-Grenze (de/en). Details und Zahlen: `docs/PERFORMANCE.md` (Ende).
+- Kompiliert, 129 Unit-Tests (neu `FeedbackLoopsTest`, `ShadowCullerTest.everyBoxInsideAContainedBoxIsVisible`),
+  `verifyDhLinks` PASS (3.2.0-b, 3.3.0–3.3.3).
+- Im Spiel: Eclipse 1440p GPU-Profil 2 + 2 Läufe (Wasser −0,6 bis −0,85 ms, 98–104 → 117–122 FPS in der festen
+  Szene), Eclipse-Bild gegen Iris und gegen Kopien ohne sichtbaren Fehler (Aufnahme während eines fremden Spiels),
+  Schattenliste 2000 Frames identisch zum alten Durchlauf.
+- NICHT geprüft (Nutzer spielte, Testclients gestoppt): Bildvergleiche Complementary Reimagined, Photon, BSL gegen
+  Iris; GPU-Profil eines zweiten Packs; Release-Matrix; Vulkan-Validation-Layer (nicht installiert); Geräte ohne die
+  Erweiterung; der Composite-Gewinn bei Eclipse ist unerklärt und zu wiederholen. Fortsetzen mit dem Abschnitt
+  „Offene Läufe“ in `docs/NEXT_AI_PROMPT.md`.
+
 ## Stand 13.11.2026 vormittags (0.26, Speicher-Churn, `dist/0.26.0-dev-perf`)
 
 - Neu: Indexschleifen in der Weltgenerierung (`MaterialRuleListMixin`, `SurfaceSequenceRuleMixin`), Pause der
@@ -60,6 +142,14 @@
   gleich großes randloses Fenster, ohne Größenereignis; die Swapchain blieb auf dem Vollbild-Pfad (Vulkan statt DXGI-Flip).
   `SwapChain.windowModeChanged()` + Prüfung in `Renderer.beginFrame` bauen sie dann neu. Solas und Eclipse Unstable in den
   shaderpacks-Ordner von Monkeytalk kopiert (nicht ausgeliefert, nur lokal).
+- Nachtrag 14.11. spät (kompiliert, 140 Unit-Tests, nicht im Spiel): Minecrafts Vollbild (F11, options.txt) ist jetzt standardmäßig ein
+  randloses Fenster über dem Monitor (DXGI-Flip-Pfad); exklusives Vollbild nur noch über Fenstermodus → „Exklusives Vollbild“
+  (`exclusiveFullscreen` in vulkanmod_settings.json). Grund: Moduswechsel bei Start und Alt-Tab ließ den Ton kurz das Gerät wechseln.
+- Nachtrag 14.11. spät (kompiliert, 140 Unit-Tests, verifyDhLinks PASS, Walk-Test im Testclient bestätigt): Nie gesehene Chunk-Abschnitte werden vorab gebaut (`SectionGraph.prebuildHidden`); vorher fehlte nach Drehen/Laufen das nahe Gelände ~1 s und das flache DH-Wasser schien durch („Wasser und Schatten bewegen sich mit“).
+- Nachtrag 15.11. früh (kompiliert, 144 Unit-Tests, verifyDhLinks PASS): DH-Projektion aus der Kamera-Projektion (Bobbing/FOV, `DistantProjection`), offene unbebaute Abschnitte im Sichtgraph und `ChunkCatchUp`. Testclient: Lücke nach Pack-Wechsel deutlich kürzer; DH-Fix im Spiel nicht eindeutig messbar.
+- Nachtrag 15.11. 00:40 (kompiliert, 145 Unit-Tests, verifyDhLinks PASS, im Client NICHT gestartet): View Bobbing wird bei aktivem Pack in die Modelview statt in die Projektion gelegt (`CameraBobbing`); Ursache für mitrutschendes Wasser/Schatten beim Gehen.
+- Nachtrag 15.11. 01:00 (kompiliert, 147 Unit-Tests, verifyDhLinks PASS, im Client NICHT gestartet): Vorbereitete Packs werden zwischengespeichert (`PackPreparationKey`, LRU 3), Vorwärmen beim Öffnen der Shader-Seite.
+- Nachtrag 15.11. 00:45 (kompiliert, Unit-Tests, verifyDhLinks; im Client nicht gestartet): Randloses Vollbild auf Wunsch des Nutzers entfernt; Vollbild ist wieder immer exklusiv.
 
 - Nachtrag 14.11. abends (kompiliert, 118 Unit-Tests, NICHT im Spiel): Shader-Wechsel in der Welt (`WorldShaderSession.replaceInWorld`):
   Chunk-Builder stoppen, Terrain-Vertexformat unter `PipelineManager.runTerrainSwitchInWorld` tauschen, alte Session freigeben,
@@ -82,6 +172,14 @@
 - 14.11.2026: Öffentliches Repository https://github.com/raffman180/VSDH (LGPL-3.0, Standardzweig `main` = Stand 258f0f3 von
   `codex/renderer-shaders`). Lokaler Zweig verfolgt `origin/main`. Noch keine CurseForge-Veröffentlichung; vorher Spieltests,
   Version/Name ohne „dev“ und NeoForge-Bereich prüfen.
+
+- 14.11.2026 abends: Veröffentlichungs-Vorbereitung 0.27.0-beta (kompiliert, 124 Unit-Tests, verifyDhLinks PASS, NICHT im Spiel):
+  Version `0.27.0-beta`, Name „VSDH“, Logo (`vsdh_logo.png`, Projekt-Icon `docs/curseforge/icon-400.png`), Links auf GitHub,
+  `credits` in mods.toml, englische Projektbeschreibung `docs/curseforge/DESCRIPTION.md`, `CHANGELOG.md`, `dist/0.27.0-beta`
+  mit SHA256SUMS. Frame-Diagnosezeilen nur noch mit `-Dvsdh.chunkDiag=true` (Testclients setzen es). Testskripte auf
+  0.27.0-beta umgestellt. Vor dem Upload offen: Release-Matrix/Smoke/Menü-/Weltwechsel mit der Einzel-JAR, NeoForge-Bereich.
+
+- 14.11. spät: Farb-Feedback-Loops standardmäßig aus (`-Dvsdh.feedbackLoops=true` schaltet sie ein): Im Monkeytalk-Pack „bewegte sich das Wasser komisch mit“ (Kamera), wahrscheinlich Lesen von colortex7/11 während überlappende Wasserfragmente schreiben. Nicht im Spiel bestätigt.
 
 ## Stand 13.11.2026 nachts (0.26, DH optional, Glätte im Flug)
 

@@ -32,6 +32,29 @@ public abstract class WorldShaderGameMixin implements NativeHandRenderer.GameAcc
     @Invoker("renderItemInHand")
     public abstract void vsdh$renderItemInHand(Camera camera, float partialTick, Matrix4f view);
 
+    /** See {@link de.stranger.vsdh.shader.CameraBobbing}: the bob of this frame, kept out of the projection. */
+    @org.spongepowered.asm.mixin.Unique private final Matrix4f vsdh$bobbing = new Matrix4f();
+    @org.spongepowered.asm.mixin.Unique private final Matrix4f vsdh$bobbedView = new Matrix4f();
+    @org.spongepowered.asm.mixin.Unique private boolean vsdh$bobbingMoved;
+
+    @WrapOperation(method = "renderLevel", at = @At(value = "INVOKE",
+            target = "Lorg/joml/Matrix4f;mul(Lorg/joml/Matrix4fc;)Lorg/joml/Matrix4f;", ordinal = 0, remap = false))
+    private Matrix4f vsdh$keepBobbingOutOfProjection(Matrix4f projection, org.joml.Matrix4fc bobbing, Operation<Matrix4f> multiply) {
+        vsdh$bobbingMoved = de.stranger.vsdh.shader.CameraBobbing.ENABLED && WorldShaderSession.current() != null;
+        if (!vsdh$bobbingMoved) return multiply.call(projection, bobbing);
+        vsdh$bobbing.set(bobbing);
+        return projection;
+    }
+
+    @ModifyArg(method = "renderLevel", index = 5, at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/renderer/LevelRenderer;renderLevel(Lnet/minecraft/client/DeltaTracker;ZLnet/minecraft/client/Camera;Lnet/minecraft/client/renderer/GameRenderer;Lnet/minecraft/client/renderer/LightTexture;Lorg/joml/Matrix4f;Lorg/joml/Matrix4f;)V"))
+    private Matrix4f vsdh$bobbingIntoModelView(Matrix4f view) {
+        if (!vsdh$bobbingMoved) return view;
+        vsdh$bobbingMoved = false;
+        // A matrix of its own: the caller's view goes on to the hand unchanged, which applies its own bob.
+        return de.stranger.vsdh.shader.CameraBobbing.intoView(vsdh$bobbing, view, vsdh$bobbedView);
+    }
+
     private static NativeHandRenderer vsdh$hand() {
         var session = WorldShaderSession.current();
         return session == null ? null : session.handRenderer();

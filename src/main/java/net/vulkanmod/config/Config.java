@@ -21,7 +21,6 @@ public class Config {
 
     public int frameQueueSize = 2;
     public VideoModeSet.VideoMode videoMode = VideoModeManager.getFirstAvailable().getVideoMode();
-    public boolean windowedFullscreen = false;
     public int performancePreset = PerformancePreset.BALANCED.id;
     public int chunkUploadsPerFrame = PerformancePreset.BALANCED.chunkUploadsPerFrame;
     public boolean adaptiveChunkUploads = true;

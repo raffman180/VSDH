@@ -38,7 +38,9 @@
   "vsdh.options.shaderStatus.standard": "Standard rendering",
   "vsdh.options.shaderStatus.preparing": "Preparing: %s",
   "vsdh.options.shaderStatus.waiting": "After leaving the world: %s",
+  "vsdh.options.framerateLimit.tooltip": "Caps how many frames Minecraft renders each second. A sensible cap reduces GPU load, heat and power use; Max removes the cap. Against hitches: when graphics card and processor both run at their limit, single frames wait a long time for presentation. A cap slightly below your average FPS (or just below the monitor's refresh rate) removes most of these hitches.",
   "vsdh.notice.unsupportedMods.title": "VSDH: mods that are not fully supported",
   "vsdh.notice.unsupportedMods.message": "%s – display errors are possible. Nothing is blocked.",
-  "vsdh.notice.unsupportedMods.chat": "[VSDH] These mods are not fully supported by the Vulkan renderer, display errors are possible: %s. Nothing is blocked."
+  "vsdh.notice.unsupportedMods.chat": "[VSDH] These mods are not fully supported by the Vulkan renderer, display errors are possible: %s. Nothing is blocked.",
+  "vsdh.options.windowMode.tooltip": "Controls how Minecraft uses the display: a window, or exclusive fullscreen at the chosen resolution and refresh rate."
 }

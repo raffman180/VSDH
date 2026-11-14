@@ -112,7 +112,7 @@ public class VulkanRenderEngine implements VulkanBackend {
     /**
      * Cache of uploaded Vulkan vertex buffers, keyed by VkVertexData.id.
      */
-    private final Map<Integer, CachedBuffer> vulkanBufferCache = new HashMap<>();
+    private final it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap<CachedBuffer> vulkanBufferCache = new it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap<>(); // int keys: no boxing per LOD draw
 
     private static class PendingFree {
         final int dataId;
