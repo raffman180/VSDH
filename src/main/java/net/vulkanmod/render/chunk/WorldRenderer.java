@@ -355,7 +355,11 @@ public class WorldRenderer {
         VRenderSystem.applyMVP(modelView, projection);
         VRenderSystem.setPrimitiveTopologyGL(GL11.GL_TRIANGLES);
 
-        if (shaderFrame) {
+        if (shaderFrame && TerrainLayerDraws.SKIP_EMPTY && !mayDrawSections(terrainRenderType)) {
+            // Nothing to draw: no pack program is bound, so no uniforms, no empty render pass and no snapshot
+            // copies of the colour targets it samples. The indirect commands of the earlier layers still go out.
+            finishSectionLayer(terrainRenderType);
+        } else if (shaderFrame) {
             shaders.renderTerrain(terrainRenderType,
                     pipeline -> drawSectionBatches(pipeline, terrainRenderType, camX, camY, camZ, false));
         } else {
@@ -370,6 +374,21 @@ public class WorldRenderer {
         renderType.clearRenderState();
 
         VRenderSystem.applyMVP(RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix());
+    }
+
+    /** The draw walk's own condition per area, asked before a pack program is prepared for the layer. */
+    private boolean mayDrawSections(TerrainRenderType terrainRenderType) {
+        final StaticQueue<ChunkArea> chunkAreaQueue = this.sectionGraph.getChunkAreaQueue().queue();
+        return TerrainLayerDraws.mayDraw(TerrainLayerDraws.drawn(Initializer.CONFIG.uniqueOpaqueLayer).contains(terrainRenderType), chunkAreaQueue.size(), areaIdx -> {
+            ChunkArea chunkArea = chunkAreaQueue.get(areaIdx);
+            return chunkArea.drawBuffers.getAreaBuffer(terrainRenderType) != null && chunkArea.sectionQueue.size() > 0;
+        });
+    }
+
+    /** End of the opaque and of the translucent layer group: their indirect draw commands are uploaded. */
+    private void finishSectionLayer(TerrainRenderType terrainRenderType) {
+        if (terrainRenderType == TerrainRenderType.CUTOUT || terrainRenderType == TerrainRenderType.TRIPWIRE)
+            indirectBuffers[Renderer.getCurrentFrame()].submitUploads();
     }
 
     /** Shared draw walk: native shader programs reuse the same uploaded area buffers and visibility. */
@@ -411,10 +430,7 @@ public class WorldRenderer {
             }
         }
 
-        if (terrainRenderType == TerrainRenderType.CUTOUT || terrainRenderType == TerrainRenderType.TRIPWIRE) {
-            indirectBuffers[currentFrame].submitUploads();
-
-        }
+        finishSectionLayer(terrainRenderType);
 
         if (bindUniforms && !indirectDraw) {
             VRenderSystem.setChunkOffset(0, 0, 0);

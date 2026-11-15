@@ -37,8 +37,13 @@ First public beta.
   built only when the camera first looked at them, so for about a second after turning or walking the nearby ground
   was missing and Distant Horizons' far water showed through. Sections the camera has not seen yet are now built
   ahead while nothing visible waits (`-Dvsdh.prebuildHidden=false` turns it off).
-- The borderless ("windowed fullscreen") window mode is gone: fullscreen is always exclusive fullscreen.
-  Borderless presentation was not smooth enough; exclusive fullscreen was.
+- Borderless fullscreen presents through the Vulkan swapchain like exclusive fullscreen (it used the DXGI flip
+  path of ordinary windows and had about twice as many long frames). Video Settings > Window Mode: Window,
+  Borderless Fullscreen, Exclusive Fullscreen; F11 uses the chosen kind. `-Dvsdh.borderlessPresent=dxgi` restores
+  the old path.
+- A screenshot taken while the game was minimised in exclusive fullscreen (or right after) could crash the
+  graphics driver: the swapchain images were destroyed but still handed out. Texture ids of the swapchain no
+  longer leak on every resize.
 - Map and minimap mods that upload their own textures (Raffman's Detailed Map) showed blank tiles.
 - With ImmediatelyFast, the in-world pause menu showed only its first button.
 - Borderless Window: the present path now follows the real window mode.
@@ -46,6 +51,12 @@ First public beta.
 - Several crashes on unusual texture uploads; they now leave the texture blank with a warning.
 
 ### Performance
+- Terrain layers that hold no geometry are no longer prepared in a shader frame: Eclipse lost two full-screen
+  snapshot copies per frame (feedback copies 0.19-0.22 ms -> 0.12 ms at 1440p). `-Dvsdh.skipEmptyTerrainLayers=false`
+  restores the old path.
+- Measured against Iris 1.8.12 + Sodium 0.6.13 on the same 30 s flight (exclusive fullscreen, 1440p, DH in both):
+  average FPS Eclipse +5-10 %, Complementary +13-16 %, no shader +14-27 %; the rarest long frames are on par or
+  slightly worse (docs/PERFORMANCE.md).
 - Biome lookups on the render thread remember the chosen biome cell per position (about a third of the render
   thread's busy time in a 128-mod pack went to repeated lookups). `-Dvsdh.biomeCornerCache=false` turns it off.
 - Fewer allocations per frame in the shader host and pipeline state.

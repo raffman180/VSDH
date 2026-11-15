@@ -133,6 +133,7 @@
     "optimization.MaterialRuleListMixin",
     "optimization.SurfaceSequenceRuleMixin",
     "optimization.BiomeManagerCornerMixin",
+    "optimization.ClientLevelUniformBiomeMixin",
     "voxel.VoxelShapeMixin",
     "compatibility.fml.ImmediateWindowHandlerMixin",
     "shader.WorldShaderLevelMixin",

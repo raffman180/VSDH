@@ -84,6 +84,9 @@ public abstract class WindowMixin {
 
     @Redirect(method = "<init>", at = @At(value = "INVOKE", target = "Lnet/neoforged/fml/loading/ImmediateWindowHandler;setupMinecraftWindow(Ljava/util/function/IntSupplier;Ljava/util/function/IntSupplier;Ljava/util/function/Supplier;Ljava/util/function/LongSupplier;)J", remap = false), require = 0)
     private long redirectSetupMinecraftWindow(java.util.function.IntSupplier width, java.util.function.IntSupplier height, java.util.function.Supplier title, java.util.function.LongSupplier monitor) {
+        // Borderless fullscreen never creates the window on the monitor: that alone would enter exclusive fullscreen
+        // once at start-up. setMode() then sizes the window over the monitor.
+        if (net.vulkanmod.Initializer.CONFIG.borderlessFullscreen) monitor = () -> 0L;
         long handle = net.neoforged.fml.loading.ImmediateWindowHandler.setupMinecraftWindow(width, height, (java.util.function.Supplier<String>) title, monitor);
 
         if (GLFW.glfwGetWindowAttrib(handle, GLFW_CLIENT_API) != GLFW_NO_API) {
@@ -156,7 +159,8 @@ public abstract class WindowMixin {
         Config config = Initializer.CONFIG;
 
         long monitor = GLFW.glfwGetPrimaryMonitor();
-        if (this.fullscreen) {
+        net.vulkanmod.vulkan.framebuffer.WindowPresentation.setBorderless(this.fullscreen && config.borderlessFullscreen);
+        if (this.fullscreen && !config.borderlessFullscreen) {
             {
                 VideoModeSet.VideoMode videoMode = config.videoMode;
 
@@ -190,6 +194,25 @@ public abstract class WindowMixin {
 
                 this.wasOnFullscreen = true;
             }
+        }
+        else if (this.fullscreen) {
+            // Borderless: an undecorated window exactly over the monitor at its desktop mode, no display mode change.
+            VideoModeSet.VideoMode videoMode = VideoModeManager.getOsVideoMode();
+            if (!this.wasOnFullscreen) {
+                this.windowedX = this.x;
+                this.windowedY = this.y;
+                this.windowedWidth = this.width;
+                this.windowedHeight = this.height;
+            }
+            int[] monitorX = new int[1], monitorY = new int[1];
+            GLFW.glfwGetMonitorPos(monitor, monitorX, monitorY);
+            GLFW.glfwSetWindowAttrib(this.window, GLFW_DECORATED, GLFW_FALSE);
+            GLFW.glfwSetWindowMonitor(this.window, 0L, monitorX[0], monitorY[0], videoMode.width, videoMode.height, -1);
+            this.x = monitorX[0];
+            this.y = monitorY[0];
+            this.width = videoMode.width;
+            this.height = videoMode.height;
+            this.wasOnFullscreen = true;
         }
         else {
             this.x = this.windowedX;

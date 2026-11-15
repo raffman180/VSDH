@@ -63,6 +63,8 @@ public class SwapChain extends Framebuffer {
         if (this.depthAttachment != null) {
             this.depthAttachment.free();
             this.depthAttachment = null;
+            // Bound again by createDepthResources(); a window without size creates none and must not keep the freed image.
+            if (this.depthAttachmentGlId != -1) GlTexture.setVulkanImage(this.depthAttachmentGlId, null);
         }
 
         if (!DYNAMIC_RENDERING) {
@@ -83,7 +85,7 @@ public class SwapChain extends Framebuffer {
             VkExtent2D extent = getExtent(surfaceProperties.capabilities);
             // Recorded before the minimised early return too, so windowModeChanged() cannot request a rebuild every
             // frame while the window has no size.
-            this.createdForExclusiveFullscreen = org.lwjgl.glfw.GLFW.glfwGetWindowMonitor(Vulkan.window) != 0;
+            this.createdForExclusiveFullscreen = WindowPresentation.useVulkanSwapchain(org.lwjgl.glfw.GLFW.glfwGetWindowMonitor(Vulkan.window) != 0);
 
             if (extent.width() == 0 && extent.height() == 0) {
                 if (this.dxgi != null) {
@@ -96,6 +98,10 @@ public class SwapChain extends Framebuffer {
                     vkDestroySwapchainKHR(device, this.swapChainId, null);
                     this.swapChainId = VK_NULL_HANDLE;
                 }
+                // The images died with the swapchain. The client tick keeps running without frames: a screenshot
+                // taken now read one of them through its texture id and crashed in the driver.
+                unbindGlIds();
+                this.swapChainImages = new ArrayList<>();
 
                 this.width = 0;
                 this.height = 0;
@@ -105,7 +111,9 @@ public class SwapChain extends Framebuffer {
             // DXGI flip presentation only in a window: in exclusive fullscreen the Vulkan swapchain was
             // faster (docs/PERFORMANCE.md). Switching either way needs the other swapchain gone first;
             // the caller has waited for the device to be idle.
-            boolean fullscreen = org.lwjgl.glfw.GLFW.glfwGetWindowMonitor(Vulkan.window) != 0;
+            // Borderless fullscreen may take the Vulkan swapchain too (WindowPresentation); "fullscreen" here means the
+            // Vulkan path, not that GLFW gave the window a monitor.
+            boolean fullscreen = WindowPresentation.useVulkanSwapchain(org.lwjgl.glfw.GLFW.glfwGetWindowMonitor(Vulkan.window) != 0);
             this.createdForExclusiveFullscreen = fullscreen;
             if (this.dxgi != null && (this.dxgiDisabled || fullscreen)) closeDxgi();
             if (!this.dxgiDisabled && !fullscreen && DeviceManager.isDxgiInteropEnabled()) {
@@ -113,6 +121,7 @@ public class SwapChain extends Framebuffer {
                     this.swapChainImages.forEach(image -> vkDestroyImageView(device, image.getImageView(), null));
                     vkDestroySwapchainKHR(device, this.swapChainId, null);
                     this.swapChainId = VK_NULL_HANDLE;
+                    unbindGlIds();
                     this.swapChainImages = new ArrayList<>();
                 }
                 if (createDxgi(extent.width(), extent.height())) {
@@ -214,7 +223,7 @@ public class SwapChain extends Framebuffer {
      * and the swapchain would keep the fullscreen present path (Vulkan instead of DXGI flip) in a window.
      */
     public boolean windowModeChanged() {
-        return createdForExclusiveFullscreen != (org.lwjgl.glfw.GLFW.glfwGetWindowMonitor(Vulkan.window) != 0);
+        return createdForExclusiveFullscreen != WindowPresentation.useVulkanSwapchain(org.lwjgl.glfw.GLFW.glfwGetWindowMonitor(Vulkan.window) != 0);
     }
     private final long[] dxgiCopyValues = new long[net.vulkanmod.vulkan.present.DxgiBackend.IMAGES];
     private int dxgiNext;
@@ -257,6 +266,7 @@ public class SwapChain extends Framebuffer {
     }
 
     private void closeDxgi() {
+        unbindGlIds();
         if (this.dxgiTargets != null) this.dxgiTargets.close();
         this.dxgiTargets = null;
         if (this.dxgi != null) this.dxgi.close();
@@ -296,18 +306,46 @@ public class SwapChain extends Framebuffer {
         return this.dxgi != null ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     }
 
+    /**
+     * Binds one texture id per image. Ids of the previous image set are bound again instead of generating new ones
+     * on every recreate (each resize used to leak a set that still pointed at destroyed images); surplus ids go.
+     */
     private void createGlIds() {
-        this.glIds = new int[this.swapChainImages.size()];
+        int[] previous = this.glIds != null ? this.glIds : new int[0];
+        int[] ids = new int[this.swapChainImages.size()];
 
-        for (int i = 0; i < this.swapChainImages.size(); i++) {
-            int id = GlTexture.genTextureId();
-            this.glIds[i] = id;
-            GlTexture.bindIdToImage(id, this.swapChainImages.get(i));
+        for (int i = 0; i < ids.length; i++) {
+            ids[i] = i < previous.length ? previous[i] : GlTexture.genTextureId();
+            GlTexture.bindIdToImage(ids[i], this.swapChainImages.get(i));
         }
+        for (int i = ids.length; i < previous.length; i++) {
+            GlTexture.setVulkanImage(previous[i], null);
+            GlTexture.glDeleteTextures(previous[i]);
+        }
+        this.glIds = ids;
     }
 
+    /** The images are about to be destroyed (or already are): no texture id may keep one. The ids stay for reuse. */
+    private void unbindGlIds() {
+        if (this.glIds == null) return;
+        for (int id : this.glIds) GlTexture.setVulkanImage(id, null);
+    }
+
+    /** 0 (no texture) while the swapchain has no images, i.e. while the window has no size. */
     public int getColorAttachmentGlId() {
-        return this.glIds[Renderer.getCurrentImage()];
+        int slot = SwapChainSlots.slot(Renderer.getCurrentImage(), this.swapChainImages.size());
+        return slot < 0 ? 0 : this.glIds[slot];
+    }
+
+    /** A swapchain given up for a window without size while the window reports one again (see SwapChainSlots). */
+    public boolean shouldRevive(long nowNanos, long lastAttemptNanos) {
+        if (this.width != 0 || this.height != 0) return false;
+        try (MemoryStack stack = stackPush()) {
+            IntBuffer windowWidth = stack.ints(0), windowHeight = stack.ints(0);
+            glfwGetFramebufferSize(window, windowWidth, windowHeight);
+            return SwapChainSlots.shouldRevive(this.width, this.height, windowWidth.get(0), windowHeight.get(0),
+                    nowNanos, lastAttemptNanos);
+        }
     }
 
     private long[] createFramebuffers(RenderPass renderPass) {
@@ -393,7 +431,10 @@ public class SwapChain extends Framebuffer {
             this.depthAttachmentGlId = -1;
         }
 
-        this.depthAttachment.free();
+        if (this.depthAttachment != null) { // none while the window has no size
+            this.depthAttachment.free();
+            this.depthAttachment = null;
+        }
     }
 
     public long getId() {
@@ -412,8 +453,10 @@ public class SwapChain extends Framebuffer {
         return this.extent2D;
     }
 
+    /** Null while the swapchain has no images (window without size). */
     public VulkanImage getColorAttachment() {
-        return this.swapChainImages.get(Renderer.getCurrentImage());
+        int slot = SwapChainSlots.slot(Renderer.getCurrentImage(), this.swapChainImages.size());
+        return slot < 0 ? null : this.swapChainImages.get(slot);
     }
 
     public long getImageView(int i) {

@@ -291,6 +291,8 @@ public class Renderer {
         }
     }
 
+    private long lastSwapChainRecreateNanos;
+
     public void beginFrame() {
         if (recordingCmds)
             return;
@@ -303,9 +305,17 @@ public class Renderer {
             swapChainUpdate = true;
         }
 
+        // A swapchain given up while the surface had no extent comes back with the next resize event. If that event
+        // came too early (extent still 0), nothing would ask again: retry while the window reports a size.
+        if (!swapChainUpdate && skipRendering && Vulkan.getSwapChain() != null
+                && Vulkan.getSwapChain().shouldRevive(System.nanoTime(), lastSwapChainRecreateNanos)) {
+            swapChainUpdate = true;
+        }
+
         if (swapChainUpdate) {
             recreatingSwapChain = true;
             swapChainUpdate = false;
+            lastSwapChainRecreateNanos = System.nanoTime();
             try {
                 recreateSwapChain();
             } catch (RuntimeException | Error failure) {

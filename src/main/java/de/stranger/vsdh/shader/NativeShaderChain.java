@@ -106,6 +106,9 @@ public final class NativeShaderChain implements AutoCloseable {
             org.slf4j.LoggerFactory.getLogger("VSDH").info("Attachment feedback loops (colortex sampled while drawn into): {}", described);
         }
         swappable = swappable(plan);
+        if (PersistentSwap.AFTER_GEOMETRY)
+            org.slf4j.LoggerFactory.getLogger("VSDH").info("Persistent targets swapped instead of copied back (swapAfterGeometry): {} of {}",
+                    new java.util.TreeSet<>(swappable), plan.copyBack());
         try {
             for (var compute : plan.setup()) setup.add(runtimeCompute(compute));
             for (var compute : plan.shadowComputes()) shadowComputes.add(runtimeCompute(compute));
@@ -184,6 +187,8 @@ public final class NativeShaderChain implements AutoCloseable {
         plan.setup().forEach(compute -> compute.images().values().forEach(attachment -> unsafe.add(attachment.target())));
         var result = new java.util.HashSet<>(plan.copyBack());
         result.removeAll(unsafe);
+        // Opt-in (-Dvsdh.swapAfterGeometry=true): also targets geometry draws into, see PersistentSwap.
+        if (PersistentSwap.AFTER_GEOMETRY) result.addAll(PersistentSwap.afterGeometry(plan));
         return java.util.Set.copyOf(result);
     }
 

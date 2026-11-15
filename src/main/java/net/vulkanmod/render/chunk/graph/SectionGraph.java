@@ -357,7 +357,13 @@ public class SectionGraph {
      * visible section waits, the nearest few never-built sections of a scan window are built ahead.
      */
     private static final boolean PREBUILD_HIDDEN = !"false".equalsIgnoreCase(System.getProperty("vsdh.prebuildHidden"));
-    private static final int PREBUILD_SCAN = 512, PREBUILD_PER_FRAME = 4;
+    /*
+     * Near sections only, one per frame: each start prepares a region copy on the render thread (about 0.2 ms), and four
+     * per frame for every unseen section within the render distance cost long frames in the flight A/B of 15.11. The
+     * gaps that showed were near the player; farther ones are covered by Distant Horizons and the normal queue.
+     */
+    private static final int PREBUILD_SCAN = 512, PREBUILD_PER_FRAME = 1;
+    private static final double PREBUILD_RADIUS_SQUARED = 96.0 * 96.0;
     private final RenderSection[] prebuildPicks = new RenderSection[PREBUILD_PER_FRAME];
     private final double[] prebuildDistances = new double[PREBUILD_PER_FRAME];
     private int prebuildCursor;
@@ -376,6 +382,7 @@ public class SectionGraph {
                     || this.pendingRebuildSet.contains(section)) continue;
             double dx = section.xOffset() + 8 - camera.x, dy = section.yOffset() + 8 - camera.y, dz = section.zOffset() + 8 - camera.z;
             double distance = dx * dx + dy * dy + dz * dz;
+            if (dx * dx + dz * dz > PREBUILD_RADIUS_SQUARED) continue;
             // Keep the nearest few, sorted by distance.
             int at = picked < PREBUILD_PER_FRAME ? picked++ : PREBUILD_PER_FRAME;
             if (at == PREBUILD_PER_FRAME) {

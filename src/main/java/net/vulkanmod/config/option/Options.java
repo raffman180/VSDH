@@ -117,10 +117,12 @@ public abstract class Options {
         var windowModeOption = new CyclingOption<>(Component.translatable("vulkanmod.options.windowMode"),
                 WindowMode.values(),
                 value -> {
-                    minecraftOptions.fullscreen().set(value == WindowMode.EXCLUSIVE_FULLSCREEN);
+                    // The kind first: setting Minecraft's flag may toggle the window, which reads it.
+                    config.borderlessFullscreen = value == WindowMode.BORDERLESS;
+                    minecraftOptions.fullscreen().set(value != WindowMode.WINDOWED);
                     fullscreenDirty = true;
                 },
-                () -> WindowMode.of(minecraftOptions.fullscreen().get()))
+                () -> WindowMode.of(minecraftOptions.fullscreen().get(), config.borderlessFullscreen))
                 .setTranslator(value -> Component.translatable(WindowMode.getComponentName(value)))
                 .setTooltip(Component.translatable("vsdh.options.windowMode.tooltip"));
 

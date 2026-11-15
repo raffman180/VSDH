@@ -44,5 +44,7 @@
   "vsdh.notice.unsupportedMods.chat": "[VSDH] Diese Mods werden vom Vulkan-Renderer nicht vollständig unterstützt, Darstellungsfehler sind möglich: %s. Es wird nichts blockiert.",
   "vulkanmod.options.windowMode": "Fenstermodus",
   "vulkanmod.options.windowMode.windowed": "Fenster",
-  "vsdh.options.windowMode.tooltip": "Legt fest, wie Minecraft den Bildschirm nutzt: als Fenster oder als exklusives Vollbild mit der gewählten Auflösung und Bildwiederholrate."
+  "vsdh.options.windowMode.tooltip": "Legt fest, wie Minecraft den Bildschirm nutzt. Randloses Vollbild legt ein rahmenloses Fenster in Desktop-Auflösung über den Monitor: Programmwechsel gehen sofort, der Bildschirm schaltet nie um. Exklusives Vollbild übergibt den Bildschirm ganz dem Spiel, mit gewählter Auflösung und Bildwiederholrate. Beide zeigen das Bild auf dieselbe Weise an.",
+  "vulkanmod.options.windowMode.windowedFullscreen": "Randloses Vollbild",
+  "vsdh.options.windowMode.exclusive": "Exklusives Vollbild"
 }

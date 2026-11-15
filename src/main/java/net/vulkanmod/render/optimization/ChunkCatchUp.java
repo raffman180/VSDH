@@ -16,9 +16,15 @@ public final class ChunkCatchUp {
     public static final int THRESHOLD = 24;
     public static final int UPLOADS_PER_FRAME = 32;
     public static final int REBUILD_SCHEDULES_PER_FRAME = 32;
-    public static final long UPLOAD_TIME_BUDGET_NANOS = 5_000_000L;
-    public static final long UPLOAD_BYTE_BUDGET = 16L * 1024 * 1024;
-    public static final long REBUILD_TIME_BUDGET_NANOS = 3_000_000L;
+    /*
+     * Counts only: the per-frame time budgets stay the normal ones. With 5 ms of uploads and 3 ms of scheduling per frame
+     * the flight into new terrain (where many visible sections are always new) got more long frames (A/B 15.11.,
+     * no shader, 3 pairs: 1% low 101-121 vs 125-132 FPS, spikes 74-99 vs 68-73). The count cap (5 uploads, 8 schedules)
+     * was what slowed a pack switch down, not the time.
+     */
+    public static final long UPLOAD_TIME_BUDGET_NANOS = 2_000_000L;
+    public static final long UPLOAD_BYTE_BUDGET = 8L * 1024 * 1024;
+    public static final long REBUILD_TIME_BUDGET_NANOS = 1_000_000L;
 
     /** Short gaps happen all the time while walking; only a gap a player notices is worth a log line. */
     private static final long LOGGED_GAP_NANOS = 1_000_000_000L;

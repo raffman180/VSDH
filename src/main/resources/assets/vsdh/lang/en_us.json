@@ -42,5 +42,7 @@
   "vsdh.notice.unsupportedMods.title": "VSDH: mods that are not fully supported",
   "vsdh.notice.unsupportedMods.message": "%s – display errors are possible. Nothing is blocked.",
   "vsdh.notice.unsupportedMods.chat": "[VSDH] These mods are not fully supported by the Vulkan renderer, display errors are possible: %s. Nothing is blocked.",
-  "vsdh.options.windowMode.tooltip": "Controls how Minecraft uses the display: a window, or exclusive fullscreen at the chosen resolution and refresh rate."
+  "vsdh.options.windowMode.tooltip": "Controls how Minecraft uses the display. Borderless Fullscreen covers the monitor with a borderless window at the desktop resolution: switching apps is instant and the display never changes mode. Exclusive Fullscreen hands the display to the game at the chosen resolution and refresh rate. Both present the same way.",
+  "vulkanmod.options.windowMode.windowedFullscreen": "Borderless Fullscreen",
+  "vsdh.options.windowMode.exclusive": "Exclusive Fullscreen"
 }

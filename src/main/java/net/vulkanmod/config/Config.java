@@ -21,6 +21,12 @@ public class Config {
 
     public int frameQueueSize = 2;
     public VideoModeSet.VideoMode videoMode = VideoModeManager.getFirstAvailable().getVideoMode();
+    /**
+     * What Minecraft's fullscreen (F11, options.txt) means: exclusive fullscreen (false, the default) or a borderless
+     * window over the monitor (true). Borderless presents with the Vulkan swapchain like exclusive fullscreen by
+     * default (net.vulkanmod.vulkan.framebuffer.WindowPresentation).
+     */
+    public boolean borderlessFullscreen = false;
     public int performancePreset = PerformancePreset.BALANCED.id;
     public int chunkUploadsPerFrame = PerformancePreset.BALANCED.chunkUploadsPerFrame;
     public boolean adaptiveChunkUploads = true;

@@ -643,3 +643,119 @@ Threads dauerhaft aktiv, `RenderBufferHandler.buildRenderList` 3 Samples).
 
 Prüfung: `gradlew --offline build verifyDhLinks` grün, 138 Tests (neu: `BiomeFiddleCacheTest`, `SubImageRangeTest`,
 `UniformRoutesTest`). Im Spiel NICHT geprüft.
+
+### Biom-Abfragen des Client-Ticks: einheitliche Sektionen ohne Rechnung (15.11., Fable; NUR Code + vorhandene JFR)
+
+Kein Spieltest. Grundlage wieder `mt-turn1.jfr` (188 Render-Thread-Samples in 30 s) und `mt-profile1.jfr` (313); Anteile
+sind grobe Werte. Rangfolge in turn1 nach äußerstem Abschnitt: Present-Wartezeit 65 (34,6 %), `vkWaitForFences` in
+`preInitFrame` 16 (8,5 %), `ClientLevel.animateTick` 15 (8,0 %), DH `LodRenderer.render` 14 (7,4 %, etwa zur Hälfte DHs eigene
+Renderliste und Nebelfarbe), NeoForge-Ereignisse fremder Mods 12 (6,4 %), `prepareShadowDraws` 11 (5,9 %, seit `ShadowSectionList`
+ersetzt), `WorldUniforms.write` 10 (5,3 %, seit `UniformRoutes` verkürzt), `TextureManager.tick` 7 (3,7 %).
+43 % der Samples sind Warten auf GPU/Present: die Szene ist GPU-begrenzt, CPU-Arbeit hebt die FPS dort nicht, sie
+verkürzt nur die Tick-Frames (Tick 34 von 188 Samples, grob 9 ms je Tick).
+
+Größter verbleibender VSDH-eigener Posten: 12 der 15 `animateTick`-Samples liegen in `getBiome` aus
+`doAnimateTick:421`, 9 davon mit oberstem Frame im eigenen `BiomeManager`-Redirect (`vsdh$rememberedCorner`,
+`BiomeCornerCache.begin`): der Positionsspeicher trifft bei Zufallspositionen nicht. Dazu 5 Samples Farbton-Flächen
+(Raffman's Detailed Map über `calculateBlockTint`); in profile1 (vor dem Positionsspeicher) 74 von 313 Samples in
+`getBiome`, davon Subtle Effects 46, Vanilla 10.
+
+Umgesetzt: `ClientLevel.getBiome(BlockPos)` (per Mixin als Methode ergänzt, kein Callback-Objekt je Aufruf) fragt auf
+dem Render-Thread zuerst `UniformBiomeProbe`: liegen alle acht Kandidatenzellen der Position in geladenen
+Chunk-Sektionen, deren Biom-Palette nur ein und dasselbe Biom enthält (`PalettedContainerRO.maybeHas`), ist das die
+Antwort; die acht Abstände und der Zellzugriff entfallen. Sonst (Sektion mit mehreren Biomen, Chunk fehlt, fremde
+Chunk-Klasse, anderer Thread) der unveränderte Weg über `BiomeManager` mit `BiomeCornerCache`/`BiomeFiddleCache`.
+Ergebnis ist derselbe `Holder`; Höhen-Klemmung und Zellwahl wie `ChunkAccess.getNoiseBiome`/`BiomeManager.getBiome`.
+Dateien: `UniformBiomeProbe`, `ClientBiomeSections`, `ClientLevelUniformBiomeMixin`, `UniformBiomeProbeTest`
+(Vergleich mit nachgebautem Vanilla-`getBiome` über 1 Mio. Positionen in fünf Welten, alle Sektions- und Chunkgrenzen).
+Schalter: `-Dvsdh.uniformBiomeSkip=false` (alter Weg), `=verify` (beide Wege, Vergleich, Logzeile
+`UNIFORM_BIOME verify probes=… hits=… mismatches=…` alle 65 536 Abfragen).
+Schätzung: je Treffer 1–2 Chunk-Abfragen und ein Palettenvergleich statt 8 Abständen plus Zellzugriff; Trefferquote
+hängt von der Welt ab (3D-Biome senken sie) und ist im Pack NICHT gemessen. Im Spiel noch nicht gemessen; kein FPS-
+oder Glätte-Anspruch.
+
+Geprüft und nicht umgesetzt: `CubicSampler.gaussianSampleVec3` ohne Zwischen-`Vec3` (rund 160 MB / 30 s weniger
+Allokation, CPU 2 von 188 Samples; Nachbau einer Vanilla-Farbrechnung ohne spürbaren Gewinn), DHs Nebelfarbe je Pass
+(`FogRenderer.setupColor` zweimal je Frame, 4 Samples; Eingriff in DH-Klassen mehrerer Versionen), Wrapper-Objekte in
+`Pipeline.updateDescriptorSet` (44 MB / 30 s) und `GlFramebuffer.captureBindings` (28 MB / 30 s): reine Allokation,
+neben über 25 GB der Server- und DH-Threads ohne Wirkung. GPU-Seite (dhWater, composite3) ohne Messung nicht angefasst.
+
+## Borderless presentation (15.11.2026, test client, Eclipse, 2560x1440, 30 s flight, RD 12, two runs each)
+
+| Variant | avg FPS | frames > 2 refresh/s | frames > 3 refresh/s | p99.9 ms | 0.1% low |
+|---|---|---|---|---|---|
+| Borderless, Vulkan swapchain | 120.6 / 114.3 | 3.17 / 3.20 | 1.53 / 1.07 | 31.8 / 23.1 | - / 41.8 |
+| Borderless, DXGI flip (D3D12) | 108.5 / 138.2 | 6.04 / 4.63 | 3.10 / 0.70 | 31.8 / 24.2 | 28.5 / 34.9 |
+| Exclusive fullscreen, Vulkan | 116.7 / 141.3 | 2.60 / 2.73 | 1.17 / 0.97 | 31.5 / 24.8 | 24.5 / 32.5 |
+
+Average FPS varies more between runs than between variants (terrain generation along the route); the pacing columns
+are what separates them. The frame times are CPU-side frame intervals; how the compositor shows the frames (independent
+flip or composition) is not measured here. Default for borderless: the Vulkan swapchain.
+
+## VSDH gegen Iris 1.8.12 + Sodium 0.6.13 (15.11.2026, Testclient, exklusives Vollbild, 2560x1440, 30-s-Flug, RD 12, DH 3.3.3 in beiden, je 2 Läufe)
+
+| Szene | VSDH Ø FPS | Iris+Sodium Ø FPS | VSDH Median ms | Iris Median ms | VSDH 0,1 % low | Iris 0,1 % low | VSDH p99,9 ms | Iris p99,9 ms |
+|---|---|---|---|---|---|---|---|---|
+| Eclipse | 126,3 / 133,2 | 120,5 / 121,4 | 7,83 / 7,41 | 8,20 / 8,12 | 34,9 / 26,7 | 34,5 / 37,3 | 26,3 / 32,2 | 24,0 / 23,3 |
+| Complementary r5.9.3 | 212,4 / 209,2 | 183,3 / 186,4 | 4,60 / 4,60 | 5,36 / 5,24 | 42,8 / 34,7 | 41,8 / 42,2 | 21,2 / 23,0 | 21,0 / 21,5 |
+| ohne Shader | 677,3 / 689,3 | 534,1 / 605,9 | 1,35 / 1,32 | 1,59 / 1,44 | 46,5 / 39,7 | 48,2 / 61,1 | 17,1 / 21,2 | 15,4 / 13,4 |
+
+VSDH liegt im Mittel vorn (Eclipse +5–10 %, Complementary +13–16 %, ohne Shader +14–27 %) und hat die kürzeren
+Median-Bilder. Im seltenen Schwanz (0,1 % low, p99,9) ist Iris gleich gut oder besser: VSDH hat einzelne längere
+Bilder mehr. Das ist der nächste Ansatzpunkt. Frames über 2 Bildwechsel/s: Eclipse VSDH 3,07/2,97 gegen Iris
+3,37/3,94; Complementary 1,80/3,17 gegen 2,83/2,73; ohne Shader 1,77/1,93 gegen 1,53/1,03.
+
+## GPU-side VSDH-only work with Eclipse (15.11.2026, Fable; CODE + existing logs only, nothing measured in game)
+
+Sources: `bench-026/Eclipse-Shader-Unstable-eclgpu-vsdh.log` / `-eclgpu-iris.log` (14.11. 19:23, 1440p flight, same session),
+`Eclipse-Shader-Unstable-fbB1/fbB2.log` (snapshot copies split out with `-Dvsdh.gpuProfileFeedback=true`, UTF-16),
+`ComplementaryReimagined_r5.9.3-gpuprof-vsdh/-iris.log` (13.11.). ms per frame, VSDH / Iris:
+
+| Eclipse 1440p | VSDH | Iris | note |
+|---|---|---|---|
+| total | 7.65-7.99 | 8.00-8.14 | |
+| DH water + translucent | 2.21-2.37 | 1.70-1.76 | includes 5 snapshot copies, about 0.22 ms (fbB: 0.21-0.24) |
+| composite .. composite12 | 4.09-4.27 | 4.07-4.10 | composite3 +0.1, composite +0.07-0.12, composite4 -0.05-0.09 |
+| mip chains (composite1, composite11) | 0.16-0.19 | 0.18-0.20 (setup1, setup10) | same work |
+| depth snapshots (depthtex2, depthtex1, DH opaque) | 0.057 + 0.057 + 0.038 | inside before#2/translucent | Iris copies them too |
+| target clears etc. before the world | 0.060 | before#0 0.12 | Iris clears both halves too |
+| final + mirrored blit + copy-back | 0.040 + 0.10 | finalize 0.45 | blit about 0.03, copy-back of colortex7/8 about 0.07 |
+
+VSDH-only: the snapshot copies (0.22 ms) and the mirrored blit (0.03 ms); everything else Iris pays as well. About
+0.45 ms of 8 ms is copy work at all, so removing every copy would give at most 5 % in this pack.
+
+Changes (not measured yet):
+
+- **Empty terrain layers are skipped in pack frames** (`TerrainLayerDraws`, `WorldRenderer.renderSectionLayer`;
+  `-Dvsdh.skipEmptyTerrainLayers=false` restores the old path). Vanilla asks for five layers, the renderer holds geometry
+  in two or three; SOLID, TRIPWIRE (and CUTOUT with one opaque layer) never draw. The pack program was prepared anyway:
+  uniforms, an empty render pass, and for TRIPWIRE (gbuffers_water) the snapshot copies of colortex7 and colortex11.
+  Eclipse: 2 of the 5 copies per frame, 44 of 118 MB, estimated 0.08 ms at 1440p; a TRANSLUCENT layer with no water
+  in any queued area saves the same again. No picture change expected (nothing was drawn).
+- **Wider swap rule, opt-in** (`PersistentSwap`, `-Dvsdh.swapAfterGeometry=true`): a persistent target also swaps
+  halves when geometry draws into it, provided the first thing a frame does with the alternate half is an unblended
+  fullscreen pass. Adds Eclipse colortex7/8 (estimated 0.07 ms), Complementary colortex4 (about 0.02 ms), Bliss
+  colortex7, MakeUp 0/1, Mellow 1. Opt-in because a pass that shrinks gl_Position or discards (Bliss) would leave this
+  frame's gbuffer contents where Iris leaves last frame's final ones; needs a picture comparison per pack. Geometry
+  pipelines are built once more on the second frame (two render pass objects per program).
+
+Colour feedback loops (`-Dvsdh.feedbackLoops=true`) would remove the remaining 3 copies (about 0.13 ms after the first
+change, 0.22 ms before). Every read of colortex7/11 in Eclipse's water programs is `texelFetch(…, ivec2(gl_FragCoord.xy), 0)`,
+the fragment's own texel. The 2.3 ms of the 14.11. A/B included the live DH depth (now off) and unexplained composite
+differences; repeat it with colour loops alone before quoting it.
+
+## Nachtmessungen 15.11.2026 (Testclient, 1440p)
+
+- **Leere Gelände-Schichten überspringen** (`vsdh.skipEmptyTerrainLayers`, Eclipse, GPU-Profil, je 2 Läufe):
+  feedbackCopy 0,189 / 0,223 ms (aus) gegen 0,119 / 0,119 ms (an). Die Gesamtzeit schwankt zwischen Läufen um bis zu
+  1,5 ms (Szene), die Einsparung zeigt sich am Pass.
+- **Farb-Feedback-Schleifen** (`vsdh.feedbackLoops=true`, je 2 Läufe): feedbackCopy 0,12 -> 0 ms, translucent 0,74 -> 0,58 ms.
+  Standard bleibt aus, bis Bildvergleiche gegen Iris gemacht sind.
+- **Biom-Kurzweg** (`vsdh.uniformBiomeSkip=verify`, Eclipse-Flug): 2.716 Treffer in 1,18 Mio. Abfragen (0,2 %), 0 Abweichungen.
+  Richtig, aber fast nie anwendbar: Standard jetzt aus.
+- **Chunk-Aufbau** (Flug ohne Shader, 3 Paare): Die erste Fassung von ChunkCatchUp (5 ms Upload, 3 ms Planung pro Bild) und
+  prebuildHidden (4 pro Bild, ganze Sichtweite) kostete 1 %-Low (101-121 gegen 125-132 FPS) und mehr Ruckler (74-99 gegen
+  68-73). Nach dem Umbau (normale Zeitbudgets, nur Anzahl erhöht; Vorab-Bauen 1 pro Bild im Umkreis von 96 Blöcken):
+  1 %-Low 107/120/132 gegen 109/119/121, Ruckler 92/68/77 gegen 86/82/77, also kein messbarer Nachteil mehr.
+- Die übrigen langen Bilder im Flug ohne Shader sind laut ChunkDiag G1-Pausen um 23-25 ms und einzelne GPU-Wartezeiten
+  (bis 88 ms), nicht Chunk-Arbeit.
