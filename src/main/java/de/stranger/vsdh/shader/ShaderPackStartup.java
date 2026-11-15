@@ -156,7 +156,12 @@ public final class ShaderPackStartup {
                 // A pack the player asked for goes first: a warm-up that has not started yields while a request is open.
                 var open=request;
                 if(open!=null && open.pending!=null && !open.pending.isDone() && open.pending!=preparation.future)return;
-                preparation.runOnce();
+                try {
+                    // Few workers at the lowest priority: nobody waits for a pack prepared ahead.
+                    PreparePool.background(()->{ preparation.runOnce();return null; });
+                } catch(Exception impossible) {
+                    // runOnce reports through the preparation's future.
+                }
             });
         } catch(IOException|RuntimeException unreadable) {
             // Chosen later, the same error reaches the player through the normal path.
@@ -172,6 +177,12 @@ public final class ShaderPackStartup {
         } catch(IOException|RuntimeException failure) {
             return CompletableFuture.failedFuture(new CompletionException(failure));
         }
+        // The player waits: a warm-up that is running (this pack or the one before it) gets every compile worker.
+        PreparePool.urgent(true);
+        preparation.future.whenComplete((prepared,failure)->{
+            var open=request;
+            if(open==null || open.pending==null || open.pending.isDone())PreparePool.urgent(false);
+        });
         // A pack that waits in the warm-up queue starts now, on its own worker.
         if(!preparation.started.get())Thread.ofVirtual().name("VSDH shaderpack preparation").start(preparation::runOnce);
         // The settings page lists the options of the pack that was asked for, also when it came from the cache.
@@ -182,9 +193,19 @@ public final class ShaderPackStartup {
     private static Prepared compute(Path directory,String packFile,Selection selection) throws IOException {
         // A newer version may have replaced the configured file (v1.0 -> v1.0.1): use it, keep the saved choice.
         if(!packFile.equals(selection.name()))LOGGER.warn("Shader pack {} not found; using {} instead",selection.name(),packFile);
+        ShaderDiskCache.ensure();
+        // One preparation at a time (PREPARING), so these tallies belong to this pack.
+        PrepareClock.reset();
+        dev.vitrail.glsl.LoadClock.reset();
+        SpirvCache.resetCounters();
+        dev.vitrail.glsl.TranslationCache.reset();
         long started=System.nanoTime();
         var first=open(directory,packFile,selection,selection.options(),true);
         LOGGER.info("Shader pack {} prepared in {} ms",packFile,(System.nanoTime()-started)/1_000_000);
+        LOGGER.info("Shader pack {} preparation: {} compile workers; compiled programs {} from disk, {} compiled; translations {} from disk of {}; "
+                        +"flattening {} ms, translation {} ms (worker time); phases: {}",packFile,PreparePool.THREADS,
+                SpirvCache.hits(),SpirvCache.misses(),dev.vitrail.glsl.TranslationCache.served(),dev.vitrail.glsl.LoadClock.translated(),
+                dev.vitrail.glsl.LoadClock.expansionMillis(),dev.vitrail.glsl.LoadClock.translationMillis(),PrepareClock.report());
         int resolution=largestShadowResolution(first.set());
         long budget=preparationShadowBudget();
         if(budget<=0 || largestShadowBytes(first.set())<=budget)return new Prepared(first.set(),resolution,resolution,packFile,budget>0,first.view());

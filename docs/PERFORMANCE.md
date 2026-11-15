@@ -969,3 +969,83 @@ Expected cost: a 2048-section scan per frame (flag reads, estimated 20-40 us), a
 non-empty section, a graph walk after each finished upload as before. The earlier 4-per-frame prebuild over the whole
 render distance was measured together with the 5/3 ms budgets and cost 1% lows; this one keeps the time budget, so it
 needs its own flight A/B (`-Dvsdh.shadowCasterBuilds=false`, `-Dvsdh.shadowCasterBuildsPerFrame=2|8`) before any claim.
+
+## Pack preparation time (15.11.2026, headless, NOT measured in game)
+
+Report: switching packs takes 12-22 s ("Shader pack ... prepared in 21566 ms" in the player's log) before the world
+is rebuilt. Measured without the game: `./gradlew --offline benchPackPrepare -PshaderPack=<zip> -PshaderProfile=HIGH
+-PsmokeDistantPack=true -PbenchRuns=N -PbenchProps=name=value,...` (`PackPrepareBench`: open, option page, three
+dimensions, as `ShaderPackStartup.open`; `PrepareClock` phases; low priority, one run at a time, Ryzen 9 7950X3D). Each
+cell is one run; repeated runs differ by about 0.5 s. A fresh JVM runs the translator and the cache code interpreted
+at first, as the first preparation after a game start does; the second and third run in one JVM show a later switch.
+
+Where the time went before (sequential, no store, fresh JVM; plan phases contain their programs' leaf phases):
+
+| Phase | Jurgens v1.2 HIGH | Eclipse HIGH | Solas V3.9 HIGH |
+|---|---|---|---|
+| total | 22.0 s | 21.1 s | 18.2 s |
+| open ZIP, index options, option page | 0.26 s | 0.39 s | 0.30 s |
+| flatten entry files (includes), 3 dimensions | 0.82 s (222 units) | 0.82 s (262) | 0.44 s (139) |
+| GLSL translation | 3.16 s (144 programs) | 2.16 s (147) | 1.63 s (108) |
+| bindings and stage text rewrites (regex) | 1.53 s | 2.83 s | 1.28 s |
+| shaderc to SPIR-V | 14.36 s (258 stages) | 11.56 s (280) | 13.17 s (213) |
+| stage linking, debug strip | 0.18 s | 0.26 s | 0.18 s |
+| texture decode / texture plan | 0.56 s | 1.44 s | 0.30 s |
+| block ids, expressions, items, directives | 0.18 s | 0.42 s | 0.19 s |
+| by plan part: chain / terrain / entities | 11.3 / 3.5 / 2.5 s | 9.4 / 3.4 / 2.8 s | 4.2 / 3.9 / 4.1 s |
+| by plan part: shadow / DH / sky / particles | 0.9 / 0.8 / 0.9 / 0.9 s | 0.7 / 0.7 / 0.8 / 0.8 s | 0.7 / 1.0 / 2.2 / 1.3 s |
+
+SPIR-V reflection is a pure-Java walk (`SpirvInterface.bindings`) inside the plan phases and too small to show.
+
+After (same digest of every translated text, SPIR-V module, binding table and decoded texture in all columns):
+
+| Total | Jurgens | Eclipse | Solas |
+|---|---|---|---|
+| before: sequential, no store (`-Dvsdh.prepareThreads=0 -Dvsdh.spirvCache=false -Dvsdh.sharedPackTextures=false`) | 22.0 s | 21.1 s | 18.2 s |
+| parallel (16 workers), stores off | 5.0 s | 7.2 s | 4.8 s |
+| parallel, stores on but empty (first use of a pack) | 5.1 s | 7.5 s | 5.2 s |
+| parallel, stores filled, fresh JVM (first preparation after a game start) | 2.0 s | 2.9 s | 1.7 s |
+| parallel, stores filled, 2nd/3rd run in the same JVM (a later switch) | 1.0-1.2 s | 1.9-2.0 s | 0.46-0.56 s |
+| sequential, stores filled, fresh JVM | 2.4 s | 4.4 s | 2.1 s |
+
+Worker count (Jurgens, stores off, fresh JVM): 0 = 22.0 s, 2 = 12.6 s, 4 = 5.7 s, 8 = 4.5 s, 16 (default) = 5.0 s,
+30 = 5.6 s (the 2-worker run is from an earlier build of the same day). 8 to 16 is flat within run noise; more than the physical cores is not faster. Disk use: Jurgens 16 + 14 MiB
+(SPIR-V + translations), Eclipse 11 + 9, Solas 8 + 4.
+
+What is left with filled stores (Jurgens, later switch, 1.0-1.2 s): flattening the entry files on the plan thread
+0.65-0.8 s (the store keys are the flattened and translated text, so nothing can be looked up before), target plans and
+file reads 0.3 s, reading 141 programs back about 0.6 s of worker time across the workers. Eclipse adds 0.2 s of
+block.properties and item parsing. The pack source is single-threaded, so flattening is the floor without a deeper change.
+
+What changed:
+- `PreparePool`: translation, binding rewrite, shaderc and linking of a program run as one worker task; the plan thread
+  flattens the files, queues every program the plan will ask for (`WorldPackPlan.scout` and the `prefetch` beside each
+  `prepare`, for all three dimensions before the first plan runs) and then takes the results in plan order.
+- `SpirvCache` (`config/vsdh-shadercache/spirv`) and the translator's `TranslationCache`
+  (`config/vsdh-shadercache/translations`), installed by `ShaderDiskCache` on the first preparation.
+- Shared work: a program asked for twice with the same arguments is prepared once (Solas 108 -> 88, Eclipse 147 -> 139,
+  Jurgens 144 -> 141 programs); two different requests with the same final text compile once (Jurgens 17, Eclipse 9);
+  pack textures are decoded once per opening instead of once per dimension and PNGs decode on the workers while the
+  programs compile (Eclipse texture plan 1.44 s -> 0.05-0.16 s; its moon.png alone is 20 MB encoded).
+- Rejected: hoisting the per-pixel `getRaster`/`getAlphaRaster` calls in `decodePng` (no measurable change: the time is
+  the PNG inflate); a warm-up of used packs at world load (see AGENTS.md).
+
+shaderc thread safety (shaderc.h, google/shaderc main, read 15.11.2026): "concurrent invocation of these functions on
+DIFFERENT objects needs no synchronization"; `shaderc_compile_into_spv` "May be safely called from multiple threads
+without explicit synchronization"; options objects have the basic guarantee only. Each task creates and releases its own
+compiler and options object, as the sequential code did per program.
+
+To check in game after a go (test client, Prism instance stays closed):
+1. Log lines `Shader disk cache in ...: compiled programs on, translated programs on; N compile workers` and
+   `Shader pack ... preparation: ...` at startup with a configured pack; second start: "N from disk, 0 compiled" and
+   "translations N from disk of N". Under NeoForge the SPIR-V edition reads class bytes through
+   `Class.getResourceAsStream` and the translation edition through the mod file (`findResource("dev/vitrail")`): if
+   either says "off", that lookup failed in the module class loader and needs another source.
+2. Title screen and in a world: `-PtestSysProps=vsdh.releaseQA.menuSwitch=<zip>` and `vsdh.releaseQA.worldSwitch=true`
+   with Jurgens, Eclipse, Solas; compare "prepared in" with the table and screenshots against a run with
+   `vsdh.prepareThreads=0,vsdh.spirvCache=false,vsdh.translationCache=false` (same seed, camera, DH config).
+3. Frame times while a warm-up runs in a world (Shader page open, flight CSV): the warm-up uses 4 lowest-priority
+   threads; a requested pack uses 16 at below-normal priority for 1-7 s.
+4. `-Dvsdh.keepTerrainOnSwitch=true`: change an option or profile of the installed pack in a world (same
+   block.properties): log `Pack change kept the built terrain`; no holes after flying around, block changes still
+   rebuild, shadows and DH unchanged; then a pack with another table (full rebuild as before).

@@ -47,6 +47,21 @@ public record SkyPackPlan(Map<Layout, PackProgramSource.Prepared> programs) {
 
     static SkyPackPlan empty() { return new SkyPackPlan(Map.of()); }
 
+    /** Read-ahead of the programs {@link #prepare} will ask for (same candidates, same arguments). */
+    static void prefetch(OpenedPack pack, String prefix, dev.vitrail.pack.target.TargetPlan targets) {
+        var alphas = pack.properties().alphaTests(pack.settings().globalDefines(pack.options()));
+        for (Layout layout : Layout.values()) {
+            for (String candidate : ProgramFallbacks.chain(layout.program)) {
+                if (pack.source().file(prefix + candidate + ".vsh").isEmpty()
+                        || pack.source().file(prefix + candidate + ".fsh").isEmpty()
+                        || targets.schedule().step(candidate).isEmpty()) continue;
+                PackProgramSource.prefetch(pack, prefix + candidate, VertexInputs.SKY,
+                        layout.elements, alphas.getOrDefault(candidate, AlphaTest.OFF));
+                break;
+            }
+        }
+    }
+
     static SkyPackPlan prepare(OpenedPack pack, String prefix, ShaderChainPlan chain) throws IOException {
         var alphas = pack.properties().alphaTests(pack.settings().globalDefines(pack.options()));
         var programs = new EnumMap<Layout, PackProgramSource.Prepared>(Layout.class);

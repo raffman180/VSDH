@@ -329,6 +329,14 @@ public class RenderSection {
         return ChunkStatusMap.INSTANCE.chunkRenderReady(this.xOffset >> 4, this.zOffset >> 4);
     }
 
+    /**
+     * A build was asked for and its result never arrived (scheduled, compiling or waiting for upload), and the
+     * section is not marked dirty for another one. Sections that were never built and wait dirty are not meant.
+     */
+    public boolean buildOutstanding() {
+        return !this.dirty && this.compileStatus.compiledBuildRevision != this.compileStatus.buildRevision;
+    }
+
     public void setNotDirty() {
         this.dirty = false;
         this.playerChanged = false;

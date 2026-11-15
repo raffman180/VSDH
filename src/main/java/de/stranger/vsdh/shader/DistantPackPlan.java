@@ -25,6 +25,16 @@ public record DistantPackPlan(PackProgramSource.Prepared terrain, PackProgramSou
         return prepare(pack, prefix, true);
     }
 
+    /** Read-ahead of the programs {@link #prepare} will ask for. */
+    static void prefetch(OpenedPack pack, String prefix) {
+        var names = new ArrayList<String>(List.of("dh_terrain", "dh_water"));
+        if (pack.source().file(prefix + "dh_generic.vsh").isPresent() && pack.source().file(prefix + "dh_generic.fsh").isPresent())
+            names.add("dh_generic");
+        for (String name : names)
+            PackProgramSource.prefetch(pack, prefix + name, VertexInputs.DISTANT, VertexInputs.DISTANT.elements(),
+                    dev.vitrail.pack.model.AlphaTest.OFF);
+    }
+
     public static DistantPackPlan prepare(OpenedPack pack, String prefix, boolean clouds) throws IOException {
         boolean ownGeneric = pack.source().file(prefix + "dh_generic.vsh").isPresent()
                 && pack.source().file(prefix + "dh_generic.fsh").isPresent();

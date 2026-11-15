@@ -26,6 +26,57 @@ public final class VulkanProgramCompiler {
 
     /** Bindings are shared across stages, including uniforms a particular stage does not read. */
     public static Compiled compile(String name, TranslatedProgram translated) {
+        Map<String, Integer> bindings = bindings(translated);
+        // The same program compiled before (also in an earlier session) is read back instead of compiled again.
+        // A shader dump wants the compile step itself, so it goes around the cache.
+        String key = null;
+        if (DUMP == null && SpirvCache.active()) {
+            long hashing = PrepareClock.start();
+            var texts = new java.util.EnumMap<ProgramStage, String>(ProgramStage.class);
+            translated.stages().forEach((stage, unit) -> texts.put(stage, unit.text()));
+            key = SpirvCache.keyFor(name, translated.inputs() == VertexInputs.FULLSCREEN, bindings, texts);
+            var kept = SpirvCache.lookup(key);
+            PrepareClock.add("leaf.spirvCacheRead", hashing);
+            if (kept != null) return new Compiled(kept.stages(), bindings, kept.sources());
+        }
+        if (key == null) return build(name, translated, bindings);
+        // Two requests with one key (the same text under another alpha test or vertex format) compile once: the
+        // second worker waits for the first instead of compiling the same program beside it.
+        var mine = new java.util.concurrent.CompletableFuture<Compiled>();
+        var other = BUILDING.putIfAbsent(key, mine);
+        if (other != null) {
+            try {
+                Compiled same = other.join();
+                PrepareClock.count("leaf.sharedCompile");
+                return new Compiled(same.stages(), bindings, same.sources());
+            } catch (java.util.concurrent.CompletionException | java.util.concurrent.CancellationException failed) {
+                return build(name, translated, bindings); // meets the same failure and reports it as its own
+            }
+        }
+        try {
+            Compiled built = build(name, translated, bindings);
+            long storing = PrepareClock.start();
+            SpirvCache.store(key, new SpirvCache.Entry(built.stages(), built.sources()));
+            PrepareClock.add("leaf.spirvCacheWrite", storing);
+            mine.complete(built);
+            return built;
+        } catch (RuntimeException | Error failure) {
+            mine.completeExceptionally(failure);
+            throw failure;
+        } finally {
+            BUILDING.remove(key, mine);
+        }
+    }
+
+    /** Compilations under way, by cache key. */
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.CompletableFuture<Compiled>> BUILDING =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * The descriptor binding of every resource of the program, shared by its stages. Stages are walked in the
+     * enum's order: the translated stage map has no order of its own, and the numbers must not depend on it.
+     */
+    static Map<String, Integer> bindings(TranslatedProgram translated) {
         Map<String, Integer> bindings = new LinkedHashMap<>();
         if (!translated.uniforms().isEmpty()) bindings.put("OfGlobals", bindings.size());
         if (translated.stages().values().stream().anyMatch(unit ->
@@ -34,10 +85,17 @@ public final class VulkanProgramCompiler {
         translated.samplers().forEach(sampler -> bindings.putIfAbsent(sampler.name(), bindings.size()));
         // Storage blocks keep their pack index (bufferObject.N) under a key no GLSL name can take;
         // the descriptor binding is ours, appended after the samplers like every other resource.
-        for (var unit : translated.stages().values())
-            if (unit.notes() != null) for (var block : unit.notes().storageBlocks())
+        for (ProgramStage stage : ProgramStage.values()) {
+            var unit = translated.stages().get(stage);
+            if (unit != null && unit.notes() != null) for (var block : unit.notes().storageBlocks())
                 bindings.putIfAbsent(storageKey(Math.max(0, block.binding())), bindings.size());
+        }
+        return bindings;
+    }
 
+    /** One compiler and one options object per call: shaderc needs no synchronisation between different objects. */
+    private static Compiled build(String name, TranslatedProgram translated, Map<String, Integer> bindings) {
+        long clock = PrepareClock.start();
         long compiler = Shaderc.shaderc_compiler_initialize();
         if (compiler == 0) throw new IllegalStateException("shaderc compiler initialization failed");
         long options = Shaderc.shaderc_compile_options_initialize();
@@ -86,6 +144,7 @@ public final class VulkanProgramCompiler {
                 }
             }
             dumpSources(name, texts);
+            PrepareClock.add("leaf.bind", clock);
             boolean linkGraphics = texts.size() == 2
                     && texts.containsKey(ProgramStage.VERTEX)
                     && texts.containsKey(ProgramStage.FRAGMENT);
@@ -109,9 +168,11 @@ public final class VulkanProgramCompiler {
                 ByteBuffer filename = MemoryUtil.memUTF8(name + "." + stage.extension());
                 ByteBuffer entrypoint = MemoryUtil.memUTF8("main");
                 long result;
+                long shaderc = PrepareClock.start();
                 try {
                     result = Shaderc.shaderc_compile_into_spv(compiler, text, kind(stage), filename, entrypoint, options);
                 } finally {
+                    PrepareClock.add("leaf.shaderc", shaderc);
                     MemoryUtil.memFree(entrypoint);
                     MemoryUtil.memFree(filename);
                     MemoryUtil.memFree(text);
@@ -129,6 +190,7 @@ public final class VulkanProgramCompiler {
                     Shaderc.shaderc_result_release(result);
                 }
             }
+            clock = PrepareClock.start();
             if (linkGraphics) {
                 SpirvInterface.linkGraphics(stages.get(ProgramStage.VERTEX), stages.get(ProgramStage.FRAGMENT),
                         sources.get(ProgramStage.FRAGMENT));
@@ -139,6 +201,7 @@ public final class VulkanProgramCompiler {
                     SpirvInterface.linkStages(stages.get(chain.get(i - 1)), stages.get(chain.get(i)), sources.get(chain.get(i)));
                 stages.replaceAll((stage, bytes) -> SpirvInterface.withoutDebugSource(bytes));
             }
+            PrepareClock.add("leaf.link", clock);
             return new Compiled(stages, bindings, sources);
         } finally {
             if (options != 0) Shaderc.shaderc_compile_options_release(options);

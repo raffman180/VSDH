@@ -131,6 +131,20 @@ tasks.register('auditWorldHost', JavaExec) {
             providers.gradleProperty('smokeDistantPack').getOrElse('false'),
             providers.gradleProperty('shaderProfile').getOrElse('MEDIUM')
 }
+tasks.register('benchPackPrepare', JavaExec) {
+    group = 'verification'
+    description = 'Times the preparation of an external shaderpack per phase without starting Minecraft or requiring a GPU.'
+    classpath = sourceSets.smoke.runtimeClasspath
+    mainClass = 'de.stranger.vsdh.smoke.PackPrepareBench'
+    args providers.gradleProperty('shaderPack').getOrElse('run/shaderpacks/ComplementaryReimagined_r5.9.3.zip'),
+            providers.gradleProperty('shaderProfile').getOrElse('MEDIUM'),
+            providers.gradleProperty('smokeDistantPack').getOrElse('false'),
+            providers.gradleProperty('benchRuns').getOrElse('1')
+    // -PbenchProps=vsdh.spirvCache=false,vsdh.prepareThreads=1 (comma separated name=value pairs)
+    providers.gradleProperty('benchProps').getOrElse('').split(',').each { pair ->
+        if (pair.contains('=')) systemProperty pair.substring(0, pair.indexOf('=')), pair.substring(pair.indexOf('=') + 1)
+    }
+}
 processResources {
     inputs.property 'version', project.version
     inputs.property 'rendererVersion', project.renderer_version

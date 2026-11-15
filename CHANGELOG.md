@@ -35,6 +35,17 @@
   (cache: Y KiB loaded)`. `-Dvsdh.pipelineCacheSave=false` restores saving at exit only. Not yet measured in game.
 
 ### Changed
+- Switching shader packs is much faster. A pack's programs are now translated and compiled side by side on several
+  processor cores instead of one after another, and the compiled programs are kept in `config/vsdh-shadercache`, so a
+  pack that was used before (same file, profile and options) is read back instead of compiled again, also after a
+  restart. Measured without the game on a 16-core processor: Jurgens Shader v1.2 22.0 s before, 5.0 s on first use, 1.0
+  to 2.0 s afterwards; Eclipse 21.1 s, 7.2 s, 1.9 to 2.9 s; Solas 18.2 s, 4.8 s, 0.5 to 1.7 s. The prepared result is
+  identical in all cases. Each of the two stores in that folder is capped at 256 MiB; the folder may be deleted at any
+  time.
+  `-Dvsdh.prepareThreads=0` restores the old one-by-one preparation, `-Dvsdh.spirvCache=false` and
+  `-Dvsdh.translationCache=false` turn the two stores off. Not yet timed in game; the terrain is still rebuilt after a
+  change inside a world (an opt-in that keeps it between packs with the same block table,
+  `-Dvsdh.keepTerrainOnSwitch=true`, is untested).
 - Distant Horizons' shared quad index buffer lives in GPU memory like the renderer's own index buffers (was host memory;
   no measurable frame-time change, `-Dvsdh.dhIndexHostMemory=true` restores it).
 

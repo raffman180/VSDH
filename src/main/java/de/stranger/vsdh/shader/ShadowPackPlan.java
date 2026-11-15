@@ -30,6 +30,25 @@ public record ShadowPackPlan(Map<String, PackProgramSource.Prepared> programs, L
         java.util.Objects.requireNonNull(cull, "cull");
     }
 
+    /** Read-ahead of the programs {@link #prepare} will ask for (same names, same arguments). */
+    static void prefetch(OpenedPack pack, String prefix) {
+        String path = prefix + "shadow";
+        if (pack.source().file(path + ".vsh").isEmpty()) return;
+        var defines = pack.settings().globalDefines(pack.options());
+        var alpha = pack.properties().alphaTests(defines);
+        PackProgramSource.prefetch(pack, path, PackProgramSource.terrainInputs(pack), PackProgramSource.terrainInputs(pack).elements(),
+                alpha.getOrDefault("shadow", AlphaTest.ONE_TENTH));
+        var casters = pack.properties().shadowCasters(defines);
+        var programs = new java.util.ArrayList<String>();
+        if (casters.entities() || casters.player()) programs.add("shadow_entities");
+        if (casters.blockEntities() || casters.lightBlockEntities()) programs.add("shadow_block");
+        for (String program : programs) {
+            String name = pack.source().file(prefix + program + ".vsh").isPresent() ? program : "shadow";
+            PackProgramSource.prefetch(pack, prefix + name, VertexInputs.VULKAN_ENTITY, VertexInputs.VULKAN_ENTITY.elements(),
+                    alpha.getOrDefault(name, AlphaTest.ONE_TENTH));
+        }
+    }
+
     public static ShadowPackPlan prepare(OpenedPack pack, String prefix, int ceiling,
                                          Set<String> customUniforms, boolean distant, PackTextures textures,
                                          Consumer<String> warning) throws IOException {

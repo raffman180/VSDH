@@ -510,6 +510,9 @@ public final class WorldShaderSession implements MainPass {
             unique.add(next.overworld());
             unique.forEach(WorldShaderSession::validatePlan);
         }
+        // Decided before anything is torn down: the outgoing host is gone by the time the builders restart.
+        boolean keepTerrain=KEEP_TERRAIN && current!=null && next!=null && current.plans.sameTerrainContract(next);
+        boolean switched=false;
         worldRenderer.getTaskDispatcher().stopThreads();
         try {
             PipelineManager.runTerrainSwitchInWorld(()->{
@@ -526,11 +529,26 @@ public final class WorldShaderSession implements MainPass {
                     }
                 }
             });
+            switched=true;
         } finally {
-            // Restarts the builders with the current contract and rebuilds every section, also after a failure.
-            worldRenderer.allChanged();
+            if (keepTerrain && switched && current!=null) {
+                // Same vertex format and the same material numbers: the built sections are what a rebuild would
+                // produce, so they stay; only builds that were under way when the builders stopped run again.
+                int rebuilt=worldRenderer.resumeBuilders();
+                org.slf4j.LoggerFactory.getLogger("VSDH").info("Pack change kept the built terrain (same material table); {} interrupted sections rebuild",rebuilt);
+            } else {
+                // Restarts the builders with the current contract and rebuilds every section, also after a failure.
+                worldRenderer.allChanged();
+            }
         }
     }
+
+    /**
+     * -Dvsdh.keepTerrainOnSwitch=true (opt-in until checked in game): a pack change in a world keeps the built
+     * sections when both packs give every block the same material number. Default: every section is rebuilt.
+     */
+    private static final boolean KEEP_TERRAIN=Boolean.getBoolean("vsdh.keepTerrainOnSwitch");
+
 
     private static WorldShaderSession installUnchecked(WorldPackSet plans) {
         var unique=new java.util.LinkedHashSet<>(plans.dimensions().values());

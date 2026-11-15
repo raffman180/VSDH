@@ -47,6 +47,52 @@ public record PackTexturePlan(Map<String,Asset> bindings) {
             "specular", new Pixels(1, 1, new byte[4], false, false));
 
     static boolean hasMaterialDefault(String sampler) {return MATERIAL_DEFAULTS.containsKey(sampler);}
+    private static final boolean SHARE_DECODED=!"false".equals(System.getProperty("vsdh.sharedPackTextures"));
+
+    /** The whole description: the same file may be declared with another filter or raw layout elsewhere. */
+    private static String id(PackTexture texture) {
+        return texture.path()+":"+texture.blur()+":"+texture.clamp()+":"+texture.describe();
+    }
+
+    /** PNG decodes under way on the compile workers, by texture id; one map per opening and define table. */
+    private static Map<String,java.util.concurrent.Future<Pixels>> ahead(OpenedPack pack,Map<String,String> defines) throws IOException {
+        return pack.source().derived(java.util.List.of(PackTexturePlan.class,"ahead",defines),HashMap::new);
+    }
+
+    /**
+     * Starts decoding the PNG textures the pack declares while its programs compile (Eclipse's moon and corona
+     * images took 1.1 s on the plan thread). The file is read here, the pack source being single-threaded; a worker
+     * decodes the bytes. {@link #read} takes the result for the textures a program really samples; a declared
+     * texture nothing samples was decoded for nothing and is dropped with the opening. Read-ahead only: a failure
+     * here is met again where the plan decodes the texture itself. Encoded files above 64 MiB in total are left to
+     * the plan thread.
+     */
+    static void prefetch(OpenedPack pack) {
+        if(!SHARE_DECODED||!PreparePool.parallel())return;
+        try {
+            var defines=pack.settings().globalDefines(pack.options());
+            var textures=PackTextures.read(pack.properties(),defines,pack.source());
+            var ahead=ahead(pack,defines);
+            Map<String,Asset> decoded=pack.source().derived(java.util.List.of(PackTexturePlan.class,defines,dev.vitrail.glsl.GlslTranslator.nativeVolumes()),HashMap::new);
+            long budget=64L*1024*1024;
+            for(var texture:textures.supplied()) {
+                if(texture.raw().isPresent()||texture.gameResource())continue;
+                String id=id(texture);
+                if(ahead.containsKey(id)||decoded.containsKey(id))continue;
+                String relative=texture.path().startsWith("/")?texture.path().substring(1):texture.path();
+                var file=pack.source().file(relative);
+                if(file.isEmpty())continue;
+                long size=Files.size(file.get());
+                if(size>budget)continue;
+                budget-=size;
+                byte[] encoded=Files.readAllBytes(file.get());
+                boolean blur=texture.blur(),clamp=texture.clamp();
+                ahead.put(id,PackProgramSource.submitAside(pack,()->decodePng(encoded,blur,clamp)));
+            }
+        } catch(IOException|RuntimeException later) {
+            // The plan decodes what is missing and meets the same failure there.
+        }
+    }
 
     public PackTexturePlan {bindings=Map.copyOf(bindings);}
     public static PackTexturePlan empty() {return new PackTexturePlan(Map.of());}
@@ -60,7 +106,13 @@ public record PackTexturePlan(Map<String,Asset> bindings) {
     }
     public static PackTexturePlan read(OpenedPack pack,ShaderChainPlan chain,Map<String,PackProgramSource.Prepared> terrain,ShadowPackPlan shadow,DistantPackPlan distant,SkyPackPlan sky,ParticlePackPlan particles,EntityPackPlan entities,PackTextures textures) throws IOException {
         var defines=pack.settings().globalDefines(pack.options());
-        var bindings=new LinkedHashMap<String,Asset>();var decoded=new HashMap<String,Asset>();
+        var bindings=new LinkedHashMap<String,Asset>();
+        // Decoded once per opening of the pack and define table, not once per dimension: the dimensions of a pack
+        // name the same files (Eclipse: 0.5 s of decoding per dimension), and an asset is immutable.
+        // -Dvsdh.sharedPackTextures=false decodes per dimension as before.
+        Map<String,Asset> decoded=SHARE_DECODED
+                ?pack.source().derived(java.util.List.of(PackTexturePlan.class,defines,dev.vitrail.glsl.GlslTranslator.nativeVolumes()),HashMap::new)
+                :new HashMap<>();
         var programs=new LinkedHashSet<PackProgramSource.Prepared>();
         terrain.values().forEach(programs::add);
         if(distant!=null)distant.programs().forEach(programs::add);
@@ -78,6 +130,7 @@ public record PackTexturePlan(Map<String,Asset> bindings) {
         }));
         chain.setup().forEach(c->programs.add(c.program().asProgram()));
         chain.shadowComputes().forEach(c->programs.add(c.program().asProgram()));
+        String noiseId=null;
         for(var source:programs) {
             String name=source.path().substring(source.path().lastIndexOf('/')+1);
             var stage=TextureStage.of(name).orElse(TextureStage.GBUFFERS);
@@ -94,14 +147,24 @@ public record PackTexturePlan(Map<String,Asset> bindings) {
                 }
                 var supplied=textures.resolve(stage,sampler.name());
                 if(supplied.isPresent()) {
-                    var texture=supplied.get();String id=texture.path()+":"+texture.blur()+":"+texture.clamp();
+                    var texture=supplied.get();String id=id(texture);
                     Asset asset=decoded.get(id);
-                    if(asset==null){asset=decode(pack,texture);decoded.put(id,asset);}
+                    if(asset==null) {
+                        var early=SHARE_DECODED?ahead(pack,defines).remove(id):null;
+                        if(early!=null)asset=PackProgramSource.joinAside(early); // null: the read-ahead was dropped
+                        if(asset==null)asset=decode(pack,texture);
+                        decoded.put(id,asset);
+                    }
                     bindings.put(key(name,sampler.name()),asset);
                 } else if (sampler.type().equals("sampler2D") && hasMaterialDefault(sampler.name())) {
                     bindings.put(key(name, sampler.name()), MATERIAL_DEFAULTS.get(sampler.name()));
                 } else if(sampler.name().equals("noisetex")) {
-                    Asset noise=decoded.get("<noise>");
+                    if(noiseId==null) {
+                        // The generated noise has the size of this dimension's directive.
+                        var named=pack.properties().noiseTexturePath(defines);
+                        noiseId=named.isPresent()?"<noise>"+named.get():"<noise>#"+chainNoiseSize(pack,chain);
+                    }
+                    Asset noise=decoded.get(noiseId);
                     if(noise==null) {
                         var path=pack.properties().noiseTexturePath(defines);
                         if(path.isPresent()) {
@@ -109,7 +172,7 @@ public record PackTexturePlan(Map<String,Asset> bindings) {
                             boolean[] filtering=mcmeta(pack,path.get());
                             noise=png(pack,path.get(),filtering[0],filtering[1]);
                         } else noise=noise(chainNoiseSize(pack,chain));
-                        decoded.put("<noise>",noise);
+                        decoded.put(noiseId,noise);
                     }
                     bindings.put(key(name,sampler.name()),noise);
                 }

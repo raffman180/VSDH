@@ -40,6 +40,40 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
     public record EyesPrograms(PackProgramSource.Prepared additive, PackProgramSource.Prepared emissive) {}
     public record HandPrograms(PackProgramSource.Prepared solid, PackProgramSource.Prepared translucent) {}
 
+    /**
+     * Read-ahead of the programs {@link #prepare} asks for when nothing is refused on the way: the same names,
+     * vertex formats and alpha tests. A program prepare then does not ask for was compiled for nothing.
+     */
+    static void prefetch(OpenedPack pack, String prefix, dev.vitrail.pack.target.TargetPlan targets) {
+        if (!hasProgram(pack, prefix, targets, NAME)) return;
+        var alphas = pack.properties().alphaTests(pack.settings().globalDefines(pack.options()));
+        var inputs = VertexInputs.VULKAN_ENTITY;
+        var wanted = new java.util.ArrayList<java.util.Map.Entry<String, AlphaTest>>();
+        wanted.add(java.util.Map.entry(NAME, AlphaTest.OFF));
+        wanted.add(java.util.Map.entry(NAME, AlphaTest.ONE_TENTH));
+        if (hasProgram(pack, prefix, targets, BLOCK)) {
+            wanted.add(java.util.Map.entry(BLOCK, AlphaTest.OFF));
+            wanted.add(java.util.Map.entry(BLOCK, AlphaTest.ONE_TENTH));
+            if (hasProgram(pack, prefix, targets, "gbuffers_block_translucent"))
+                wanted.add(java.util.Map.entry("gbuffers_block_translucent", AlphaTest.ONE_TENTH));
+        }
+        if (hasProgram(pack, prefix, targets, TRANSLUCENT)) wanted.add(java.util.Map.entry(TRANSLUCENT, AlphaTest.ONE_TENTH));
+        if (hasProgram(pack, prefix, targets, "gbuffers_hand")) {
+            wanted.add(java.util.Map.entry("gbuffers_hand", AlphaTest.ONE_TENTH));
+            if (hasProgram(pack, prefix, targets, "gbuffers_hand_water")) wanted.add(java.util.Map.entry("gbuffers_hand_water", AlphaTest.ONE_TENTH));
+        }
+        for (var one : wanted)
+            PackProgramSource.prefetch(pack, prefix + one.getKey(), inputs, inputs.elements(), alphas.getOrDefault(one.getKey(), one.getValue()));
+        if (hasProgram(pack, prefix, targets, "gbuffers_spidereyes")) {
+            var eyes = VertexInputs.VULKAN_ENTITY_FULLBRIGHT;
+            for (AlphaTest alpha : List.of(AlphaTest.NON_ZERO, AlphaTest.ONE_TENTH))
+                PackProgramSource.prefetch(pack, prefix + "gbuffers_spidereyes", eyes, eyes.elements(), alphas.getOrDefault("gbuffers_spidereyes", alpha));
+        }
+        if (hasProgram(pack, prefix, targets, "gbuffers_armor_glint"))
+            PackProgramSource.prefetch(pack, prefix + "gbuffers_armor_glint", VertexInputs.VULKAN_GLINT, VertexInputs.VULKAN_GLINT.elements(),
+                    alphas.getOrDefault("gbuffers_armor_glint", AlphaTest.NON_ZERO));
+    }
+
     static EntityPackPlan prepare(OpenedPack pack, String prefix, ShaderChainPlan chain,
                                   Set<String> customUniforms, boolean shadows, boolean distant, Consumer<String> warning) {
         if (chain.targets().schedule().step(NAME).isEmpty()
@@ -144,7 +178,11 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
     }
 
     private static boolean hasProgram(OpenedPack pack, String prefix, ShaderChainPlan chain, String name) {
-        return chain.targets().schedule().step(name).isPresent()
+        return hasProgram(pack, prefix, chain.targets(), name);
+    }
+
+    private static boolean hasProgram(OpenedPack pack, String prefix, dev.vitrail.pack.target.TargetPlan targets, String name) {
+        return targets.schedule().step(name).isPresent()
                 && pack.source().file(prefix + name + ".vsh").isPresent()
                 && pack.source().file(prefix + name + ".fsh").isPresent();
     }

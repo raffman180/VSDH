@@ -48,6 +48,58 @@ class WorldPackPlanTest {
         }
     }
 
+    @Test void twoPreparationsOfOnePackGiveTheSameProgramsWhateverTheWorkersDid() throws Exception {
+        var path=Path.of(getClass().getResource("/shaderpacks/vsdh-world").toURI());
+        WorldPackSet first,second;
+        try(var pack=OpenedPack.open(path,Map.of(),"")) { first=WorldPackSet.prepare(pack,false); }
+        try(var pack=OpenedPack.open(path,Map.of(),"")) { second=WorldPackSet.prepare(pack,false); }
+        assertEquals(first.overworld().terrain().keySet(),second.overworld().terrain().keySet());
+        for(var layer:first.overworld().terrain().keySet()) {
+            var a=first.overworld().terrain().get(layer).compiled();
+            var b=second.overworld().terrain().get(layer).compiled();
+            assertEquals(a.stages().keySet(),b.stages().keySet());
+            for(var stage:a.stages().keySet()) {
+                assertArrayEquals(a.stages().get(stage),b.stages().get(stage),layer+" "+stage);
+                assertEquals(a.sources().get(stage),b.sources().get(stage));
+            }
+            assertEquals(a.bindings(),b.bindings());
+        }
+        var passesA=first.overworld().chain().stages();
+        var passesB=second.overworld().chain().stages();
+        for(var stage:passesA.keySet()) {
+            assertEquals(passesA.get(stage).size(),passesB.get(stage).size());
+            for(int i=0;i<passesA.get(stage).size();i++) {
+                var a=passesA.get(stage).get(i);
+                var b=passesB.get(stage).get(i);
+                assertEquals(a.name(),b.name());
+                if(a.program()!=null) for(var kind:a.program().compiled().stages().keySet())
+                    assertArrayEquals(a.program().compiled().stages().get(kind),b.program().compiled().stages().get(kind),a.name());
+            }
+        }
+    }
+
+    @Test void terrainStaysOnlyBetweenPacksWithTheSameMaterialTable() throws Exception {
+        var path=Path.of(getClass().getResource("/shaderpacks/vsdh-world").toURI());
+        try(var pack=OpenedPack.open(path,Map.of(),"")) {
+            var plans=WorldPackSet.prepare(pack,false);
+            var again=WorldPackSet.prepare(pack,false);
+            assertTrue(plans.sameTerrainContract(again));
+            assertFalse(plans.sameTerrainContract(null)); // the standard renderer has another vertex format
+            var plan=plans.overworld();
+            var other=new java.util.ArrayList<>(plan.materials());
+            other.add(new dev.vitrail.pack.id.BlockIds.Entry(false,"minecraft","vsdh_test_block",Map.of(),4321));
+            var changed=WorldPackSet.single(new WorldPackPlan(plan.chain(),plan.terrain(),other));
+            assertFalse(plans.sameTerrainContract(changed));
+            assertFalse(changed.sameTerrainContract(plans));
+            if(plan.materials().size()>1) { // the order decides which entry wins for a block named twice
+                var reordered=new java.util.ArrayList<>(plan.materials());
+                java.util.Collections.reverse(reordered);
+                if(!reordered.equals(plan.materials()))
+                    assertFalse(plans.sameTerrainContract(WorldPackSet.single(new WorldPackPlan(plan.chain(),plan.terrain(),reordered))));
+            }
+        }
+    }
+
     private static boolean hasKill(byte[] spirv) {
         var words=ByteBuffer.wrap(spirv).order(ByteOrder.LITTLE_ENDIAN);
         for(int at=20;at<words.limit();) {int instruction=words.getInt(at);if((instruction&65535)==252)return true;at+=(instruction>>>16)*4;}

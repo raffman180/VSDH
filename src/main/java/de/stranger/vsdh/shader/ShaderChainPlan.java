@@ -91,8 +91,41 @@ public record ShaderChainPlan(TargetPlan targets, Map<Stage, List<Pass>> stages,
                 dev.vitrail.pack.model.ImageInformation.Reading.empty(), List.of());
     }
 
+    /** The programs of the chain in frame order: those that draw and those that only host computes. */
+    static List<String> frameOrder(TargetPlan targets) {
+        var order = new ArrayList<String>(targets.running());
+        for (String passing : targets.passing()) if (!order.contains(passing)) order.add(passing);
+        order.removeIf(name -> List.of("setup", "shadowcomp").contains(ProgramNames.familyOf(TargetName.bareName(name))));
+        order.sort(ProgramNames.frameOrder());
+        return order;
+    }
+
+    /**
+     * Hands the chain's programs to the compile workers before {@link #prepare} walks them one by one: the same
+     * full-screen programs and computes, asked for with the same arguments. Read-ahead only; see PackProgramSource.prefetch.
+     */
+    static void prefetch(OpenedPack pack, TargetPlan targets) {
+        var drawn = Set.copyOf(targets.running());
+        String place = targets.place().isEmpty() ? "" : targets.place() + "/";
+        var computes = new java.util.TreeSet<>(targets.computes());
+        for (String name : frameOrder(targets)) {
+            String host = TargetName.bareName(name);
+            for (String compute : computes) if (hostOf(compute).equals(host)) PackProgramSource.prefetchCompute(pack, place + compute);
+            if (drawn.contains(name))
+                PackProgramSource.prefetch(pack, place + name, VertexInputs.FULLSCREEN, VertexInputs.FULLSCREEN.elements(),
+                        dev.vitrail.pack.model.AlphaTest.OFF);
+        }
+        for (String compute : computes) // run once at setup and after the shadow pass
+            if (List.of("setup", "shadowcomp").contains(ProgramNames.familyOf(TargetName.bareName(hostOf(compute)))))
+                PackProgramSource.prefetchCompute(pack, place + compute);
+    }
+
     public static ShaderChainPlan prepare(OpenedPack pack, String dimension) throws IOException {
-        TargetPlan targets = TargetPlan.build(pack.source(), pack.options(), pack.settings(), pack.properties(), dimension);
+        return prepare(pack, dimension, TargetPlan.build(pack.source(), pack.options(), pack.settings(), pack.properties(), dimension));
+    }
+
+    /** {@code targets} is the plan of this pack and dimension, built by the caller for the read-ahead. */
+    static ShaderChainPlan prepare(OpenedPack pack, String dimension, TargetPlan targets) throws IOException {
         if (!targets.unreadable().isEmpty()) throw new IOException("Unreadable shader programs: " + targets.unreadable());
         var computeNames = new java.util.TreeMap<String, List<String>>();
         for (String compute : targets.computes()) {
@@ -110,10 +143,7 @@ public record ShaderChainPlan(TargetPlan targets, Map<Stage, List<Pass>> stages,
         Set<String> external = new HashSet<>();
         var textures=dev.vitrail.pack.texture.PackTextures.read(pack.properties(),pack.settings().globalDefines(pack.options()),pack.source());
         for (Stage stage : Stage.values()) stages.put(stage, new ArrayList<>());
-        var order = new ArrayList<String>(targets.running());
-        for (String passing : targets.passing()) if (!order.contains(passing)) order.add(passing);
-        order.removeIf(name -> List.of("setup", "shadowcomp").contains(ProgramNames.familyOf(TargetName.bareName(name))));
-        order.sort(ProgramNames.frameOrder());
+        var order = frameOrder(targets);
         var drawn = Set.copyOf(targets.running());
         for (String name : order) {
             Stage stage = stageOf(name);

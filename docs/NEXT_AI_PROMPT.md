@@ -1024,3 +1024,39 @@ Ergebnis verwerfen. Jeder Lauf mit Wachhund (Log länger als 6 Minuten still →
      mit Schalter an/aus; dazu `vsdh.shadowCasterBuildsPerFrame=2` und `=8`. Wird es schlechter: Zahl senken, nie die Zeit
      erhöhen (5/3-ms-Budgets kosteten 1% Lows). Erst danach eine Aussage in CHANGELOG/CurseForge.
   5. Nether (Jurgens zeichnet dort nur die Voxelkarte über den Schattenpass) und Pack ohne Schattenprogramm: keine Starts.
+
+## Pack-Vorbereitung beschleunigt (15.11.2026 nachmittags, Fable) – im Spiel noch NICHT gestartet
+
+Spielerwunsch: Shader soll sofort wechseln. Log des Spielers: „prepared in“ 12-22 s je Pack, danach Terrain-Neubau.
+URSACHE (headless gemessen, `./gradlew --offline benchPackPrepare`, Tabelle in `docs/PERFORMANCE.md`, Abschnitt „Pack
+preparation time“): alles lief nacheinander auf einem Thread; shaderc 11.6-14.4 s von 18-22 s, Übersetzung 1.6-3.2 s,
+Regex-Umschreiben 1.3-2.8 s, Include-Auflösung 0.4-0.8 s.
+GEÄNDERT (Build + `verifyDhLinks` grün, 210 Unit-Tests):
+- `PreparePool` (`-Dvsdh.prepareThreads`, 0 = alter Weg, Standard Kerne-2, höchstens 16): Übersetzen + Kompilieren je
+  Programm auf Workern; der Plan-Thread löst nur die Includes auf (`ShaderPackSource` ist nicht threadsicher), stellt in
+  `WorldPackPlan.scout` alle Programme aller drei Dimensionen ein (`prefetch` neben jedem `prepare`) und holt die Ergebnisse
+  in Plan-Reihenfolge ab. `PackProgramSource.settle` wartet am Ende auf jeden Worker (prozessweite Übersetzer-Schalter).
+- `SpirvCache` + `TranslationCache` unter `config/vsdh-shadercache` (`ShaderDiskCache`; `-Dvsdh.spirvCache=false`,
+  `-Dvsdh.translationCache=false`, `-Dvsdh.spirvCacheMiB`).
+- Doppelte Arbeit entfernt: gleiche Programmanfrage nur einmal, gleicher Endtext nur ein Compile, Pack-Texturen einmal je
+  Öffnung statt je Dimension, PNG-Dekodierung auf den Workern (`-Dvsdh.sharedPackTextures=false`).
+- Opt-in `-Dvsdh.keepTerrainOnSwitch=true`: bei gleichem block.properties-Tisch bleiben die gebauten Sektionen
+  (`WorldPackSet.sameTerrainContract`, `WorldRenderer.resumeBuilders`). Standard bleibt `allChanged`, weil ungetestet.
+GEMESSEN (ein Lauf je Zelle, ±0.5 s; Digest über alle Texte, SPIR-V, Bindungen, Texturen in allen Spalten gleich):
+Jurgens 22.0 s -> 5.0 s (erste Nutzung) -> 2.0 s (Speicher gefüllt, frische JVM) -> 1.0-1.2 s (späterer Wechsel);
+Eclipse 21.1 -> 7.2 -> 2.9 -> 1.9-2.0 s; Solas 18.2 -> 4.8 -> 1.7 -> 0.46-0.56 s. Rest = Include-Auflösung auf dem Plan-Thread.
+NICHT gemacht: Vorwärmen nach dem Weltladen (die Shader-Seite wärmt schon zwei benutzte Packs vor, mit gefülltem Speicher
+dauert das 0.5-2 s; ein dritter Weg hielte nur Speicher für Spieler, die nie wechseln).
+OFFEN, erst nach frischem „go“ (Testclient, nie die Prism-Instanz):
+  1. Start mit konfiguriertem Pack: Logzeilen `Shader disk cache in ...: compiled programs on, translated programs on` und
+     `Shader pack ... preparation: ...`; zweiter Start „N from disk, 0 compiled“. Steht dort „off“, findet NeoForges
+     Modul-Classloader die Klassenbytes nicht (`SpirvCache.edition` über `getResourceAsStream`, Übersetzer-Edition über
+     `findResource("dev/vitrail")`) – das ist nur im Spiel prüfbar.
+  2. `vsdh.releaseQA.menuSwitch=<zip>` und `vsdh.releaseQA.worldSwitch=true` mit Jurgens, Eclipse, Solas; „prepared in“
+     notieren; Bildvergleich gegen `vsdh.prepareThreads=0,vsdh.spirvCache=false,vsdh.translationCache=false`.
+  3. Frame-Zeiten, während ein Vorwärmen läuft (Shader-Seite in der Welt öffnen, Flug-CSV): 4 Threads niedrigster
+     Priorität; ein angefordertes Pack nutzt 16 Threads 1-7 s lang.
+  4. `-Dvsdh.keepTerrainOnSwitch=true`: Option/Profil des aktiven Packs in der Welt ändern -> Log `Pack change kept the built
+     terrain`, keine Löcher beim Herumfliegen, Blockänderungen bauen weiter neu, Schatten/DH unverändert; danach Pack mit
+     anderem Tisch (voller Neubau). Erst wenn das hält, zum Standard machen.
+  5. Danach erst CHANGELOG-/CurseForge-Aussage zu Zeiten im Spiel; bis dahin gilt „headless gemessen“.

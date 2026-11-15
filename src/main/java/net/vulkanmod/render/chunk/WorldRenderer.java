@@ -298,6 +298,29 @@ public class WorldRenderer {
         }
     }
 
+    /**
+     * Restarts the chunk builders after they were stopped for a pack change that kept the terrain vertex contract
+     * (WorldShaderSession.replaceInWorld): the grid and every uploaded section stay. Stopping the builders dropped
+     * the queued tasks and the results that were not uploaded yet; those sections are marked dirty again, the rest
+     * is left alone. Returns how many were marked. Without a grid it is a plain allChanged.
+     */
+    public int resumeBuilders() {
+        if (this.level == null || this.sectionGrid == null) {
+            allChanged();
+            return 0;
+        }
+        this.taskDispatcher.createThreads(this.minecraft.hasSingleplayerServer());
+        int marked = 0;
+        for (RenderSection section : this.sectionGrid.sections) {
+            if (section != null && section.buildOutstanding()) {
+                section.setDirty(false);
+                marked++;
+            }
+        }
+        this.graphNeedsUpdate = true;
+        return marked;
+    }
+
     public void setLevel(@Nullable ClientLevel level) {
         clearShadowDraws();
         AdaptiveChunkUploadBudget.reset();

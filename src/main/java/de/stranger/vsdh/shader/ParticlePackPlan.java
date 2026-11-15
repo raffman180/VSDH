@@ -22,18 +22,46 @@ public record ParticlePackPlan(Map<Pass, PackProgramSource.Prepared> programs, O
         return new ParticlePackPlan(Map.of(), Order.MIXED, new ShaderProperties.Weather(true, true), false);
     }
 
-    static ParticlePackPlan prepare(OpenedPack pack, String prefix, ShaderChainPlan chain) throws IOException {
+    /** When particles are drawn; {@code deferredEmpty}: the chain has no deferred pass. */
+    private static Order order(OpenedPack pack, boolean deferredEmpty) {
         var defines = pack.settings().globalDefines(pack.options());
-        var weather = pack.properties().weather(defines);
-        var alphas = pack.properties().alphaTests(defines);
-        var defaultOrder = pack.properties().separateEntityDraws(defines) || chain.stages().get(ShaderChainPlan.Stage.DEFERRED).isEmpty()
-                ? Order.MIXED : Order.AFTER;
-        var order = switch (pack.properties().particleOrdering(defines).orElse("")) {
+        var defaultOrder = pack.properties().separateEntityDraws(defines) || deferredEmpty ? Order.MIXED : Order.AFTER;
+        return switch (pack.properties().particleOrdering(defines).orElse("")) {
             case "before" -> Order.BEFORE;
             case "mixed" -> Order.MIXED;
             case "after" -> Order.AFTER;
             default -> defaultOrder;
         };
+    }
+
+    /** Read-ahead of the programs {@link #prepare} will ask for (same candidates, same arguments). */
+    static void prefetch(OpenedPack pack, String prefix, dev.vitrail.pack.target.TargetPlan targets) {
+        var defines = pack.settings().globalDefines(pack.options());
+        var alphas = pack.properties().alphaTests(defines);
+        boolean deferredEmpty = ShaderChainPlan.frameOrder(targets).stream()
+                .noneMatch(name -> ShaderChainPlan.stageOf(name) == ShaderChainPlan.Stage.DEFERRED);
+        var order = order(pack, deferredEmpty);
+        var names = new java.util.ArrayList<String>();
+        if (order != Order.AFTER) names.add("gbuffers_particles");
+        if (order != Order.BEFORE) names.add(order == Order.MIXED ? "gbuffers_particles_translucent" : "gbuffers_particles");
+        if (pack.properties().weather(defines).drawn()) names.add("gbuffers_weather");
+        for (String name : names) {
+            for (String candidate : ProgramFallbacks.chain(name)) {
+                if (targets.schedule().step(candidate).isEmpty()
+                        || pack.source().file(prefix + candidate + ".vsh").isEmpty()
+                        || pack.source().file(prefix + candidate + ".fsh").isEmpty()) continue;
+                PackProgramSource.prefetch(pack, prefix + candidate, VertexInputs.PARTICLE,
+                        VertexInputs.PARTICLE.elements(), alphas.getOrDefault(candidate, AlphaTest.OFF));
+                break;
+            }
+        }
+    }
+
+    static ParticlePackPlan prepare(OpenedPack pack, String prefix, ShaderChainPlan chain) throws IOException {
+        var defines = pack.settings().globalDefines(pack.options());
+        var weather = pack.properties().weather(defines);
+        var alphas = pack.properties().alphaTests(defines);
+        var order = order(pack, chain.stages().get(ShaderChainPlan.Stage.DEFERRED).isEmpty());
         var programs = new EnumMap<Pass, PackProgramSource.Prepared>(Pass.class);
         if (order != Order.AFTER) {
             prepare(programs, Pass.BEFORE, "gbuffers_particles", pack, prefix, chain, alphas);

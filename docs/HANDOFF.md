@@ -520,3 +520,12 @@ DH-Generic-Objekte werden gezeichnet, Pack-Himmel hat einen geschlossenen Horizo
 Pack-Rendering. Leistung: ohne Shaderpack 35–50 % schneller als Iris+Sodium (720p),
 mit Shaderpack und DH 7–20 % langsamer als Iris. Eine frühere Testserie lief wegen
 einer persistierten DH-Einstellung ohne LODs und ist ungültig (Details dort).
+
+## Fortsetzung 15.11.2026 nachmittags — Pack-Vorbereitung
+
+Die Vorbereitung eines Packs (vorher 18-22 s, nacheinander auf einem Thread) läuft je Programm auf Workern
+(`PreparePool`) und liest bereits kompilierte/übersetzte Programme aus `config/vsdh-shadercache` (`SpirvCache`,
+`TranslationCache`, eingerichtet von `ShaderDiskCache`). Nur headless gemessen (`./gradlew --offline benchPackPrepare`),
+im Spiel nicht gestartet. Zahlen, Schalter und die offene Spielprüfung: `docs/PERFORMANCE.md`, Abschnitt
+„Pack preparation time“, und `docs/NEXT_AI_PROMPT.md`. Der Terrain-Neubau beim Wechsel in der Welt bleibt Standard;
+`-Dvsdh.keepTerrainOnSwitch=true` ist ein ungetestetes Opt-in.

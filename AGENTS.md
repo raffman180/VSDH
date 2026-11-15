@@ -233,3 +233,26 @@ sections inside ShadowCuller.visible and the shadowDistance*1.414 cube, never-bu
 nearest 4 of a 2048-section scan window per frame; nothing while a camera section waits, only inside the rest of the normal
 1 ms schedule time, never into the last 32 worker queue slots. -Dvsdh.shadowCasterBuilds=false for A/B
 (-Dvsdh.shadowCasterBuildsPerFrame=N). Not measured in game: check flight 1% lows before raising the count, never raise the time.
+Pack preparation (15.11., headless bench, see docs/PERFORMANCE.md): shaderc was 2/3-3/4 of the 18-22 s. The plan thread
+still reads the pack and flattens every entry file alone (ShaderPackSource is single-threaded: never touch pack.source() from a
+worker); translation + compilation of each program run on PreparePool workers (PackProgramSource.task, one shaderc compiler and
+options object per task as shaderc.h allows; -Dvsdh.prepareThreads=N, 0 = old sequential path, default cores-2 capped at 16;
+30 threads were slower than 8-16). Results are taken in plan order, so they do not depend on worker timing: the bench digest
+(PackPrepareBench: every translated text, SPIR-V, binding, texture) must stay equal between prepareThreads=0 and the default
+for every pack; check it after any change there. WorldPackPlan.scout queues the programs the plan will ask for (read-ahead,
+*.prefetch beside each *.prepare): keep each prefetch's names/inputs/alpha equal to its prepare; a wrong one only wastes
+worker time, a missing one costs wall time. PackProgramSource.settle waits for every worker before a preparation returns:
+the translator's switches and registries (CustomImages/CustomStorage, reduceTrig, nativeVolumes) are process-wide, so no
+task may run on into the next pack. Two disk stores under config/vsdh-shadercache (ShaderDiskCache): spirv/ (SpirvCache:
+key = SHA-256 of translated stage texts + program name + binding table + fullscreen flag + edition; edition = bytes of
+VulkanProgramCompiler/SpirvInterface/GeometryFold classes + LWJGL/shaderc version, so a changed compile step never reads old
+files; digest + SPIR-V magic/alignment checked, anything else is a miss; atomic move; 256 MiB LRU, -Dvsdh.spirvCacheMiB;
+-Dvsdh.spirvCache=false) and translations/ (the translator's own TranslationCache, edition = digest of the dev/vitrail classes
+in the mod file; -Dvsdh.translationCache=false). Whatever else decides a compile result must go into SpirvCache.key.
+VulkanProgramCompiler.bindings walks stages in enum order (the translated stage map has none). Decoded pack textures are shared
+between the dimensions of one opening and PNGs decode on the workers during compilation (-Dvsdh.sharedPackTextures=false).
+Warm-ups use a quarter of the workers at MIN_PRIORITY until a request is open (PreparePool.urgent). No world-load warm-up was
+added: with warm stores a pack prepares in 0.5-2 s (JIT-warm) and the Shader page already warms two used packs.
+-Dvsdh.keepTerrainOnSwitch=true (opt-in, NOT tested in game): a pack change in a world keeps the built sections when both
+packs have the same block.properties table (WorldPackSet.sameTerrainContract; the 44-byte format is pack-independent) and
+only re-marks sections whose build was interrupted (WorldRenderer.resumeBuilders); default stays allChanged.
