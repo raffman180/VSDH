@@ -86,6 +86,37 @@ class ShaderChainPlanTest {
         }
     }
 
+    /** Iris reads setup.csh, setup1.csh ... setup99.csh and runs each once, in index order. */
+    @Test void everyNumberedSetupComputeRunsInIndexOrder(@TempDir Path packRoot) throws Exception {
+        var shaders = Files.createDirectory(packRoot.resolve("shaders"));
+        Files.writeString(shaders.resolve("final.vsh"), """
+                #version 130
+                void main() { gl_Position = ftransform(); }
+                """);
+        Files.writeString(shaders.resolve("final.fsh"), """
+                #version 130
+                void main() { gl_FragColor = vec4(1.0); }
+                """);
+        for (String name : List.of("setup10", "setup2", "setup", "setup1"))
+            Files.writeString(shaders.resolve(name + ".csh"), """
+                    #version 430
+                    layout(local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
+                    const ivec3 workGroups = ivec3(17, 17, 17);
+                    void main() {}
+                    """);
+        try (var pack = OpenedPack.open(packRoot, Map.of(), "")) {
+            var chain = ShaderChainPlan.prepare(pack, "");
+            assertEquals(List.of("setup", "setup1", "setup2", "setup10"), chain.setup().stream().map(ShaderChainPlan.Compute::name).toList());
+            for (var compute : chain.setup()) assertArrayEquals(new int[]{17, 17, 17}, compute.program().groups(2560, 1440));
+        }
+    }
+
+    @Test void computeHostsOfOneFamilyAreSortedByIndex() {
+        var hosts = List.of("setup10", "composite", "setup", "shadowcomp1", "setup2", "shadowcomp", "setup1");
+        assertEquals(List.of("setup", "setup1", "setup2", "setup10"), ShaderChainPlan.hostsOf(hosts, "setup"));
+        assertEquals(List.of("shadowcomp", "shadowcomp1"), ShaderChainPlan.hostsOf(hosts, "shadowcomp"));
+    }
+
     private static ShaderChainPlan fixture() throws Exception {
         var path = Path.of(ShaderChainPlanTest.class.getResource("/shaderpacks/vsdh-chain").toURI());
         try (var pack = OpenedPack.open(path, Map.of(), "")) { return ShaderChainPlan.prepare(pack, ""); }

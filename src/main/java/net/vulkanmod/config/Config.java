@@ -27,6 +27,11 @@ public class Config {
      * default (net.vulkanmod.vulkan.framebuffer.WindowPresentation).
      */
     public boolean borderlessFullscreen = false;
+    /**
+     * Low latency mode (net.vulkanmod.vulkan.InputLatency): a frame starts only once the previous one is on screen.
+     * Needs VK_KHR_present_wait and the Vulkan swapchain; -Dvsdh.lowLatency=true|false overrides it.
+     */
+    public boolean lowLatency = false;
     public int performancePreset = PerformancePreset.BALANCED.id;
     public int chunkUploadsPerFrame = PerformancePreset.BALANCED.chunkUploadsPerFrame;
     public boolean adaptiveChunkUploads = true;

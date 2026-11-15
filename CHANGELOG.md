@@ -3,6 +3,18 @@
 ## Unreleased
 
 ### Fixed
+- Shader packs that build their tables in numbered setup programs (`setup1.csh` ... `setup99.csh`) now get all of
+  them run once, in order, as in Iris. Only `setup.csh` was run before, so Jurgens Shader v1.1 had empty cloud noise
+  volumes (filled in `setup2`-`setup10`) and no multiple-scattering table (`setup1`): no volumetric clouds, a clear
+  sky and a picture that was too bright. The log shows `Setup computes dispatched once: [...]`. Not yet compared in
+  game.
+
+- The camera follows the mouse more directly. The renderer waited for the graphics card and for the next screen
+  image after Minecraft had already read the mouse, so the movement made during that wait only showed one frame
+  later (up to a whole refresh interval with VSync). Both waits now happen before the mouse is read
+  (`-Dvsdh.earlyFrameWait=false` restores the old order, `-Dvsdh.earlyAcquire=false` moves only the first one).
+  Not yet measured in game.
+
 - Terrain and block entities at the screen edge no longer appear late while turning: the visible-section set was only
   recomputed after the camera had turned 2 degrees or moved half a block, so a strip at the leading edge stayed
   empty until the next step. It is now recomputed whenever the camera or the culling frustum changes
@@ -19,7 +31,15 @@
 - Distant Horizons' shared quad index buffer lives in GPU memory like the renderer's own index buffers (was host memory;
   no measurable frame-time change, `-Dvsdh.dhIndexHostMemory=true` restores it).
 
+### Added
+- Video setting "Low Latency Mode" (off by default; `-Dvsdh.lowLatency=true|false` overrides it): a frame starts
+  only once the previous one is on screen (`VK_KHR_present_wait`), so no finished frame waits in front of the one
+  that reads the mouse. Works in borderless and exclusive fullscreen and is greyed out without driver support. With
+  VSync the frame rate drops to half the refresh rate whenever a frame takes longer than one refresh interval.
+  Not yet measured in game.
+
 ### Added (diagnostics, off by default)
+- `-Dvsdh.inputTrace=true` logs `INPUT_TRACE` every five seconds: time from the input poll to the present call.
 - `-Dvsdh.vmaTrace=true` logs every GPU memory block the allocator takes or returns.
 - `-Dvsdh.gpuSpikes=true` also logs GPU idle gaps of 5 ms or more between frames (`GPU_IDLE`).
 - `-Dvsdh.swapchainImages=N` sets the swapchain image count (default 3, clamped to what the surface allows).

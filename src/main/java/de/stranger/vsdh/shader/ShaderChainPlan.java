@@ -171,8 +171,14 @@ public record ShaderChainPlan(TargetPlan targets, Map<Stage, List<Pass>> stages,
         for (var passes : stages.values()) for (var pass : passes) for (var compute : pass.computes())
             for (var input : compute.inputs()) if (external(input)) external.add(input.sampler());
         // Iris runs setup once when the pipeline is built, before any frame: every target on MAIN.
-        var setup = computes(pack, targets, textures, computeNames.getOrDefault("setup", List.of()), "setup",
-                java.util.Optional.of(new TargetSchedule.Bound("setup", List.of(), true, Set.of(), Set.of())));
+        // It reads setup.csh, setup1.csh ... setup99.csh and runs those present in index order
+        // (ProgramSet.readProgramArray, IrisRenderingPipeline: "for (ComputeProgram program : setup)").
+        // Only the host "setup" used to be taken here, so a pack filling its noise volumes in
+        // setup2..setup10 (Jurgens' clouds) kept them empty.
+        var setup = new ArrayList<Compute>();
+        for (String host : hostsOf(computeNames.keySet(), "setup"))
+            setup.addAll(computes(pack, targets, textures, computeNames.get(host), host,
+                    java.util.Optional.of(new TargetSchedule.Bound(host, List.of(), true, Set.of(), Set.of()))));
         for (var compute : setup)
             for (var input : compute.inputs()) if (external(input)) external.add(input.sampler());
         var copyBack = targets.schedule().flippedAtEnd().stream().filter(targets.persistent()::contains).sorted().toList();
@@ -184,10 +190,7 @@ public record ShaderChainPlan(TargetPlan targets, Map<Stage, List<Pass>> stages,
             org.slf4j.LoggerFactory.getLogger("VSDH").warn("Unreadable image directive: {}", dropped);
         // Iris runs shadowcomp right after the shadow pass, before prepare; they read shadow
         // textures and the pack's images, and no colour target half has been chosen yet.
-        var shadowHosts = new ArrayList<String>();
-        for (String host : computeNames.keySet())
-            if (ProgramNames.familyOf(TargetName.bareName(host)).equals("shadowcomp")) shadowHosts.add(host);
-        shadowHosts.sort(ProgramNames.frameOrder());
+        var shadowHosts = hostsOf(computeNames.keySet(), "shadowcomp");
         var shadowComputes = new ArrayList<Compute>();
         for (String host : shadowHosts)
             shadowComputes.addAll(computes(pack, targets, textures, computeNames.get(host), host,
@@ -201,6 +204,15 @@ public record ShaderChainPlan(TargetPlan targets, Map<Stage, List<Pass>> stages,
     public static boolean external(SamplerPlan.Binding input) {
         return input.kind() != SamplerPlan.Kind.COLORTEX && input.kind() != SamplerPlan.Kind.CUSTOM_IMAGE
                 && input.kind() != SamplerPlan.Kind.COLOUR_IMAGE;
+    }
+
+    /** The compute hosts of one family in frame order: {@code setup, setup1, setup2, setup10}. */
+    static List<String> hostsOf(java.util.Collection<String> hosts, String family) {
+        var result = new ArrayList<String>();
+        for (String host : hosts)
+            if (ProgramNames.familyOf(TargetName.bareName(host)).equals(family)) result.add(host);
+        result.sort(ProgramNames.frameOrder());
+        return result;
     }
 
     /** {@code deferred4_a} hangs off {@code deferred4}; {@code deferred4} (a .csh) off itself. */

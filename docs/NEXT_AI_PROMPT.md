@@ -934,3 +934,54 @@ Ergebnis verwerfen. Jeder Lauf mit Wachhund (Log länger als 6 Minuten still →
   `0 KiB loaded`, danach `saved 121 KiB` und `saved 1467 KiB`, `Pack pipelines of Eclipse: 48 created in 77 ms`; warm
   `1467 KiB loaded`, `63 created in 30 ms` (Zahl der Pipelines unterschiedlich, Szene lief verschieden lang). Kein Absturz.
   Nicht geprüft: Neustart nach Kill, abgeschnittene Datei, Pack-Wechsel in der Welt, Ruckler beim Speichern.
+
+- 15.11.2026 (Fable, Eingabelatenz, NUR Code + Unit-Tests + Build, NICHT im Spiel gestartet): Nutzer (Prism-Instanz
+  Monkeytalk, exklusives Vollbild, VSync an, Grenze 180 an 180 Hz, Bildvorlauf 2, Jurgens + DH): „wenn ich mich umschaue,
+  dreht sich die Kamera langsamer als ich die Maus“ (Latenz, kein Schlieren). Befund im Code: Minecraft liest Eingaben am
+  ENDE eines Bildes (`Window.updateDisplay` -> `RenderSystem.flipFrame`, dazu `glfwWaitEventsTimeout` im Begrenzer) und
+  wendet die Maus im nächsten Bild nach `RenderSystem.clear` an (`MouseHandler.handleAccumulatedMovement`). Unter OpenGL
+  blockiert der Bildtausch VOR diesem Lesen; VSDH blockierte DANACH (Fence des Frame-Slots in `Renderer.preInitFrame` am
+  Kopf von `runTick`, `vkAcquireNextImageKHR` in `beginFrame` beim Clear). Die Mausbewegung während dieser Wartezeit kam
+  erst ein Bild später: mit VSync, vollem FIFO und 3 Bildern knapp 3 Bildintervalle (3r - c) statt 2r. Kamera-Hooks der
+  Packs (CameraBobbing, WorldMatrices, DistantProjection) sind NICHT veraltet (gleiche renderLevel-Argumente, je Bild).
+  Neu: `Renderer.waitBeforeInput` am Ende von `endFrame` wartet Fence und Swapchain-Bild des NÄCHSTEN Bildes ab, bevor
+  gelesen wird (`InputLatency`, Standard AN; `-Dvsdh.earlyFrameWait=false` alt, `-Dvsdh.earlyAcquire=false` nur Fence).
+  Neu, Standard AUS: „Niedrige Latenz“ (Videoeinstellungen, `Config.lowLatency`, `-Dvsdh.lowLatency=true|false`):
+  VK_KHR_present_id + VK_KHR_present_wait, das nächste Bild wartet (höchstens 100 ms), bis das vorige angezeigt ist.
+  Kostet Bilder, sobald ein Bild länger als ein Bildintervall braucht (mit VSync halbe Bildwiederholrate). Tabelle und
+  Rechnung: `docs/PERFORMANCE.md`, letzter Abschnitt. Hochgeschwindigkeitskamera gibt es nicht.
+  SOFORT-EMPFEHLUNG an den Nutzer (ohne neuen Build): Max. Bildrate auf 170 statt 180 (FIFO-Schlange bleibt leer) oder
+  VSync aus + Grenze 170-177 (mit G-Sync/VRR); Bildvorlauf bleibt 2.
+  OFFEN, erst nach frischem „go“ (kein Prism-Client, kein anderes Spiel):
+  1. Startet der Client, Log `Present wait (low latency mode): VK_KHR_present_wait`? Fenster, randloses und exklusives
+     Vollbild, Größe ändern, minimieren/wiederherstellen, Vollbild wechseln, VSync umschalten, Pack in der Welt wechseln,
+     Screenshot (F2): kein Absturz, kein schwarzes Bild (früh geholtes Swapchain-Bild wird beim Recreate verworfen).
+  2. A/B exklusives Vollbild, VSync an, ohne FPS-Grenze, `-PtestSysProps=vsdh.inputTrace=true` gegen
+     `…,vsdh.earlyFrameWait=false`: `INPUT_TRACE pollToPresentAvgMs` (Erwartung: um die Wartezeit kleiner, bis ~1 Intervall),
+     dazu Flug-A/B (`run-vsdh-026-flight.ps1 -Packs Eclipse -HighResolution -Fullscreen`), FPS und >2-Intervall-Bilder gleich?
+  3. `vsdh.lowLatency=true` dazu: `presentWaitAvgMs`, `presentWaitTimeouts` (sollte 0 sein), FPS-Verlust beziffern.
+  4. Wenn vorhanden PresentMon auf den Testclient: `MsUntilDisplayed` bzw. Click-to-Photon, alt/neu/niedrige Latenz.
+  5. Erst nach Messung: Aussage „weniger Latenz“ in CHANGELOG/CurseForge; sonst Schalter und Ergebnis hier festhalten.
+- 15.11.2026, „Die Shader sind mit der Mod zu grell“ (Jurgens-Shader-v1.1, Profil HIGH, DH 3.3.3; Iris 1.8.14 zeigt dichte
+  volumetrische Wolken, VSDH klaren Himmel mit Cirrus und überstrahlte Felswand). URSACHE (Codepfad, nicht im Spiel
+  nachgestellt): `ShaderChainPlan.prepare` nahm als Setup-Computes nur den Host `setup`
+  (`computeNames.getOrDefault("setup", ...)`); `setup1`..`setup10` wurden gelesen, akzeptiert und dann nie ausgeführt,
+  ohne Logzeile. Iris liest `setup`, `setup1` ... `setup99` und führt alle vorhandenen einmal in Indexreihenfolge aus
+  (`ProgramSet.readProgramArray(..., "setup", ...)`, `IrisRenderingPipeline`: `for (ComputeProgram program : setup)`).
+  Jurgens füllt in `setup2`-`setup9` `cloudShapeImg` (129^3) und in `setup10` `cloudDetailImg` (65^3), in `setup1` die
+  Mehrfachstreuungs-Tabelle im `atmAtlasImg`: alle blieben null, also Wolkendichte 0 und Atmosphäre ohne Mehrfachstreuung.
+  FIX: `ShaderChainPlan.hostsOf(hosts, "setup")` (gleiche Regel wie `shadowcomp`), Test
+  `ShaderChainPlanTest.everyNumberedSetupComputeRunsInIndexOrder`. Kein Schalter: nur Jurgens (v1.0.1/v1.1) hat
+  nummerierte Setup-Dateien, alle anderen Packs (Bliss, Eclipse, Photon: nur `setup.csh`) planen unverändert.
+  Offline geprüft: `./gradlew --offline auditWorldHost -PshaderPack=<Jurgens-Zip> -PshaderProfile=HIGH -PsmokeDistantPack=true`
+  meldet für world0 `setup [32, 8, 1], setup1 [4, 4, 1], setup2..setup9 [33, 33, 5], setup10 [17, 17, 17]`, 0 fehlende Werte.
+  Der Stacktrace im Nutzerlog (`SimpleTexture$TextureImage.load`) ist `minecraft:textures/gui/icons.png` aus der Mod Hilt
+  (in 1.21.1 gibt es die Datei nicht mehr), hat mit dem Pack nichts zu tun.
+  OFFEN, erst nach frischem „go“: gleiche Stelle wie die Iris-Aufnahme (`screenshots/2026-11-15_14.45.39.png` der
+  Prism-Instanz), GUI aus, gleiche Tageszeit/Wetter, Iris gegen VSDH: Wolken da? Helligkeit der Felswand gleich?
+  Im Log muss stehen: `Setup computes dispatched once: [setup, setup1, ..., setup10]; custom images: [... cloudShapeImg as
+  cloudShapeTex TEXTURE_3D RGBA8 129x129x129, cloudDetailImg as cloudDetailTex TEXTURE_3D RGBA8 65x65x65 ...]`.
+  Auch prüfen: Ruckler im ersten Bild (elf Dispatches, laut Pack bis ~2 s auf kleinen GPUs), Fenstergröße ändern und
+  Dimension wechseln (Graph neu, Setup läuft erneut), Nether/End (keine Setup-Programme dort). Bleibt das Bild trotz
+  Wolken heller: Belichtung ansehen (`composite7.csh` exposure.glsl, AUTO_EXPOSURE/LOCAL_EXPOSURE im `atmAtlasImg`,
+  `eyeBrightnessSmooth`) mit `packs-debug/zzUniformProbe.zip` gegen Iris.

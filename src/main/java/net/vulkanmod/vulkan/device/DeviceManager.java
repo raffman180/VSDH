@@ -39,6 +39,7 @@ public abstract class DeviceManager {
 
     private static boolean dxgiInteropEnabled;
     private static boolean attachmentFeedbackLoopEnabled;
+    private static boolean presentWaitEnabled;
     private static long deviceLuid;
 
     /** Windows: shared D3D11 textures and fences can be imported (DXGI presentation, net.vulkanmod.vulkan.present). */
@@ -48,6 +49,8 @@ public abstract class DeviceManager {
      * same pass (GL-style feedback, used by shader packs). Enabled only where the device offers it.
      */
     public static boolean isAttachmentFeedbackLoopEnabled() { return attachmentFeedbackLoopEnabled; }
+    /** VK_KHR_present_id and VK_KHR_present_wait with both features are enabled (low latency mode, InputLatency). */
+    public static boolean isPresentWaitEnabled() { return presentWaitEnabled; }
     /** The device LUID (LowPart in the low 32 bits) for picking the same DXGI adapter. */
     public static long deviceLuid() { return deviceLuid; }
 
@@ -312,6 +315,21 @@ public abstract class DeviceManager {
                 createInfo.pNext(feedback.address());
                 attachmentFeedbackLoopEnabled = true;
             }
+            presentWaitEnabled = false;
+            if (presentWaitAvailable(stack)) {
+                // Low latency mode: present ids and a wait for a present to reach the screen. Both features must be
+                // enabled at device creation (VUID-vkWaitForPresentKHR-presentWait-06234); unused they cost nothing.
+                deviceExtensions.add(org.lwjgl.vulkan.KHRPresentId.VK_KHR_PRESENT_ID_EXTENSION_NAME);
+                deviceExtensions.add(org.lwjgl.vulkan.KHRPresentWait.VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+                var presentId = org.lwjgl.vulkan.VkPhysicalDevicePresentIdFeaturesKHR.calloc(stack).sType$Default().presentId(true);
+                var presentWait = org.lwjgl.vulkan.VkPhysicalDevicePresentWaitFeaturesKHR.calloc(stack).sType$Default().presentWait(true);
+                presentWait.pNext(createInfo.pNext());
+                presentId.pNext(presentWait.address());
+                createInfo.pNext(presentId.address());
+                presentWaitEnabled = true;
+            }
+            org.slf4j.LoggerFactory.getLogger("VulkanMod").info("Present wait (low latency mode): {}",
+                    presentWaitEnabled ? "VK_KHR_present_wait" : "not available");
             org.slf4j.LoggerFactory.getLogger("VulkanMod").info("Attachment feedback loops: {}",
                     attachmentFeedbackLoopEnabled ? "VK_EXT_attachment_feedback_loop_layout" : "not supported (snapshot copies)");
             createInfo.ppEnabledExtensionNames(asPointerBuffer(deviceExtensions));
@@ -341,6 +359,19 @@ public abstract class DeviceManager {
      * -Dvsdh.dxgiPresent: auto (default: D3D12 on NVIDIA, where it was measured faster, see
      * docs/PERFORMANCE.md), d3d12/true, d3d11 (slower, kept for comparison), false.
      */
+    private static boolean presentWaitAvailable(MemoryStack stack) {
+        if (!net.vulkanmod.vulkan.InputLatency.PRESENT_WAIT_ALLOWED) return false;
+        if (!device.getUnsupportedExtensions(java.util.Set.of(
+                org.lwjgl.vulkan.KHRPresentId.VK_KHR_PRESENT_ID_EXTENSION_NAME,
+                org.lwjgl.vulkan.KHRPresentWait.VK_KHR_PRESENT_WAIT_EXTENSION_NAME)).isEmpty()) return false;
+        var presentId = org.lwjgl.vulkan.VkPhysicalDevicePresentIdFeaturesKHR.calloc(stack).sType$Default();
+        var presentWait = org.lwjgl.vulkan.VkPhysicalDevicePresentWaitFeaturesKHR.calloc(stack).sType$Default();
+        presentId.pNext(presentWait.address());
+        var features = VkPhysicalDeviceFeatures2.calloc(stack).sType$Default().pNext(presentId.address());
+        org.lwjgl.vulkan.VK11.vkGetPhysicalDeviceFeatures2(physicalDevice, features);
+        return presentId.presentId() && presentWait.presentWait();
+    }
+
     private static boolean attachmentFeedbackLoopAvailable(MemoryStack stack) {
         String name = org.lwjgl.vulkan.EXTAttachmentFeedbackLoopLayout.VK_EXT_ATTACHMENT_FEEDBACK_LOOP_LAYOUT_EXTENSION_NAME;
         if (!device.getUnsupportedExtensions(java.util.Set.of(name)).isEmpty()) return false;

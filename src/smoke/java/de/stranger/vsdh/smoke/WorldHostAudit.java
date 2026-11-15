@@ -28,6 +28,10 @@ public final class WorldHostAudit {
                     pass.computes().forEach(c->programs.add(c.program().asProgram()));
                     for(var p:programs){missing.addAll(WorldUniforms.missing(p,plan));declared.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms())));}
                 }));
+                // Once-only setup computes (setup, setup1 ... setup99) and shadowcomp read world values too.
+                for(var computes:List.of(plan.chain().setup(),plan.chain().shadowComputes()))for(var c:computes){
+                    var p=c.program().asProgram();missing.addAll(WorldUniforms.missing(p,plan));declared.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms())));
+                }
                 if(plan.shadow()!=null)plan.shadow().programs().values().forEach(p->{missing.addAll(WorldUniforms.missing(p,plan));declared.addAll(WorldUniforms.missing(new Std140Layout(p.translated().uniforms())));});
                 if(plan.distant()!=null)plan.distant().programs().forEach(p->missing.addAll(WorldUniforms.missing(p,plan)));
                 plan.skyPrograms().programs().values().forEach(p->missing.addAll(WorldUniforms.missing(p,plan)));
@@ -53,6 +57,10 @@ public final class WorldHostAudit {
                 entry.put("preparedTextureBindings",new TreeSet<>(plan.textures().bindings().keySet()));
                 entry.put("vanillaCloudDirective",plan.sky().clouds().name());
                 entry.put("distantPrograms",plan.distant()==null?List.of():plan.distant().programs().stream().map(PackProgramSource.Prepared::path).toList());
+                entry.put("setupComputes",plan.chain().setup().stream().map(c->c.name()+" "+java.util.Arrays.toString(c.program().groups(2560,1440))).toList());
+                entry.put("shadowComputes",plan.chain().shadowComputes().stream().map(de.stranger.vsdh.shader.ShaderChainPlan.Compute::name).toList());
+                entry.put("customImages",plan.chain().images().images().stream().map(dev.vitrail.pack.model.ImageInformation::describe).toList());
+                System.out.println(dimension+": setup computes "+entry.get("setupComputes")+"; custom images "+entry.get("customImages"));
                 entry.put("completeWorldRendererSupported",false);dimensions.add(entry);
             }
         }

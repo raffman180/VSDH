@@ -312,6 +312,11 @@ public final class NativeShaderChain implements AutoCloseable {
             if (stage == ShaderChainPlan.Stage.BEGIN && !setupDone) {
                 for (var compute : setup) dispatch(compute, computeUniforms, external);
                 setupDone = true;
+                // Once per graph: the proof in the log that a pack's setup1..setupN ran (Jurgens' cloud noise).
+                if (!setup.isEmpty())
+                    org.slf4j.LoggerFactory.getLogger("VSDH").info("Setup computes dispatched once: {}; custom images: {}",
+                            setup.stream().map(compute -> compute.source().name()).toList(),
+                            plan.images().images().stream().map(dev.vitrail.pack.model.ImageInformation::describe).toList());
             }
             boolean drew = false;
             for (RuntimePass runtime : stages.get(stage)) {

@@ -120,6 +120,12 @@ public class Renderer {
     private VkCommandBuffer currentCmdBuffer;
     private boolean recordingCmds = false;
     private boolean acquiredImageWaitPending;
+    /** Swapchain image acquired at the end of the last frame for the next one (InputLatency), or -1. */
+    private int earlyImageIndex = -1;
+    /** Fence and image waits already spent for the next frame; they count into its CPU frame time as before. */
+    private long earlyWaitNanos;
+    private final InputLatency.PresentIds presentIds = new InputLatency.PresentIds();
+    private final InputLatency.Trace inputTrace = new InputLatency.Trace();
     private boolean recreatingSwapChain;
     private boolean internalResizeDisplayNotification;
     private ArrayDeque<ResizeClear> resizeClears;
@@ -373,10 +379,18 @@ public class Renderer {
 
             IntBuffer pImageIndex = stack.mallocInt(1);
 
-            long acquireStart = System.nanoTime();
-            int vkResult = vkAcquireNextImageKHR(device, Vulkan.getSwapChain().getId(), VUtil.UINT64_MAX,
-                    imageAvailableSemaphores.get(currentFrame), VK_NULL_HANDLE, pImageIndex);
-            net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordAcquireWait(System.nanoTime() - acquireStart);
+            int vkResult;
+            if (this.earlyImageIndex >= 0) {
+                // Acquired before the last event poll with this slot's semaphore (waitBeforeInput).
+                pImageIndex.put(0, this.earlyImageIndex);
+                this.earlyImageIndex = -1;
+                vkResult = VK_SUCCESS;
+            } else {
+                long acquireStart = System.nanoTime();
+                vkResult = vkAcquireNextImageKHR(device, Vulkan.getSwapChain().getId(), VUtil.UINT64_MAX,
+                        imageAvailableSemaphores.get(currentFrame), VK_NULL_HANDLE, pImageIndex);
+                net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordAcquireWait(System.nanoTime() - acquireStart);
+            }
 
             if (vkResult == VK_SUBOPTIMAL_KHR || vkResult == VK_ERROR_OUT_OF_DATE_KHR || swapChainUpdate) {
                 swapChainUpdate = true;
@@ -495,7 +509,9 @@ public class Renderer {
         boolean presented = submitFrame(uploads);
         recordingCmds = false;
 
-        long duration = System.nanoTime() - net.vulkanmod.compat.observer.CompatProfiler.cpuFrameStart;
+        // Waits spent for this frame at the end of the previous one stay part of its time (adaptive upload budget).
+        long duration = System.nanoTime() - net.vulkanmod.compat.observer.CompatProfiler.cpuFrameStart + this.earlyWaitNanos;
+        this.earlyWaitNanos = 0;
         float cpuRenderTimeMs = duration * 0.000001f;
         if (Initializer.CONFIG.adaptiveChunkUploads) {
             AdaptiveChunkUploadBudget.recordFrameTimeMs(cpuRenderTimeMs);
@@ -505,7 +521,67 @@ public class Renderer {
             net.vulkanmod.compat.observer.CompatProfiler.resetFrameCounters();
         }
         net.vulkanmod.render.optimization.ChunkFrameDiagnostics.endFrame(cpuRenderTimeMs);
+        if (presented) waitBeforeInput();
+        if (InputLatency.TRACE) inputTrace.polled(System.nanoTime());
         return presented;
+    }
+
+    /**
+     * Everything the next frame has to wait for, spent now: the caller polls input right after this (Minecraft's
+     * updateDisplay), so the mouse movement of the waiting time is part of the next frame instead of the one after.
+     * See {@link InputLatency}. Order: the previous present on screen (low latency mode only), then the frame slot's
+     * fence (its image semaphore is free once that submission has finished), then the swapchain image.
+     */
+    private void waitBeforeInput() {
+        if (!InputLatency.EARLY_WAIT || swapChainUpdate || skipRendering || this.earlyImageIndex >= 0) return;
+        net.vulkanmod.vulkan.framebuffer.SwapChain swapChain = Vulkan.getSwapChain();
+        if (swapChain == null) return;
+        boolean dxgi = swapChain.isDxgi();
+        long start = System.nanoTime();
+
+        if (lowLatencyActive(dxgi)) {
+            long id = presentIds.pending(swapChain.getId());
+            if (id != 0) {
+                // VK_SUCCESS once that present is on screen; VK_TIMEOUT, VK_SUBOPTIMAL_KHR and errors are left
+                // to the acquire and the next present, which report them through the usual path.
+                int waited = KHRPresentWait.vkWaitForPresentKHR(device, swapChain.getId(), id, InputLatency.PRESENT_WAIT_TIMEOUT_NANOS);
+                long now = System.nanoTime();
+                net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordPresentWait(now - start);
+                if (InputLatency.TRACE) inputTrace.presentWaited(now - start, waited == VK_TIMEOUT);
+                if (waited < 0) presentIds.forget();
+            }
+        }
+
+        long fenceStart = System.nanoTime();
+        vkWaitForFences(device, inFlightFences.get(currentFrame), true, VUtil.UINT64_MAX);
+        long fenceNanos = System.nanoTime() - fenceStart;
+        net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordGpuWait(fenceNanos);
+        if (Initializer.CONFIG.adaptiveChunkUploads) {
+            AdaptiveChunkUploadBudget.recordGpuBackpressure(fenceNanos);
+        }
+
+        if (!dxgi && InputLatency.EARLY_ACQUIRE) {
+            try (MemoryStack stack = stackPush()) {
+                IntBuffer pImageIndex = stack.mallocInt(1);
+                long acquireStart = System.nanoTime();
+                int vkResult = vkAcquireNextImageKHR(device, swapChain.getId(), VUtil.UINT64_MAX,
+                        imageAvailableSemaphores.get(currentFrame), VK_NULL_HANDLE, pImageIndex);
+                net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordAcquireWait(System.nanoTime() - acquireStart);
+                if (vkResult == VK_SUCCESS) {
+                    this.earlyImageIndex = pImageIndex.get(0);
+                } else if (vkResult == VK_SUBOPTIMAL_KHR || vkResult == VK_ERROR_OUT_OF_DATE_KHR) {
+                    // As in beginFrame: the recreate replaces the swapchain and every frame semaphore.
+                    swapChainUpdate = true;
+                } else {
+                    throw new RuntimeException("Cannot acquire next swap chain image: %s".formatted(VkResult.decode(vkResult)));
+                }
+            }
+        }
+        this.earlyWaitNanos = System.nanoTime() - start;
+    }
+
+    private boolean lowLatencyActive(boolean dxgi) {
+        return InputLatency.lowLatency(Initializer.CONFIG.lowLatency, DeviceManager.isPresentWaitEnabled(), dxgi);
     }
 
     /**
@@ -587,6 +663,7 @@ public class Renderer {
                 long presentStart = System.nanoTime();
                 boolean presented = swapChain.dxgiPresent(imageIndex, renderValue);
                 net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordPresentWait(System.nanoTime() - presentStart);
+                if (InputLatency.TRACE) inputTrace.presented(System.nanoTime());
                 if (!presented) {
                     swapChainUpdate = true; // recreated without DXGI
                     return false;
@@ -605,9 +682,17 @@ public class Renderer {
 
             presentInfo.pImageIndices(stack.ints(imageIndex));
 
+            if (lowLatencyActive(false)) {
+                // VkPresentIdKHR extends VkPresentInfoKHR; swapchainCount must equal the present's (04998).
+                presentInfo.pNext(VkPresentIdKHR.calloc(stack).sType$Default()
+                        .pPresentIds(stack.longs(presentIds.next(Vulkan.getSwapChain().getId()))).swapchainCount(1).address());
+            }
+
             long presentStart = System.nanoTime();
             vkResult = vkQueuePresentKHR(DeviceManager.getPresentQueue().queue(), presentInfo);
             net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordPresentWait(System.nanoTime() - presentStart);
+            if (InputLatency.TRACE) inputTrace.presented(System.nanoTime());
+            if (vkResult < 0) presentIds.forget();
 
             if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR || swapChainUpdate) {
                 swapChainUpdate = true;
@@ -1016,6 +1101,9 @@ public class Renderer {
 
     @SuppressWarnings("UnreachableCode")
     private void recreateSwapChain() {
+        // An image acquired ahead belongs to the swapchain that goes away, its semaphore is rebuilt below.
+        this.earlyImageIndex = -1;
+        this.presentIds.forget();
         closeFrameUploadBatch();
         UploadManager.INSTANCE.submitUploads();
         Synchronization.INSTANCE.waitFences();

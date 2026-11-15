@@ -39,6 +39,8 @@
   "vsdh.options.shaderStatus.preparing": "Preparing: %s",
   "vsdh.options.shaderStatus.waiting": "After leaving the world: %s",
   "vsdh.options.framerateLimit.tooltip": "Caps how many frames Minecraft renders each second. A sensible cap reduces GPU load, heat and power use; Max removes the cap. Against hitches: when graphics card and processor both run at their limit, single frames wait a long time for presentation. A cap slightly below your average FPS (or just below the monitor's refresh rate) removes most of these hitches.",
+  "vsdh.options.lowLatency": "Low Latency Mode",
+  "vsdh.options.lowLatency.tooltip": "Starts a frame only once the previous one is on screen, so no finished frame waits in front of the one that reads your mouse. The camera follows the mouse more directly, most noticeably with VSync. Cost: whenever a frame takes longer than one refresh interval, the frame rate drops (with VSync to half the refresh rate). Works in borderless and exclusive fullscreen; greyed out when the graphics driver lacks VK_KHR_present_wait. Off by default.",
   "vsdh.notice.unsupportedMods.title": "VSDH: mods that are not fully supported",
   "vsdh.notice.unsupportedMods.message": "%s – display errors are possible. Nothing is blocked.",
   "vsdh.notice.unsupportedMods.chat": "[VSDH] These mods are not fully supported by the Vulkan renderer, display errors are possible: %s. Nothing is blocked.",

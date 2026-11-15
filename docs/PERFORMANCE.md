@@ -904,3 +904,56 @@ terrain is there. Edge-strip pixel statistics over the whole series stay within 
 Eclipse 1440p flights, 3 interleaved pairs: avg FPS on 130.5/127.5/133.3, off 130.1/130.4/140.7 (medians equal);
 frames >2 refresh intervals per s on 4.3/3.6/4.1, off 7.7/6.9/6.3. The flight is mostly straight, so this is a hint,
 not proof of a smoothness gain.
+
+## Input latency: waits after the input poll (15.11.2026, code review + unit tests, NOT measured in game)
+
+Report: "the camera turns later than I move the mouse" (Jurgens + DH, exclusive fullscreen, VSync on, cap 180 on a
+180 Hz monitor, frame queue 2, 3 swapchain images). Not a smear.
+
+Frame order (Minecraft 1.21.1 `Minecraft.runTick`, NeoForge 21.1.264 sources; renderer hooks in `MinecraftMixin`):
+
+| Step | Vanilla / OpenGL | This renderer before | Now |
+|---|---|---|---|
+| end of frame N-1 | `flipFrame`: poll, **swap (blocks)**, poll | submit, present; poll, poll | submit, present, **fence + acquire (block)**; poll, poll |
+| limiter | `glfwWaitEventsTimeout` (polls) | same | same |
+| `runTick` HEAD | - | `preInitFrame`: **fence wait (blocks)**, uploads | fence already signalled, uploads |
+| tasks, ticks | same | same | same |
+| `RenderSystem.clear` | - | `beginFrame`: **acquire (blocks)** | image already acquired |
+| `handleAccumulatedMovement` | applies what the last poll saw | same | same |
+| `GameRenderer.render` | camera of this frame | same | same |
+
+The mouse movement made during the two waits was not polled, so the frame showed a camera older by that wait.
+r = refresh interval (5.56 ms at 180 Hz), c = CPU time of a frame, g = GPU time of a frame; newest mouse sample to
+the frame being on screen, without scan-out and display lag:
+
+| Case | before | early waits | low latency mode |
+|---|---|---|---|
+| VSync (FIFO), GPU faster than refresh, 3 images, queue full | 3r - c (about 15 ms at c = 2 ms; just under 3 frames) | 2r (11.1 ms) | r (5.6 ms) |
+| same with N images | N*r - c | (N-1)*r | r |
+| VSync, GPU slower than refresh (g > r), frame queue 2 | 3g - c + 0..r | 2g + 0..r | c + g + 0..r, FPS falls to refresh/2 or lower |
+| VSync off, cap 177, GPU faster than the cap | c + g (no wait after the poll: the limiter polls while it sleeps) | same | same |
+| VSync off, GPU-bound, frame queue 2 | 3g - c | 2g | c + g, FPS = 1/(c+g) |
+
+With cap 180 on 180 Hz the limiter and the display beat against each other: the FIFO queue is full when the limiter
+is the faster of the two and empty when it is the slower, so the latency drifted between about 1 and 3 intervals.
+A cap a few FPS below the refresh rate (170-175) keeps the queue empty: about c + g + 0..r.
+
+Changes: `Renderer.waitBeforeInput` (end of `endFrame`): frame-slot fence, then `vkAcquireNextImageKHR` for the
+next frame; `beginFrame` uses `earlyImageIndex`. Low latency mode: `VkPresentIdKHR` in the `VkPresentInfoKHR` chain,
+`vkWaitForPresentKHR(previous id, 100 ms)` first in `waitBeforeInput`. Specification checked (docs.vulkan.org
+refpages, 15.11.2026): the wait returns when the swapchain's presentId >= the given id or after the timeout
+(nanoseconds, `VK_TIMEOUT`); the presentWait feature must be enabled; the swapchain must not be retired; non-zero
+ids must grow per swapchain. LWJGL 3.3.3 has `KHRPresentId`, `KHRPresentWait`, `VkPresentIdKHR` and both feature
+structs (javap on the pinned JAR).
+
+Rejected as cause: a stale pack camera. `WorldShaderLevelMixin` hands `LevelRenderer.renderLevel`'s own view and
+projection to `WorldShaderSession.beginWorld` -> `WorldUniforms.capture` -> `WorldMatrices.begin` in the same frame;
+`CameraBobbing.intoView` builds from that frame's matrices; `DistantProjection.followCamera` copies that frame's
+projection. No rotation is read per tick.
+
+To measure (after a go): `-Dvsdh.inputTrace=true` logs `INPUT_TRACE pollToPresentAvgMs/MaxMs` (poll at the end of
+`endFrame` to the return of the present call); compare `-Dvsdh.earlyFrameWait=false` with the default in exclusive
+fullscreen with VSync, uncapped and with the pack. PresentMon, if installed: the until-displayed / click-to-photon columns
+(names differ between 1.x and 2.x, not checked here) for the test client; low latency mode on/off. Also check FPS and frames >2 refresh
+intervals in the flight A/B (no loss expected for the early waits; a loss is expected for low latency mode whenever
+FPS < refresh rate), and resize, minimise/restore, fullscreen switches and a pack switch with the early acquire.

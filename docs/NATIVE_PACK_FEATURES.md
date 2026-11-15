@@ -19,7 +19,8 @@ keeps working through `getCloudsType`. `SkyVertex` now binds `Normal` for this l
   `workGroupsRender` and `local_size` with `PackProgram.dispatchOf` (Iris
   `ComputeProgram.getWorkGroups`: fixed count, else render size × scale ÷ local size).
 * `ShaderChainPlan` attaches computes to their host pass (`deferred4_a` → `deferred4`) in
-  frame order; hosts that draw nothing become compute-only passes. `setup` runs once on the
+  frame order; hosts that draw nothing become compute-only passes. `setup`, `setup1` ... `setup99`
+  (every numbered host present, in index order, Iris `ProgramSet.readProgramArray`) run once on the
   first frame of a chain after the initial clear (Iris runs it at pipeline build; clearing
   targets therefore keep setup output for one frame here). `shadowcomp` runs after the shadow
   pass and before `prepare`.
