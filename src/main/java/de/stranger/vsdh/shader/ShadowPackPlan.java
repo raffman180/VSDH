@@ -2,7 +2,6 @@ package de.stranger.vsdh.shader;
 
 import dev.vitrail.glsl.VertexInputs;
 import dev.vitrail.pack.model.AlphaTest;
-import dev.vitrail.pack.model.ProgramStage;
 import dev.vitrail.pack.model.TextureStage;
 import dev.vitrail.pack.source.ShadowCasters;
 import dev.vitrail.pack.source.ShadowCullState;

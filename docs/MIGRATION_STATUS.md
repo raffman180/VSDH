@@ -714,3 +714,14 @@ große Modpacks oder dedizierte Server. Textur-LODs, zusätzliche DH-AA-/Drahtgi
 und API-Geometrie bleiben eingeschränkt. Wolken-/Wasser-/LOD-Übergänge benötigen
 weitere Prüfung. Kein einfacher Bildschirmfilter wird als vollständige
 Complementary-Unterstützung bezeichnet.
+
+Aufräumen 15.11.2026 (Commit nach f64d2cb; nur Code, Unit-Tests und Link-Prüfung, nichts im Spiel gestartet): nicht benötigter
+Code entfernt, Standardweg unverändert. Verworfene Experimente sind jetzt auch im Code weg: D3D11-Ausgabe (`DxgiPresenter`,
+`-Dvsdh.dxgiPresent=d3d11`, `-Dvsdh.dxgiLatency`), Teil-Submit (`Renderer.submitPartial`, `-Dvsdh.splitSubmit`), zweite
+Present-Queue (`-Dvsdh.separatePresentQueue`), `-Dvsdh.presentMode=mailbox`. Dazu unbenutzte Sprachschlüssel
+(`vsdh.options.lowLatency*`), unbenutzte Methoden/Felder im Shader-Host und in der DH-Brücke (`Compat`: Tiefenkopie,
+Layout-Übergänge, nie gesetzter Deferred-Hook; `VulkanBackend.readAndCacheMcDepth`) und unbenutzte Importe. Behalten und
+begründet in `AGENTS.md` (letzter Absatz): alle dort genannten A/B-Schalter, `Config.lowLatency`, Reforged-/Vitrail-Quellen,
+`uniformBiomeSkip`. Vor dem Löschen einer Methode immer auch `build/reference/release-client*/src` durchsuchen (kompiliert
+gegen VSDH, nicht Teil des Gradle-Builds). Im Spiel zu prüfen: Start im Fenster auf NVIDIA (DXGI/D3D12), F11 hin und zurück,
+Welt mit und ohne DH, ein Pack mit DH-Programmen.

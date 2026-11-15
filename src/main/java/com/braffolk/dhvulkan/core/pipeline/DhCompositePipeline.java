@@ -20,7 +20,6 @@ import net.vulkanmod.vulkan.shader.PipelineState;
 import net.vulkanmod.vulkan.shader.descriptor.ImageDescriptor;
 import net.vulkanmod.vulkan.shader.descriptor.UBO;
 import net.vulkanmod.vulkan.shader.layout.AlignedStruct;
-import net.vulkanmod.vulkan.shader.layout.Uniform;
 import net.vulkanmod.vulkan.texture.VTextureSelector;
 import net.vulkanmod.vulkan.texture.VulkanImage;
 import net.vulkanmod.vulkan.util.MappedBuffer;

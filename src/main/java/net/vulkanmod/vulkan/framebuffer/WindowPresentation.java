@@ -22,8 +22,6 @@ public final class WindowPresentation {
     /** Set by the window code whenever the window becomes or stops being a borderless fullscreen window. */
     public static void setBorderless(boolean value) { borderless = value; }
 
-    public static boolean borderless() { return borderless; }
-
     static Path borderlessPath(String property) {
         if (property == null) return DEFAULT_BORDERLESS_PATH;
         return switch (property.trim().toLowerCase(java.util.Locale.ROOT)) {

@@ -598,12 +598,8 @@ public class WorldRenderer {
     private final ShadowSectionList shadowSections = new ShadowSectionList();
     private long shadowVerifyFrames, shadowVerifyListNanos, shadowVerifyWalkNanos;
 
-    /** Separate light visibility: never reuse the camera's occlusion-filtered section queues. */
-    public void prepareShadowDraws() {
-        prepareShadowDraws(null,0,0,0);
-    }
-
     /**
+     * Separate light visibility: never reuse the camera's occlusion-filtered section queues.
      * Queues the uploaded sections the light may see. A null test keeps every section. Areas are
      * tested first; because the test is monotone, a rejected area cannot hold a kept section.
      */
@@ -720,10 +716,6 @@ public class WorldRenderer {
             shadowSectionsQueued++;
         }
     }
-    /** Non-empty sections queued for the last light pass. */
-    public int shadowSectionsQueued() {return shadowSectionsQueued;}
-    /** Non-empty sections the last light pass rejected. */
-    public int shadowSectionsCulled() {return shadowSectionsCulled;}
     public void clearShadowDraws() {shadowDrawQueues.clear();shadowDrawAreas.clear();shadowDrawList.clear();shadowSections.clear();}
     /** Smoke diagnostics only: uploaded light casters absent from the camera's current queue. */
     public int shadowOffCameraSections() {

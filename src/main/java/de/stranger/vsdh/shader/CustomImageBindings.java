@@ -7,7 +7,6 @@ import net.vulkanmod.vulkan.texture.VulkanImage;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -24,12 +23,6 @@ final class CustomImageBindings {
     record Result(List<ImageDescriptor> descriptors, Set<String> names, boolean stores) {}
 
     private CustomImageBindings() {}
-
-    /** Whether a declared opaque name is one of the pack's custom images (either spelling). */
-    static boolean handles(String name) {
-        var images = NativeCustomImages.current();
-        return images != null && images.has(dev.vitrail.pack.texture.CustomImages.originalName(name));
-    }
 
     static Result of(String program, TranslatedProgram translated, VulkanProgramCompiler.Compiled compiled, Set<Integer> active) {
         var images = NativeCustomImages.current();

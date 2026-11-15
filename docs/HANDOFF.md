@@ -97,7 +97,7 @@ Im Fenster präsentiert VSDH auf NVIDIA über D3D12 (`net.vulkanmod.vulkan.prese
 gemeinsame Texturen und zwei Fences, Vulkan rendert hinein, D3D12 kopiert in den Back-Buffer einer
 Flip-Swapchain. Im Vollbild bleibt die Vulkan-Swapchain (schneller); `SwapChain.createSwapChain`
 wechselt nach `glfwGetWindowMonitor`. Fehler jeder Art → Rückfall auf Vulkan. Schalter
-`-Dvsdh.dxgiPresent=auto|d3d12|d3d11|false`. Ergebnis und verworfene Wege (D3D11, Kopier-Queue,
+`-Dvsdh.dxgiPresent=auto|d3d12|false`. Ergebnis und verworfene Wege (D3D11, im Code entfernt; Kopier-Queue,
 Vorwärmen): `docs/PERFORMANCE.md`. Test-Hilfe: `-PtestSysProps=vsdh.releaseQA.windowSteps=150:toggle;350:1600x900`.
 
 ## 0.26 — 1440p gegen Iris (11.11.2026 abends)
@@ -105,8 +105,8 @@ Vorwärmen): `docs/PERFORMANCE.md`. Test-Hilfe: `-PtestSysProps=vsdh.releaseQA.w
 Vollbild 2560×1440: VSDH in allen fünf Mess-Packs vor Iris (Tabelle
 `docs/PERFORMANCE.md`). Im Fenster kostet NVIDIAs Vulkan-Present ~1 ms GPU pro Frame
 (Treiberkopie), dort liegt VSDH 6–10 % zurück. Present-Thread, verzögertes Present und
-eigene Present-Queue brachten nichts und sind entfernt bzw. aus
-(`-Dvsdh.separatePresentQueue=true`). Gewinne: Tausch statt Rückkopie persistenter
+eigene Present-Queue brachten nichts und sind entfernt (die Present-Queue samt Schalter
+`-Dvsdh.separatePresentQueue` seit dem Aufräumen vom 15.11.2026). Gewinne: Tausch statt Rückkopie persistenter
 Ziele (`NativeShaderChain.swappable`, Notschalter `-Dvsdh.copyBack=true`), Tiefen-
 Schnappschüsse nur bei Bedarf (`PackUsage`). Werkzeuge: `run-vsdh-026-bench.ps1
 -HighResolution -Fullscreen`, `run-vsdh-026-profile.ps1 -Extra '-Ptest1440p','-PtestFullscreen'`,
@@ -535,3 +535,14 @@ Aufnahmen zeigen Safepoint-Stopps des Spark-Hintergrundprofilers und Tick-Arbeit
 Abschnitt „Safepoints statt Renderer“). Geändert und ungemessen: automatische Builder-Zahl höchstens wie Sodium
 (`-Dvsdh.builderThreadCap=false`), Present-Erweiterungen nur mit `-Dvsdh.lowLatency=true`, Zähler in der Meldung
 übersprungener Pack-Frames. Messliste: `docs/NEXT_AI_PROMPT.md`, letzter Abschnitt.
+
+Aufräumen 15.11.2026 (Commit nach f64d2cb; nur Code, Unit-Tests und Link-Prüfung, nichts im Spiel gestartet): nicht benötigter
+Code entfernt, Standardweg unverändert. Verworfene Experimente sind jetzt auch im Code weg: D3D11-Ausgabe (`DxgiPresenter`,
+`-Dvsdh.dxgiPresent=d3d11`, `-Dvsdh.dxgiLatency`), Teil-Submit (`Renderer.submitPartial`, `-Dvsdh.splitSubmit`), zweite
+Present-Queue (`-Dvsdh.separatePresentQueue`), `-Dvsdh.presentMode=mailbox`. Dazu unbenutzte Sprachschlüssel
+(`vsdh.options.lowLatency*`), unbenutzte Methoden/Felder im Shader-Host und in der DH-Brücke (`Compat`: Tiefenkopie,
+Layout-Übergänge, nie gesetzter Deferred-Hook; `VulkanBackend.readAndCacheMcDepth`) und unbenutzte Importe. Behalten und
+begründet in `AGENTS.md` (letzter Absatz): alle dort genannten A/B-Schalter, `Config.lowLatency`, Reforged-/Vitrail-Quellen,
+`uniformBiomeSkip`. Vor dem Löschen einer Methode immer auch `build/reference/release-client*/src` durchsuchen (kompiliert
+gegen VSDH, nicht Teil des Gradle-Builds). Im Spiel zu prüfen: Start im Fenster auf NVIDIA (DXGI/D3D12), F11 hin und zurück,
+Welt mit und ohne DH, ein Pack mit DH-Programmen.

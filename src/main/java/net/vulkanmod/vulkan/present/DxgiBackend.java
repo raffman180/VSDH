@@ -1,9 +1,9 @@
 package net.vulkanmod.vulkan.present;
 
 /**
- * One way of getting Vulkan frames onto a DXGI flip-model swapchain: {@link DxgiPresenter} (D3D11)
- * or {@link D3d12Presenter}. Either owns {@link #IMAGES} shared textures that Vulkan imports and
- * renders into, plus two shared fences imported as timeline semaphores. Render thread only.
+ * The way of getting Vulkan frames onto a DXGI flip-model swapchain ({@link D3d12Presenter}). It owns
+ * {@link #IMAGES} shared textures that Vulkan imports and renders into, plus two shared fences imported
+ * as timeline semaphores. Render thread only.
  */
 public interface DxgiBackend extends AutoCloseable {
     int IMAGES = 3;

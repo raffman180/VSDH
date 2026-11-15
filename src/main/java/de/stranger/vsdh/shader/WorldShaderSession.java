@@ -17,7 +17,6 @@ import dev.vitrail.glsl.VertexInputs;
 import net.vulkanmod.vulkan.VRenderSystem;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.vulkanmod.gl.GlFramebuffer;
 import net.vulkanmod.gl.GlTexture;
 import net.vulkanmod.render.PipelineManager;
 import net.vulkanmod.render.vertex.TerrainRenderType;
@@ -480,13 +479,8 @@ public final class WorldShaderSession implements MainPass {
         }
     }
 
-    public long skippedFrames() { return skippedFrames; }
     public VulkanImage presentationImage() { return delegate.getColorAttachment(); }
     public void frameObserver(Consumer<WorldShaderSession> observer) { RenderSystem.assertOnRenderThread();frameObserver=observer; }
-
-    public static WorldShaderSession install(WorldPackPlan plan) {
-        return install(WorldPackSet.single(plan));
-    }
 
     public static WorldShaderSession install(WorldPackSet plans) {
         RenderSystem.assertOnRenderThread();

@@ -18,7 +18,6 @@ import net.vulkanmod.vulkan.Drawer;
 import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.shader.GraphicsPipeline;
 import net.vulkanmod.vulkan.shader.Pipeline;
-import net.vulkanmod.vulkan.shader.SPIRVUtils;
 import net.vulkanmod.vulkan.shader.descriptor.ImageDescriptor;
 import net.vulkanmod.vulkan.shader.descriptor.UBO;
 import net.vulkanmod.vulkan.shader.layout.AlignedStruct;
@@ -30,15 +29,11 @@ import org.lwjgl.system.MemoryUtil;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -88,10 +83,6 @@ public class VulkanRenderContext {
             instance = new VulkanRenderContext();
         }
         return instance;
-    }
-
-    public static boolean isActive() {
-        return com.braffolk.dhvulkan.compat.Compat.isVulkanModActive();
     }
 
     // ================//
@@ -343,22 +334,6 @@ public class VulkanRenderContext {
 
     public void drawIndexed(Object vertexBuffer, Object indexBuffer, int indexCount) {
         Compat.drawIndexed(vertexBuffer, indexBuffer, indexCount);
-    }
-
-    public GraphicsPipeline getTerrainPipeline() {
-        return this.terrainPipeline;
-    }
-
-    // ======================//
-    // buffer management //
-    // ======================//
-
-    public static Object createVertexBuffer(int sizeBytes) {
-        return Compat.createVertexBuffer(sizeBytes);
-    }
-
-    public static Object createIndexBuffer(int sizeBytes) {
-        return Compat.createIndexBuffer(sizeBytes);
     }
 
     // =========//

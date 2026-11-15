@@ -210,7 +210,6 @@ public abstract class NativeGraphicsProgram implements NativeUniformProgram, Aut
         requireOpen();
         pipeline.getHandle(state);
     }
-    public java.util.Set<String> requiredColourImages() { return java.util.Set.copyOf(colourImages.keySet()); }
 
     /** A colour target stored into as colorimgN; Vulkan needs the view format to match the qualifier. */
     public void bindStorage(String name, VulkanImage image) {

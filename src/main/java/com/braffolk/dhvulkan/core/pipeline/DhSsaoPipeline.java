@@ -13,7 +13,6 @@ import com.braffolk.dhvulkan.core.DhVulkanFramebuffer;
 import com.braffolk.dhvulkan.compat.Compat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
-import com.seibel.distanthorizons.core.config.Config;
 import com.seibel.distanthorizons.core.util.RenderUtil;
 import com.seibel.distanthorizons.core.util.math.DhMat4f;
 import net.vulkanmod.vulkan.Renderer;

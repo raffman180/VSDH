@@ -1,7 +1,6 @@
 package de.stranger.vsdh.shader;
 
 import dev.vitrail.pack.id.BlockIds;
-import dev.vitrail.pack.source.OpenedPack;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -10,7 +9,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -25,14 +23,6 @@ public final class ShaderBlockMaterials implements ToIntFunction<BlockState> {
     }
 
     /** Build once after registry/tag binding. Rebuild alongside meshes when the pack or tags change. */
-    public static ShaderBlockMaterials read(OpenedPack pack) throws IOException {
-        var parsed = BlockIds.read(pack.source(), pack.settings().globalDefines(pack.options()));
-        // Iris warns about an entry it cannot fully read and keeps the rest of the table.
-        parsed.problems().forEach(problem -> org.slf4j.LoggerFactory.getLogger("VSDH")
-                .warn("block.properties of {}: {}", pack.packPath().getFileName(), problem));
-        return resolve(parsed.entries());
-    }
-
     public static ShaderBlockMaterials resolve(List<BlockIds.Entry> entries) {
         Map<BlockState, Integer> ids = new IdentityHashMap<>();
         for (var entry : entries) {

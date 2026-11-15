@@ -170,24 +170,9 @@ public class Renderer {
         createSyncObjects();
     }
 
-    /**
-     * -Dvsdh.splitSubmit=true: lets callers hand a frame to the GPU in parts (submitPartial).
-     * Measured without gain at 1440p (the idle between frames is presentation work, not CPU
-     * recording), so nothing calls it by default; kept for experiments.
-     */
-    public static final boolean SPLIT_SUBMIT = "true".equals(System.getProperty("vsdh.splitSubmit"));
-    private static final int EXTRA_SUBMITS = 3;
-    private VkCommandBuffer[][] extraCommandBuffers;
-    private int extraUsed;
-
     private void allocateCommandBuffers() {
         if (commandBuffers != null) {
             commandBuffers.forEach(commandBuffer -> vkFreeCommandBuffers(device, Vulkan.getCommandPool(), commandBuffer));
-        }
-        if (extraCommandBuffers != null) {
-            for (var slot : extraCommandBuffers) for (var commandBuffer : slot)
-                vkFreeCommandBuffers(device, Vulkan.getCommandPool(), commandBuffer);
-            extraCommandBuffers = null;
         }
 
         commandBuffers = new ArrayList<>(framesNum);
@@ -210,57 +195,7 @@ public class Renderer {
             for (int i = 0; i < framesNum; i++) {
                 commandBuffers.add(new VkCommandBuffer(pCommandBuffers.get(i), device));
             }
-
-            allocInfo.commandBufferCount(framesNum * EXTRA_SUBMITS);
-            PointerBuffer pExtra = stack.mallocPointer(framesNum * EXTRA_SUBMITS);
-            vkResult = vkAllocateCommandBuffers(device, allocInfo, pExtra);
-            if (vkResult != VK_SUCCESS) {
-                throw new RuntimeException("Failed to allocate command buffers: %s".formatted(VkResult.decode(vkResult)));
-            }
-            extraCommandBuffers = new VkCommandBuffer[framesNum][EXTRA_SUBMITS];
-            for (int i = 0; i < framesNum; i++)
-                for (int j = 0; j < EXTRA_SUBMITS; j++)
-                    extraCommandBuffers[i][j] = new VkCommandBuffer(pExtra.get(i * EXTRA_SUBMITS + j), device);
         }
-    }
-
-    /**
-     * Hands what this frame recorded so far to the GPU without waiting and continues in a fresh
-     * command buffer of the same frame slot. The frame's fence on the final submit also covers
-     * these earlier submissions (fence signal operations include all earlier work in submission
-     * order), so the slot's command buffers are free again once that fence was waited.
-     */
-    public boolean submitPartial() {
-        if (!SPLIT_SUBMIT || !this.recordingCmds || skipRendering || swapChainUpdate
-                || extraCommandBuffers == null || extraUsed >= EXTRA_SUBMITS) return false;
-        RenderingState saved = captureRenderingState();
-        try (MemoryStack stack = stackPush()) {
-            this.endRenderPass(currentCmdBuffer);
-            vkEndCommandBuffer(currentCmdBuffer);
-            this.recordingCmds = false;
-
-            VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack);
-            submitInfo.sType(VK_STRUCTURE_TYPE_SUBMIT_INFO);
-            submitInfo.pCommandBuffers(stack.pointers(currentCmdBuffer));
-            attachAcquireWait(submitInfo, stack, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-
-            // Batched uploads recorded so far must precede this part on the queue.
-            DeviceManager.getGraphicsQueue().flushBatch();
-            Synchronization.INSTANCE.waitFences();
-
-            int vkResult = vkQueueSubmit(DeviceManager.getGraphicsQueue().queue(), submitInfo, VK_NULL_HANDLE);
-            if (vkResult != VK_SUCCESS)
-                throw new RuntimeException("Failed to submit partial frame: %s".formatted(VkResult.decode(vkResult)));
-            this.acquiredImageWaitPending = false;
-
-            VkCommandBuffer next = extraCommandBuffers[currentFrame][extraUsed++];
-            vkResetCommandBuffer(next, 0);
-            currentCmdBuffer = next;
-            beginCommandBuffer(stack);
-            net.vulkanmod.vulkan.queries.GpuTimestamps.continueIn(next);
-            saved.resume(this, stack);
-        }
-        return true;
     }
 
     private void createSyncObjects() {
@@ -358,7 +293,6 @@ public class Renderer {
 
         preInitFrame();
         currentCmdBuffer = commandBuffers.get(currentFrame);
-        extraUsed = 0;
         vkResetCommandBuffer(currentCmdBuffer, 0);
 
         try (MemoryStack stack = stackPush()) {
@@ -605,7 +539,7 @@ public class Renderer {
             boolean dxgi = swapChain.isDxgi();
             long renderValue = 0;
             if (dxgi) {
-                // Wait for DXGI's last copy out of this image, signal the render timeline D3D11 waits for.
+                // Wait for DXGI's last copy out of this image, signal the render timeline D3D12 waits for.
                 renderValue = ++dxgiRenderValue;
                 var timeline = VkTimelineSemaphoreSubmitInfo.calloc(stack).sType$Default();
                 if (this.acquiredImageWaitPending) {

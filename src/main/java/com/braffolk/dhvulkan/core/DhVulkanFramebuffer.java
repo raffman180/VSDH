@@ -10,7 +10,6 @@ package com.braffolk.dhvulkan.core;
 import com.braffolk.dhvulkan.compat.Compat;
 import com.seibel.distanthorizons.core.logging.DhLogger;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
-import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.framebuffer.Framebuffer;
 import net.vulkanmod.vulkan.framebuffer.RenderPass;
 
@@ -140,10 +139,6 @@ public class DhVulkanFramebuffer {
 
     public Framebuffer getFramebuffer() {
         return this.framebuffer;
-    }
-
-    public RenderPass getRenderPass() {
-        return this.renderPass;
     }
 
     public int getWidth() {

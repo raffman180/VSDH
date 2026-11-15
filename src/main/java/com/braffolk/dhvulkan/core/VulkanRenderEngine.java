@@ -16,7 +16,6 @@ import com.braffolk.dhvulkan.core.pipeline.DhDepthReaderPipeline;
 import com.braffolk.dhvulkan.core.pipeline.DhFogPipeline;
 import com.braffolk.dhvulkan.core.pipeline.DhSsaoPipeline;
 import com.seibel.distanthorizons.core.config.Config;
-import com.seibel.distanthorizons.core.config.types.enums.EConfigEntryAppearance;
 import com.seibel.distanthorizons.core.util.math.DhMat4f;
 import com.seibel.distanthorizons.core.util.math.DhVec3f;
 import net.minecraft.client.Minecraft;
@@ -30,8 +29,6 @@ import org.apache.logging.log4j.Logger;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -76,8 +73,6 @@ public class VulkanRenderEngine implements VulkanBackend {
     private DhFogPipeline fogPipeline;
     /** Depth reader -- copies MC depth to R32F for sampling on NVIDIA */
     private DhDepthReaderPipeline depthReaderPipeline;
-    /** Cached MC depth texture read at beginFrame() for use in deferredComposite() */
-    private VulkanImage cachedMcDepthTexture = null;
     /** Cloud renderer -- renders clouds after DH composite with correct depth (VM 0.6 only) */
     private final VulkanCloudRenderer cloudRenderer = new VulkanCloudRenderer();
     /** Per-frame performance profiler */
@@ -636,7 +631,6 @@ public class VulkanRenderEngine implements VulkanBackend {
             VulkanImage mcDepthR32F = null;
             if (this.depthReaderPipeline != null) {
                 mcDepthR32F = this.depthReaderPipeline.readDepth(mcDepth);
-                this.cachedMcDepthTexture = mcDepthR32F;
             }
 
             Compat.rebindMainTarget();
@@ -661,29 +655,6 @@ public class VulkanRenderEngine implements VulkanBackend {
             }
         }
         this.profiler.end(DhFrameProfiler.PHASE_PHASE2);
-    }
-
-    @Override
-    public void readAndCacheMcDepth() {
-        if (!this.initialized || this.initFailed || this.depthReaderPipeline == null)
-            return;
-
-        com.seibel.distanthorizons.api.enums.config.EDhApiMcRenderingFadeMode fadeMode = DhConfigHelper.vanillaFadeMode();
-        if (fadeMode == com.seibel.distanthorizons.api.enums.config.EDhApiMcRenderingFadeMode.NONE
-                && DhVulkanConfig.get().vulkanRenderMode != 6) {
-            return; // no need to read depth
-        }
-
-        try {
-            VulkanImage mcDepth = Compat.getSwapChainDepthAttachment();
-            Renderer.getInstance().endRenderPass();
-
-            this.cachedMcDepthTexture = this.depthReaderPipeline.readDepth(mcDepth);
-
-            Compat.rebindMainTarget();
-        } catch (Exception e) {
-            LOGGER.error("[DH-Vulkan] readAndCacheMcDepth failed", e);
-        }
     }
 
     private void runComposite(RenderUniforms uniforms, VulkanImage mcDepthTexture) {
@@ -783,7 +754,6 @@ public class VulkanRenderEngine implements VulkanBackend {
         if (!this.initialized && !this.initFailed) return;
         this.frameReady = false;
         this.quadIndexBufferCapacity = 0;
-        Compat.setDeferredCompositeHook(null);
         Compat.setLateCompositeHook(null);
         this.cloudRenderer.cleanup();
 

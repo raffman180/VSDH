@@ -94,7 +94,6 @@ public final class ShadowCuller {
     public Shape shape() { return shape; }
     public float limit() { return limit; }
     public float keep() { return keep; }
-    int planeCount() { return planeCount; }
 
     /** Camera-relative box test; true when the box may contribute to the shadow map. */
     public boolean visible(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {

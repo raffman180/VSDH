@@ -87,14 +87,6 @@ public interface VulkanBackend {
     /** Draws DH generic boxes already in the LOD vertex layout, positioned relative to the camera. */
     default void drawGenericQuads(Object vertexBuffer, int quadCount, float x, float y, float z) {}
 
-    /**
-     * Read MC's depth buffer and cache it for the current frame's composite.
-     * Must be called at renderLevel @RETURN — after MC has fully rendered
-     * terrain/translucent/weather, when the swapchain depth is in a known
-     * Vulkan image layout that supports sampling.
-     */
-    void readAndCacheMcDepth();
-
     /** Clean up all Vulkan resources */
     void cleanup();
 }

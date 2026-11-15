@@ -54,7 +54,7 @@ Läufen nur als Näherung lesen (Profilfenster decken andere Szenenabschnitte ab
 geprüften JARs; `dist/0.26.0-dev-compat` bleibt der Abendstand zum Vergleich.
 
 Morgens (12.11.): Nutzerwunsch „jeder Spieler ohne Umstellen“ → eigene DXGI-Ausgabe gebaut
-(`net.vulkanmod.vulkan.present`). D3D11-Interop war langsamer (nur noch `-Dvsdh.dxgiPresent=d3d11`).
+(`net.vulkanmod.vulkan.present`). D3D11-Interop war langsamer (verworfen; Code und `-Dvsdh.dxgiPresent=d3d11` seit dem Aufräumen vom 15.11. entfernt).
 Mittags auf Nutzerwunsch D3D12 (`D3d12Presenter`): im Fenster schneller (Photon 159–163 statt
 149–153 FPS), im Vollbild langsamer (145–150 statt 166–171) → Standard „auto“: D3D12 nur im Fenster
 und nur auf NVIDIA, Vollbild Vulkan, Wechsel bei F11. Fünf Packs im Fenster jetzt +5 bis +14 % vor
@@ -1078,7 +1078,7 @@ Meldungen des Spielers (Prism-Instanz, JAR von 0611b8f, Jurgens v1.2 ueber PackF
    (Schalter von heute, 78ec0f4), Borderless, VSync an, 180 Hz. Mechanik laut eigener Tabelle in PERFORMANCE.md: c + g statt
    max(c, g), mit VSync auf ganze Intervalle gerundet -> 180/3 = 60, 180/4 = 45. Passt zur Meldung, ist aber NICHT gemessen.
    GEAENDERT: Modus nur noch mit `-Dvsdh.lowLatency=true`, Schalter aus der Videoseite entfernt, gespeichertes `true` wird
-   ignoriert (Datei wird nicht angefasst; Sprachschluessel `vsdh.options.lowLatency*` sind jetzt unbenutzt).
+   ignoriert (Datei wird nicht angefasst; Sprachschluessel `vsdh.options.lowLatency*` waren danach unbenutzt und sind mit dem Aufraeumen vom 15.11. entfernt).
    GEAENDERT: `ShadowCasterBuilds` Standard AUS (`-Dvsdh.shadowCasterBuilds=true`), weil ungemessen.
    GELASSEN (Begruendung in AGENTS.md): exakte Cull-Updates, fruehes Fence/Acquire, Pipeline-Cache-Schnappschuss, PreparePool.
    ZU MESSEN nach frischem "go" (Testclient, nie Prism): Flug-A/B Jurgens + Eclipse, Borderless + VSync und exklusiv ohne VSync,
@@ -1133,3 +1133,14 @@ Hintergrundprofiler im Einzelspieler läuft - erst nach Messung 1.
 Kleine Render-Thread-Allokationen aus derselben Aufnahme, in HEAD noch vorhanden, kein Ruckel-Beleg:
 `GlFramebuffer.captureBindings` (26 MB/30 s), `Pipeline.DescriptorSets.updateDescriptorSet` (41 MB),
 `NativeImageOps.mipmaps` (12 MB), `NativeDistantPass.render` (Integer-Liste, 8 MB), `RenderRegionBuilder.createRegion` (35 MB).
+
+Aufräumen 15.11.2026 (Commit nach f64d2cb; nur Code, Unit-Tests und Link-Prüfung, nichts im Spiel gestartet): nicht benötigter
+Code entfernt, Standardweg unverändert. Verworfene Experimente sind jetzt auch im Code weg: D3D11-Ausgabe (`DxgiPresenter`,
+`-Dvsdh.dxgiPresent=d3d11`, `-Dvsdh.dxgiLatency`), Teil-Submit (`Renderer.submitPartial`, `-Dvsdh.splitSubmit`), zweite
+Present-Queue (`-Dvsdh.separatePresentQueue`), `-Dvsdh.presentMode=mailbox`. Dazu unbenutzte Sprachschlüssel
+(`vsdh.options.lowLatency*`), unbenutzte Methoden/Felder im Shader-Host und in der DH-Brücke (`Compat`: Tiefenkopie,
+Layout-Übergänge, nie gesetzter Deferred-Hook; `VulkanBackend.readAndCacheMcDepth`) und unbenutzte Importe. Behalten und
+begründet in `AGENTS.md` (letzter Absatz): alle dort genannten A/B-Schalter, `Config.lowLatency`, Reforged-/Vitrail-Quellen,
+`uniformBiomeSkip`. Vor dem Löschen einer Methode immer auch `build/reference/release-client*/src` durchsuchen (kompiliert
+gegen VSDH, nicht Teil des Gradle-Builds). Im Spiel zu prüfen: Start im Fenster auf NVIDIA (DXGI/D3D12), F11 hin und zurück,
+Welt mit und ohne DH, ein Pack mit DH-Programmen.

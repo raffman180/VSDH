@@ -69,11 +69,6 @@ public final class SpirvInterface {
         return name;
     }
 
-    /** Fragment inputs take the locations of the geometry outputs of the same (unprefixed) name. */
-    static void linkGeometryOutputs(byte[] geometry, byte[] fragment, String fragmentSource) {
-        link(geometry, fragment, fragmentSource);
-    }
-
     /**
      * Patches every input of {@code next} that the previous stage writes under the same (unprefixed)
      * name to that output's location. An input nobody writes keeps the compiler's own location, which

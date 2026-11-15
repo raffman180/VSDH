@@ -171,7 +171,8 @@ Ziel: mehr FPS als Iris bei 2560×1440. Messung GPU pro Pass (`-PtestGpuProfile`
 - Geprüft und verworfen (kein Gewinn, Code wieder entfernt): ein Frame verzögertes
   Present, eigene Present-Queue, eigener Present-Thread mit vorab geholten Bildern,
   späteres Warten auf das Swapchain-Bild, Vsync/FIFO (81 FPS). Die eigene Present-Queue
-  bleibt als Schalter `-Dvsdh.separatePresentQueue=true` (Standard aus).
+  blieb zunächst als Schalter `-Dvsdh.separatePresentQueue=true`; mit dem Aufräumen vom 15.11.2026
+  (Commit nach f64d2cb) ist auch dieser Code entfernt.
 - Im **Vollbild** (`-PtestFullscreen`, beide Clients) entfällt die Kopie weitgehend.
 
 Umgesetzt (gelten in Fenster und Vollbild):
@@ -215,7 +216,9 @@ auf DXGI-Swapchain“ (nicht gemessen, da Systemeinstellung).
   BSL 4,55 / 6,87, Bliss 5,72 / 7,57, Eclipse 10,02 / 10,49 (`run-pass-compare.ps1`).
 - Verbleibend ~0,6 ms GPU-Pause zwischen Frames (auch im Vollbild, auch mit MAILBOX):
   Präsentationsarbeit des Treibers. Ein früher Teil-Submit (`Renderer.submitPartial`,
-  `-Dvsdh.splitSubmit=true`) brachte nichts und wird standardmäßig nicht genutzt.
+  `-Dvsdh.splitSubmit=true`) brachte nichts; Code und Schalter sind mit dem Aufräumen vom
+  15.11.2026 (Commit nach f64d2cb) entfernt. Ebenso der Vergleichsschalter `-Dvsdh.presentMode=mailbox`
+  (MAILBOX war in keiner Messung besser).
 
 ### Stand 22:40 (Hardware-Sinus, Tausch statt Rückkopie, Tiefenkopien nach Bedarf)
 
@@ -304,11 +307,12 @@ Ergebnis Photon 2560×1440 (RTX 4070), FPS / GPU-Pause zwischen Frames:
 | Vollbild | 168,8 / 0,60 ms | 141,5 / 1,97 ms |
 
 Die Übergabe zwischen Vulkan und D3D11 (Fence-Warten über das Betriebssystem, Kontextwechsel,
-Kopie) kostet mehr, als der Flip-Weg spart. Der D3D11-Weg bleibt nur zum Vergleich:
-`-Dvsdh.dxgiPresent=d3d11` (die Vulkan-Erweiterungen `VK_KHR_external_memory_win32`/`_semaphore_win32`
-und Timeline-Semaphoren werden nur mit aktivem DXGI-Weg eingeschaltet; bei jedem Fehler automatischer
-Rückfall auf die Vulkan-Swapchain, im Test bestätigt). Weitere Schalter: `-Dvsdh.dxgiLatency`
-(nur D3D11, Standard 8), `-Dvsdh.dxgiBuffers` (Standard 3; 2 ergab mit D3D11 114 FPS).
+Kopie) kostet mehr, als der Flip-Weg spart. Der D3D11-Weg blieb zunächst zum Vergleich
+(`-Dvsdh.dxgiPresent=d3d11`, dazu `-Dvsdh.dxgiLatency`, nur D3D11, Standard 8); mit dem Aufräumen vom
+15.11.2026 (Commit nach f64d2cb) sind `DxgiPresenter` und beide Schalter entfernt, verworfen bleibt er.
+Die Vulkan-Erweiterungen `VK_KHR_external_memory_win32`/`_semaphore_win32` und Timeline-Semaphoren werden
+nur mit aktivem DXGI-Weg eingeschaltet; bei jedem Fehler automatischer Rückfall auf die Vulkan-Swapchain
+(im Test bestätigt). Weiterer Schalter: `-Dvsdh.dxgiBuffers` (Standard 3; 2 ergab mit D3D11 114 FPS).
 
 **D3D12 (mittags, `D3d12Presenter`):** gleicher Vertrag, aber Texturen (`CreateCommittedResource`
 mit `HEAP_FLAG_SHARED`, Import als `VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT`) und Fences sind
@@ -329,7 +333,8 @@ bei jeder Neuerstellung nach `glfwGetWindowMonitor` (F11 hin und zurück sowie G
 Spiel getestet, `-Dvsdh.releaseQA.windowSteps=150:toggle;250:toggle;350:1600x900`; ein echtes
 Desktop-Bildschirmfoto des Fensters stimmt mit dem Spiel-Screenshot überein). Standard
 `-Dvsdh.dxgiPresent=auto` = D3D12 nur auf NVIDIA (nur dort gemessen); `d3d12`/`true` erzwingt es,
-`d3d11` nimmt den langsameren D3D11-Weg, `false` schaltet ab.
+`false` schaltet ab (`d3d11` gibt es seit dem Aufräumen vom 15.11.2026 nicht mehr; unbekannte Werte
+bedeuten `auto`).
 
 Fünf Packs im Fenster mit D3D12 (12.11.2026 12:07, 2560×1440, DH 3.3.3, gleiche Szene, Iris im
 selben Durchlauf): Complementary 160,3 / 146,4 (+9,5 %), Photon 165,9 / 148,2 (+12,0 %), BSL

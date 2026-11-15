@@ -182,10 +182,6 @@ public final class PackProgramSource {
         return task;
     }
 
-    public static Prepared prepareTerrain(OpenedPack pack, String path) throws IOException {
-        return prepareTerrain(pack, path, dev.vitrail.pack.model.AlphaTest.OFF);
-    }
-
     public static Prepared prepareTerrain(OpenedPack pack, String path, dev.vitrail.pack.model.AlphaTest alpha) throws IOException {
         return prepare(pack, path, terrainInputs(pack), alpha);
     }

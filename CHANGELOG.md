@@ -76,6 +76,13 @@
 - Distant Horizons' shared quad index buffer lives in GPU memory like the renderer's own index buffers (was host memory;
   no measurable frame-time change, `-Dvsdh.dhIndexHostMemory=true` restores it).
 
+### Removed
+- Code of experiments that were measured and rejected earlier (see `docs/PERFORMANCE.md`); the default rendering path is
+  unchanged. The Java arguments `-Dvsdh.dxgiPresent=d3d11` (slower D3D11 window presentation; `auto`, `d3d12` and
+  `false` stay), `-Dvsdh.dxgiLatency`, `-Dvsdh.splitSubmit`, `-Dvsdh.separatePresentQueue` and
+  `-Dvsdh.presentMode=mailbox` no longer do anything.
+- Unused internal code and the unused "Low Latency Mode" texts of the video settings. Not yet checked in game.
+
 ### Added
 - Experimental `-Dvsdh.lowLatency=true` (Java argument, not a video setting; see Fixed): a frame starts only once
   the previous one is on screen (`VK_KHR_present_wait`), borderless and exclusive fullscreen only. It lowers the

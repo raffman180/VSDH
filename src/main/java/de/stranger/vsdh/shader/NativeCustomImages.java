@@ -41,9 +41,8 @@ public final class NativeCustomImages implements AutoCloseable {
         final ImageInformation info;
         final long handle, memory, view;
         final VulkanImage wrapper;
-        final boolean integer;
-        Image(ImageInformation info, long handle, long memory, long view, VulkanImage wrapper, boolean integer) {
-            this.info = info; this.handle = handle; this.memory = memory; this.view = view; this.wrapper = wrapper; this.integer = integer;
+        Image(ImageInformation info, long handle, long memory, long view, VulkanImage wrapper) {
+            this.info = info; this.handle = handle; this.memory = memory; this.view = view; this.wrapper = wrapper;
         }
     }
 
@@ -78,7 +77,6 @@ public final class NativeCustomImages implements AutoCloseable {
         if (image == null) throw new IllegalStateException("No custom image " + name);
         return image.wrapper;
     }
-    public int format(String name) { return image(name).format; }
 
     private static Image create(ImageInformation info, int screenWidth, int screenHeight) {
         int format = VulkanTargetFormat.of(info.internalFormat().used());
@@ -133,7 +131,7 @@ public final class NativeCustomImages implements AutoCloseable {
             var wrapper = new VulkanImage(handle, format, 1, w, h, texelBytes(format), create.usage(), pView.get(0));
             int filter = linear ? 9729 : 9728; // GL_LINEAR / GL_NEAREST
             wrapper.updateTextureSampler(new SamplerManager.SamplerKey(filter, filter, 33071, 33071, 33071, 0, 0, 0, 0, 515));
-            return new Image(info, handle, memory, pView.get(0), wrapper, integer);
+            return new Image(info, handle, memory, pView.get(0), wrapper);
         }
     }
 

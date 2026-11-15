@@ -35,7 +35,6 @@ public final class NativeWorldShadows implements AutoCloseable {
     private java.util.function.BiConsumer<VulkanImage, Boolean> casterDepthObserver;
     private boolean initialized,closed,cullingFallbackLogged;
     private long drawCommands;
-    private ShadowCuller lastCuller=ShadowCuller.none();
     private static final java.util.regex.Pattern SHADOW_COLOUR=java.util.regex.Pattern.compile("shadowcolor[0-7]");
 
     /**
@@ -183,7 +182,6 @@ public final class NativeWorldShadows implements AutoCloseable {
         // Casters the camera never looked at are not built yet: start them, after the camera's own sections.
         if(plan.shadow().casters().terrain()||plan.shadow().casters().translucent())
             world.scheduleShadowBuilds(casterTest,buildReach(plan.directives().shadowDistance()),cameraPosition.x,cameraPosition.y,cameraPosition.z);
-        lastCuller=culler;
         int previousTexture=RenderSystem.getShaderTexture(0);
         int previousOverlay=RenderSystem.getShaderTexture(1), previousLightmap=RenderSystem.getShaderTexture(2);
         int atlas=Minecraft.getInstance().getTextureManager().getTexture(InventoryMenu.BLOCK_ATLAS).getId();
@@ -233,8 +231,6 @@ public final class NativeWorldShadows implements AutoCloseable {
         return Float.isFinite(shadowDistance)&&shadowDistance>0?shadowDistance*1.4143f:Float.POSITIVE_INFINITY;
     }
     public long drawCommands() {return drawCommands;}
-    /** Shape chosen for the last light pass; NONE before the first frame. */
-    public ShadowCuller culler() {return lastCuller;}
 
     /** Same caster selection Iris gives the pack; falls back to every section on invalid inputs. */
     private ShadowCuller culler(WorldUniforms uniforms) {

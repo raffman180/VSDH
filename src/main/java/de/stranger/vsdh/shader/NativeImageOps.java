@@ -182,12 +182,10 @@ public final class NativeImageOps {
         barrier.subresourceRange().aspectMask(image.aspect).baseMipLevel(first).levelCount(count).baseArrayLayer(0).layerCount(1);
     }
 
-    /** Conversion/scaling fallback for a pack with no final; callers preflight blit support. */
-    public static void blitColour(VulkanImage source, VulkanImage destination) {
-        blitColour(source, destination, false);
-    }
-
-    /** {@code flipRows}: the GL-oriented (bottom-up) pack picture into the top-down main target. */
+    /**
+     * Conversion/scaling fallback for a pack with no final; callers preflight blit support.
+     * {@code flipRows}: the GL-oriented (bottom-up) pack picture into the top-down main target.
+     */
     public static void blitColour(VulkanImage source, VulkanImage destination, boolean flipRows) {
         if (source == destination) throw new IllegalArgumentException("Image feedback in presentation");
         if (source.aspect != VK_IMAGE_ASPECT_COLOR_BIT || destination.aspect != VK_IMAGE_ASPECT_COLOR_BIT

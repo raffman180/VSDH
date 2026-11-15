@@ -42,7 +42,6 @@ public final class GpuTimestamps {
     private static boolean continuous;
     private static long windowStart;
     private static volatile Map<String, Double> lastAverages = Map.of();
-    private static volatile int lastFrames;
 
     private GpuTimestamps() {}
 
@@ -110,11 +109,6 @@ public final class GpuTimestamps {
         batchWritten[frame] = true;
     }
 
-    /** The frame continues in another command buffer of the same slot (Renderer.submitPartial). */
-    public static void continueIn(VkCommandBuffer command) {
-        if (recording != null) recording = command;
-    }
-
     /** Attributes the GPU work recorded since the previous mark to {@code label}. */
     public static void mark(String label) {
         if (!ENABLED || recording == null) return;
@@ -140,7 +134,6 @@ public final class GpuTimestamps {
 
     /** Average milliseconds per frame for each label in the last completed window. */
     public static Map<String, Double> lastAverages() { return lastAverages; }
-    public static int lastWindowFrames() { return lastFrames; }
 
     private static boolean ensurePools() {
         if (pools != null) return true;
@@ -248,7 +241,6 @@ public final class GpuTimestamps {
         double idle = idleFrames == 0 ? 0 : idleSum / idleFrames;
         averages.put("gpuIdleBetweenFrames", idle);
         lastAverages = java.util.Collections.unmodifiableMap(averages);
-        lastFrames = windowFrames;
         LOGGER.info("GPU_PROFILE frames={} totalMs={} idleBetweenFramesMs={}{}", windowFrames,
                 String.format(java.util.Locale.ROOT, "%.3f", total), String.format(java.util.Locale.ROOT, "%.3f", idle), line);
         if (batchFrames > 0) LOGGER.info(String.format(java.util.Locale.ROOT,

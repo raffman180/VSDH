@@ -9,7 +9,7 @@ import java.util.UUID;
 
 /**
  * Minimal COM and Win32 calls for the DXGI presentation path. Vtable slots and structure layouts are
- * taken from the Windows SDK 10.0.28000 headers (d3d11*.h, dxgi*.h). Every argument is passed as a
+ * taken from the Windows SDK 10.0.28000 headers (d3d12.h, dxgi*.h). Every argument is passed as a
  * 64-bit value: on Windows x64 integer arguments occupy one register or stack slot each, and the
  * callee reads only the low half of a 32-bit parameter. Render thread only.
  */

@@ -58,7 +58,7 @@ public final class NativeShaderChain implements AutoCloseable {
     private boolean setupDone;
     private State state = State.READY;
     private int nextStage;
-    private long frames, drawCalls, dispatches;
+    private long frames;
     private final int width, height;
 
     public NativeShaderChain(ShaderChainPlan plan, int width, int height, long colorBudgetBytes) {
@@ -231,7 +231,6 @@ public final class NativeShaderChain implements AutoCloseable {
             compute.pipeline().dispatch(groups[0], groups[1], groups[2]);
         }
         net.vulkanmod.vulkan.queries.GpuTimestamps.mark(compute.source().name());
-        dispatches++;
     }
 
     /** Iris' shadowcomp computes: after the shadow pass of this frame, before PREPARE. */
@@ -251,8 +250,6 @@ public final class NativeShaderChain implements AutoCloseable {
     public NativeColorTargets targets() { requireUsable(); return targets; }
     public ShaderChainPlan plan() { return plan; }
     public long framesCompleted() { return frames; }
-    public long drawCalls() { return drawCalls; }
-    public long computeDispatches() { return dispatches; }
 
     /**
      * FINAL draws GL-oriented (rows bottom-up) like every pass of the chain; this image takes it and
@@ -344,7 +341,6 @@ public final class NativeShaderChain implements AutoCloseable {
                 }
                 runtime.pipeline().render(output.framebuffer(), output.pass());
                 net.vulkanmod.vulkan.queries.GpuTimestamps.mark(source.name());
-                drawCalls++;
             }
             if (stage == ShaderChainPlan.Stage.FINAL) {
                 if (!drew) presentWithoutFinal(finalOutput);

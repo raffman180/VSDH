@@ -139,8 +139,9 @@ Pack .dat volumes are real 3D images (GlslTranslator.nativeVolumes, PackTextureP
 the 2D atlas stays only as the -Dvsdh.flatVolumes=true fallback.
 DXGI flip presentation (net.vulkanmod.vulkan.present): D3D12 interop is the default in a window on
 NVIDIA (-Dvsdh.dxgiPresent=auto; Photon 1440p 159-163 vs 149-153 FPS); exclusive fullscreen keeps the
-Vulkan swapchain (Vulkan 166-171 vs D3D12 145-150), SwapChain switches on every recreate. D3D11
-(=d3d11) and a D3D12 copy queue (device removed, access denied) were slower or invalid. COM slots
+Vulkan swapchain (Vulkan 166-171 vs D3D12 145-150), SwapChain switches on every recreate. D3D11 interop
+(slower; its code and the =d3d11 mode are gone since the 15.11. cleanup) and a D3D12 copy queue (device
+removed, access denied) were slower or invalid. COM slots
 come from the Windows SDK headers; never guess them, and count d3d12.h C vtables with one #if branch
 only (struct-returning methods appear twice). Never change the player's driver settings from code.
 Players pick packs on the Shader page of the video settings (ShaderSettingsPage): it saves
@@ -297,3 +298,15 @@ VK_KHR_present_id/present_wait are enabled on the device only with -Dvsdh.lowLat
 they were enabled for every player since 78ec0f4 with nothing using them. A precaution, no measured effect either way.
 "Skipping shader frame with invalid camera input" is logged at the 1st, 10th, 100th ... skip with the running count (LogSteps):
 one at a join is harmless (seen in the player's log), a growing count means frames fall back to the standard renderer.
+Cleanup 15.11. (the commit after f64d2cb; code and unit tests only, nothing run in game): rejected experiments are no longer
+in the code, only in docs/PERFORMANCE.md and the history. Gone: the D3D11 presenter (DxgiPresenter, -Dvsdh.dxgiPresent=d3d11,
+-Dvsdh.dxgiLatency; an unknown dxgiPresent value means auto), the partial frame submit (Renderer.submitPartial,
+-Dvsdh.splitSubmit, 3 spare command buffers per frame slot), the second present queue (-Dvsdh.separatePresentQueue; Queue and
+PresentQueue equal the pinned Reforged source again), -Dvsdh.presentMode=mailbox, the lang keys vsdh.options.lowLatency*, and
+unreferenced members of the shader host and the DH bridge (Compat depth copy/transition helpers and the deferred composite
+hook nothing ever set, VulkanBackend.readAndCacheMcDepth). Do not bring one back without a new measurement. Before deleting a
+member also search build/reference/release-client*/src and the audit tools there: they compile against VSDH and are not part
+of the Gradle build. Kept on purpose: Config.lowLatency (documented above), every A/B switch named in this file, the pinned
+Reforged and Vitrail sources even where VSDH does not call them (their unregistered debug/profiling mixins, the diagnostics
+page, Sable helpers, SharedMemory), and uniformBiomeSkip (0.2 % hit rate in one flight, not measured in the mod pack it was
+written for; removing it needs a decision by the user).

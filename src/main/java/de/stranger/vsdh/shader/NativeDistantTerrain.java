@@ -61,7 +61,6 @@ public final class NativeDistantTerrain implements AutoCloseable {
      */
     private final java.util.Set<PackProgramSource.Prepared> liveDepth = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
     boolean liveDepth(PackProgramSource.Prepared source) { return liveDepth.contains(source); }
-    boolean anyLiveDepth() { return !liveDepth.isEmpty(); }
     private static boolean loopDepthSupported(int width, int height) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             var props = org.lwjgl.vulkan.VkImageFormatProperties.calloc(stack);

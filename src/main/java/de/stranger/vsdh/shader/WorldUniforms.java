@@ -74,9 +74,6 @@ public final class WorldUniforms implements ExpressionFrame {
         for (var member:layout.members()) if (!known(member.name())) missing.add(member.name());
         return Set.copyOf(missing);
     }
-    public static Set<String> missing(PackProgramSource.Prepared program) {
-        return missing(program,Set.of());
-    }
     private static boolean known(String name) {
         return KNOWN.contains(name)||BuiltinWorldValues.NAMES.contains(name)||IrisStandardValues.NAMES.contains(name)
                 ||PackWorldValues.NAMES.contains(name)||ShadowCamera.NAMES.contains(name);

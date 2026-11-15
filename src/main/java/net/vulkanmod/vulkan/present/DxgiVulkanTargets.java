@@ -16,7 +16,7 @@ import static org.lwjgl.vulkan.VK11.*;
 import static org.lwjgl.vulkan.VK12.*;
 
 /**
- * Vulkan side of a {@link DxgiBackend}: the shared D3D11/D3D12 textures imported as colour images (they
+ * Vulkan side of a {@link DxgiBackend}: the shared D3D12 textures imported as colour images (they
  * take the swapchain images' place) and the two shared fences imported as timeline semaphores.
  * Render thread only; destroy only after the device is idle.
  */
@@ -47,12 +47,6 @@ public final class DxgiVulkanTargets implements AutoCloseable {
             targets.close();
             throw failure;
         }
-    }
-
-    /** Replaces the images after {@link DxgiPresenter#resize}; the semaphores stay. */
-    public void reimport(DxgiBackend presenter, int usage) {
-        destroyImages();
-        importImages(presenter, usage);
     }
 
     private void importImages(DxgiBackend presenter, int usage) {

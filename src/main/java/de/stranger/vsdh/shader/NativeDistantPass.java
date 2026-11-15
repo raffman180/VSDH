@@ -6,7 +6,6 @@ import dev.vitrail.glsl.VertexInputs;
 import net.vulkanmod.vulkan.framebuffer.Framebuffer;
 import net.vulkanmod.vulkan.framebuffer.RenderPass;
 import net.vulkanmod.vulkan.shader.PipelineState;
-import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkCommandBuffer;
 
 import java.nio.ByteBuffer;

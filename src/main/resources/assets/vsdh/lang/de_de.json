@@ -39,8 +39,6 @@
   "vsdh.options.shaderStatus.preparing": "Wird vorbereitet: %s",
   "vsdh.options.shaderStatus.waiting": "Nach Verlassen der Welt: %s",
   "vsdh.options.framerateLimit.tooltip": "Begrenzt, wie viele Bilder Minecraft pro Sekunde berechnet. Eine sinnvolle Grenze senkt GPU-Last, Wärme und Stromverbrauch; „Max“ hebt sie auf. Gegen Ruckler: Laufen Grafikkarte und Prozessor beide am Limit, warten einzelne Bilder lange auf die Anzeige. Eine Grenze knapp unter den durchschnittlichen FPS (oder knapp unter der Bildwiederholrate des Monitors) beseitigt die meisten dieser Hänger.",
-  "vsdh.options.lowLatency": "Niedrige Latenz",
-  "vsdh.options.lowLatency.tooltip": "Beginnt ein Bild erst, wenn das vorherige auf dem Bildschirm ist. So wartet kein fertiges Bild vor dem, das die Maus ausliest, und die Kamera folgt der Maus direkter, am deutlichsten mit VSync. Preis: Dauert ein Bild länger als ein Bildwiederholintervall, sinkt die Bildrate (mit VSync auf die halbe Bildwiederholrate). Wirkt im randlosen und im exklusiven Vollbild; ausgegraut, wenn dem Grafiktreiber VK_KHR_present_wait fehlt. Standardmäßig aus.",
   "vsdh.notice.unsupportedMods.title": "VSDH: nicht vollständig unterstützte Mods",
   "vsdh.notice.unsupportedMods.message": "%s – Darstellungsfehler sind möglich. Es wird nichts blockiert.",
   "vsdh.notice.unsupportedMods.chat": "[VSDH] Diese Mods werden vom Vulkan-Renderer nicht vollständig unterstützt, Darstellungsfehler sind möglich: %s. Es wird nichts blockiert.",

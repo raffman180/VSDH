@@ -46,7 +46,6 @@ public final class NativeComputePass implements NativeUniformProgram, AutoClosea
     private final Map<String, VulkanImage> images = new HashMap<>();
     private final Map<String, ImageDescriptor> sampledDescriptors = new HashMap<>();
     private final Map<String, ImageDescriptor> storageDescriptors = new HashMap<>();
-    private long dispatches;
     private boolean closed;
 
     NativeComputePass(PackProgramSource.PreparedCompute source) {
@@ -144,9 +143,6 @@ public final class NativeComputePass implements NativeUniformProgram, AutoClosea
     @Override public ByteBuffer uniforms() { requireOpen(); return uniforms; }
     public String name() { return name; }
     @Override public String programName() { return name; }
-    public long dispatches() { return dispatches; }
-    public Set<String> requiredSamplers() { return Set.copyOf(samplers.keySet()); }
-    public Set<String> requiredImages() { return Set.copyOf(storage.keySet()); }
 
     public void bindImage(String sampler, VulkanImage image) {
         requireOpen();
@@ -233,7 +229,6 @@ public final class NativeComputePass implements NativeUniformProgram, AutoClosea
                     0, barrier, null, null);
             for (VulkanImage image : stored) image.recordRasterOrigin(true); // GL orientation (WorldMatrices)
         }
-        dispatches++;
     }
 
     /** GL image format qualifiers this host can bind, as their exact Vulkan view formats. */

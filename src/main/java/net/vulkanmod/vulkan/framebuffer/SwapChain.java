@@ -33,10 +33,7 @@ public class SwapChain extends Framebuffer {
     // -Dvsdh.swapchainImages=N: images requested from the Vulkan swapchain (A/B of acquire stalls; clamped to the surface limits).
     private static final int DEFAULT_IMAGE_COUNT = Math.max(2, Integer.getInteger("vsdh.swapchainImages", 3));
 
-    // -Dvsdh.presentMode=mailbox: diagnostic switch to compare the uncapped present modes.
-    private static final int defUncappedMode = "mailbox".equals(System.getProperty("vsdh.presentMode"))
-            ? checkPresentMode(VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR)
-            : checkPresentMode(VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_MAILBOX_KHR);
+    private static final int defUncappedMode = checkPresentMode(VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_MAILBOX_KHR);
 
     private final Long2ReferenceOpenHashMap<long[]> FBO_map = new Long2ReferenceOpenHashMap<>();
 
@@ -236,9 +233,7 @@ public class SwapChain extends Framebuffer {
         try {
             if (this.dxgi == null) {
                 long hwnd = org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(Vulkan.window);
-                this.dxgi = "d3d11".equals(DeviceManager.dxgiMode())
-                        ? net.vulkanmod.vulkan.present.DxgiPresenter.create(hwnd, DeviceManager.deviceLuid(), width, height)
-                        : net.vulkanmod.vulkan.present.D3d12Presenter.create(hwnd, DeviceManager.deviceLuid(), width, height);
+                this.dxgi = net.vulkanmod.vulkan.present.D3d12Presenter.create(hwnd, DeviceManager.deviceLuid(), width, height);
                 if (this.dxgi == null) {
                     this.dxgiDisabled = true;
                     return false;

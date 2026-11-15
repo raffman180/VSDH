@@ -40,11 +40,6 @@ public final class PrepareClock {
         return nanos == null ? 0 : nanos.sum() / 1_000_000;
     }
 
-    public static long events(String phase) {
-        var count = COUNTS.get(phase);
-        return count == null ? 0 : count.sum();
-    }
-
     /** Phase to "milliseconds (count)", sorted by name. */
     public static Map<String, String> snapshot() {
         var sorted = new TreeMap<String, String>();

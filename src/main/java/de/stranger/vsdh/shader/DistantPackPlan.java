@@ -21,10 +21,6 @@ public record DistantPackPlan(PackProgramSource.Prepared terrain, PackProgramSou
         this(terrain, water, null, true);
     }
 
-    public static DistantPackPlan prepare(OpenedPack pack, String prefix) throws IOException {
-        return prepare(pack, prefix, true);
-    }
-
     /** Read-ahead of the programs {@link #prepare} will ask for. */
     static void prefetch(OpenedPack pack, String prefix) {
         var names = new ArrayList<String>(List.of("dh_terrain", "dh_water"));

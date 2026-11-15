@@ -42,7 +42,7 @@ public abstract class DeviceManager {
     private static boolean presentWaitEnabled;
     private static long deviceLuid;
 
-    /** Windows: shared D3D11 textures and fences can be imported (DXGI presentation, net.vulkanmod.vulkan.present). */
+    /** Windows: shared D3D12 textures and fences can be imported (DXGI presentation, net.vulkanmod.vulkan.present). */
     public static boolean isDxgiInteropEnabled() { return dxgiInteropEnabled; }
     /**
      * VK_EXT_attachment_feedback_loop_layout: an image may be sampled while it is an attachment of the
@@ -70,7 +70,6 @@ public abstract class DeviceManager {
 
     static GraphicsQueue graphicsQueue;
     static PresentQueue presentQueue;
-    static boolean separatePresentQueue;
     static TransferQueue transferQueue;
     static ComputeQueue computeQueue;
 
@@ -226,23 +225,11 @@ public abstract class DeviceManager {
 
             VkDeviceQueueCreateInfo.Buffer queueCreateInfos = VkDeviceQueueCreateInfo.calloc(uniqueQueueFamilies.length, stack);
 
-            // Present gets a queue of its own when it shares the graphics family and the family
-            // has a second queue: a windowed present then waits only for its own frame, not for
-            // the next frame already submitted to the graphics queue (Renderer.PRESENT_LAG).
-            IntBuffer familyCount = stack.ints(0);
-            vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, familyCount, null);
-            VkQueueFamilyProperties.Buffer families = VkQueueFamilyProperties.malloc(familyCount.get(0), stack);
-            vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, familyCount, families);
-            separatePresentQueue = "true".equals(System.getProperty("vsdh.separatePresentQueue"))
-                    && indices.presentFamily == indices.graphicsFamily
-                    && families.get(indices.graphicsFamily).queueCount() >= 2;
-
             for (int i = 0; i < uniqueQueueFamilies.length; i++) {
                 VkDeviceQueueCreateInfo queueCreateInfo = queueCreateInfos.get(i);
                 queueCreateInfo.sType(VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO);
                 queueCreateInfo.queueFamilyIndex(uniqueQueueFamilies[i]);
-                boolean two = separatePresentQueue && uniqueQueueFamilies[i] == indices.graphicsFamily;
-                queueCreateInfo.pQueuePriorities(two ? stack.floats(1.0f, 1.0f) : stack.floats(1.0f));
+                queueCreateInfo.pQueuePriorities(stack.floats(1.0f));
             }
 
             VkPhysicalDeviceVulkan11Features deviceVulkan11Features = VkPhysicalDeviceVulkan11Features.calloc(stack);
@@ -297,7 +284,7 @@ public abstract class DeviceManager {
             }
             dxgiInteropEnabled = false;
             if (dxgiInteropAvailable(stack)) {
-                // DXGI flip presentation: import shared D3D11 textures and fences (timeline semaphores).
+                // DXGI flip presentation: import shared D3D12 textures and fences (timeline semaphores).
                 deviceExtensions.add(org.lwjgl.vulkan.KHRExternalMemoryWin32.VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
                 deviceExtensions.add(org.lwjgl.vulkan.KHRExternalSemaphoreWin32.VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME);
                 var vulkan12 = org.lwjgl.vulkan.VkPhysicalDeviceVulkan12Features.calloc(stack).sType$Default()
@@ -349,18 +336,11 @@ public abstract class DeviceManager {
 
             graphicsQueue = new GraphicsQueue(stack, indices.graphicsFamily);
             transferQueue = new TransferQueue(stack, indices.transferFamily);
-            presentQueue = new PresentQueue(stack, indices.presentFamily, separatePresentQueue ? 1 : 0);
-            org.slf4j.LoggerFactory.getLogger("VulkanMod").info("Present queue: family {}, index {}", indices.presentFamily, separatePresentQueue ? 1 : 0);
+            presentQueue = new PresentQueue(stack, indices.presentFamily);
             computeQueue = new ComputeQueue(stack, indices.computeFamily);
         }
     }
 
-    /**
-     * DXGI flip presentation in a window (net.vulkanmod.vulkan.present): needs Windows, both Win32 interop
-     * extensions, timeline semaphores and a valid device LUID; records the LUID for the presenter.
-     * -Dvsdh.dxgiPresent: auto (default: D3D12 on NVIDIA, where it was measured faster, see
-     * docs/PERFORMANCE.md), d3d12/true, d3d11 (slower, kept for comparison), false.
-     */
     private static boolean presentWaitAvailable(MemoryStack stack) {
         if (!net.vulkanmod.vulkan.InputLatency.PRESENT_WAIT_ALLOWED) return false;
         if (!device.getUnsupportedExtensions(java.util.Set.of(
@@ -383,6 +363,12 @@ public abstract class DeviceManager {
         return feedback.attachmentFeedbackLoopLayout();
     }
 
+    /**
+     * DXGI flip presentation in a window (net.vulkanmod.vulkan.present): needs Windows, both Win32 interop
+     * extensions, timeline semaphores and a valid device LUID; records the LUID for the presenter.
+     * -Dvsdh.dxgiPresent: auto (default: D3D12 on NVIDIA, where it was measured faster, see
+     * docs/PERFORMANCE.md), d3d12/true, false. The slower D3D11 interop is no longer in the code.
+     */
     private static boolean dxgiInteropAvailable(MemoryStack stack) {
         String mode = dxgiMode();
         if (mode.equals("false")) return false;
@@ -404,12 +390,11 @@ public abstract class DeviceManager {
         return true;
     }
 
-    /** -Dvsdh.dxgiPresent normalised: auto, d3d12, d3d11 or false. */
+    /** -Dvsdh.dxgiPresent normalised: auto, d3d12 or false. */
     public static String dxgiMode() {
         String mode = System.getProperty("vsdh.dxgiPresent", "auto").trim().toLowerCase(java.util.Locale.ROOT);
         return switch (mode) {
             case "true", "d3d12" -> "d3d12";
-            case "d3d11" -> "d3d11";
             case "false", "off", "vulkan" -> "false";
             default -> "auto";
         };

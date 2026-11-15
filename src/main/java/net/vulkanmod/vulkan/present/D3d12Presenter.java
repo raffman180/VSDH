@@ -9,9 +9,9 @@ import org.slf4j.LoggerFactory;
 import static net.vulkanmod.vulkan.present.Win32Com.*;
 
 /**
- * DXGI flip presentation through D3D12 (experimental, -Dvsdh.dxgiPresent=d3d12). Same contract as
- * {@link DxgiPresenter}, but the shared textures and fences are native D3D12 objects, so no D3D11
- * immediate context sits between Vulkan and the swapchain. The copies into the back buffers are
+ * DXGI flip presentation through D3D12 (-Dvsdh.dxgiPresent, see DeviceManager.dxgiMode). The shared
+ * textures and fences are native D3D12 objects (an earlier D3D11 interop was slower, its immediate
+ * context sat between Vulkan and the swapchain). The copies into the back buffers are
  * recorded once per (texture, back buffer) pair and only executed per frame.
  * <p>
  * The copy runs on the swapchain's direct queue. A separate copy queue was tried and removed: on an

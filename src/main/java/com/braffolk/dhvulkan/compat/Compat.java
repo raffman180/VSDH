@@ -39,7 +39,6 @@ public final class Compat {
 
     private static java.lang.reflect.Field vulkanImageIdField;
     private static java.lang.reflect.Field vulkanImageViewField;
-    private static java.lang.reflect.Field vulkanImageLayoutField;
     private static java.lang.reflect.Field rendererCmdBufferField;
 
     // Pre-allocated native memory for drawIndexed VM 0.4.2 path
@@ -62,10 +61,6 @@ public final class Compat {
         try {
             vulkanImageViewField = VulkanImage.class.getDeclaredField("mainImageView");
             vulkanImageViewField.setAccessible(true);
-        } catch (Exception ignored) {}
-        try {
-            vulkanImageLayoutField = VulkanImage.class.getDeclaredField("currentLayout");
-            vulkanImageLayoutField.setAccessible(true);
         } catch (Exception ignored) {}
         try {
             rendererCmdBufferField = Renderer.class.getDeclaredField("currentCmdBuffer");
@@ -94,35 +89,13 @@ public final class Compat {
     }
 
     // ========================= //
-    // Deferred composite hook   //
+    // Late composite hook       //
     // ========================= //
-
-    /**
-     * Static hook for Phase 2 deferred composite.
-     * Set by MixinLodRenderer (dh24 module), called by MixinLevelRenderer (shared module).
-     * This bridges the module boundary without requiring shared code to import dh24 types.
-     */
-    private static Runnable deferredCompositeHook;
-    /** Per-frame flag: true if Phase 2a (addCloudsPass) already fired this frame. */
-    private static boolean deferredCompositeRanThisFrame = false;
-
-    public static void setDeferredCompositeHook(Runnable hook) {
-        deferredCompositeHook = hook;
-    }
-
-    public static void runDeferredCompositeHook() {
-        deferredCompositeRanThisFrame = true;
-        Runnable hook = deferredCompositeHook;
-        if (hook != null) hook.run();
-    }
 
     /**
      * Static hook for Phase 2b late re-composite.
      * Set by MixinLodRenderer (dh24 module), called by MixinLevelRenderer (shared module)
      * at renderLevel @RETURN.
-     *
-     * On MC 1.20.6 where addCloudsPass doesn't exist, the deferred composite
-     * hook is also called here as fallback.
      */
     private static Runnable lateCompositeHook;
 
@@ -131,13 +104,6 @@ public final class Compat {
     }
 
     public static void runLateCompositeHook() {
-        // If Phase 2a didn't fire (MC 1.20.6 — no addCloudsPass), run it now
-        if (!deferredCompositeRanThisFrame) {
-            Runnable deferred = deferredCompositeHook;
-            if (deferred != null) deferred.run();
-        }
-        deferredCompositeRanThisFrame = false; // reset for next frame
-
         Runnable hook = lateCompositeHook;
         if (hook != null) hook.run();
     }
@@ -145,10 +111,6 @@ public final class Compat {
     // ========================= //
     // Buffer factories          //
     // ========================= //
-
-    public static Object createVertexBuffer(int sizeBytes) {
-        return new VertexBuffer(sizeBytes, MemoryTypes.HOST_MEM);
-    }
 
     public static Object createGpuVertexBuffer(int sizeBytes) {
         return new VertexBuffer(sizeBytes, MemoryTypes.GPU_MEM);
@@ -177,10 +139,6 @@ public final class Compat {
      */
     public static void waitDeviceIdle() {
         org.lwjgl.vulkan.VK10.vkDeviceWaitIdle(net.vulkanmod.vulkan.Vulkan.getVkDevice());
-    }
-
-    public static long getBufferId(Object buffer) {
-        return ((Buffer) buffer).getId();
     }
 
     public static void scheduleFree(Object buffer) {
@@ -492,90 +450,6 @@ public final class Compat {
         }
     }
 
-    /** Check if a VkFormat is a depth or depth-stencil format. */
-    private static boolean isDepthFormat(int format) {
-        // VK_FORMAT_D16_UNORM = 124
-        // VK_FORMAT_X8_D24_UNORM_PACK32 = 125
-        // VK_FORMAT_D32_SFLOAT = 126
-        // VK_FORMAT_S8_UINT = 127 (stencil only, not depth)
-        // VK_FORMAT_D16_UNORM_S8_UINT = 128
-        // VK_FORMAT_D24_UNORM_S8_UINT = 129
-        // VK_FORMAT_D32_SFLOAT_S8_UINT = 130
-        return format >= 124 && format <= 130 && format != 127;
-    }
-
-    /**
-     * Force-set the currentLayout field on a VulkanImage via reflection.
-     * <p>
-     * VulkanMod's render pass finalLayout transitions update the GPU layout
-     * but do NOT update the software-tracked currentLayout field. This causes
-     * transitionImageLayout() to skip barriers on subsequent frames
-     * (it returns early when currentLayout == newLayout).
-     * <p>
-     * After endRenderPass, the depth attachment's GPU layout is
-     * DEPTH_STENCIL_ATTACHMENT_OPTIMAL (render pass finalLayout), but
-     * currentLayout may still say SHADER_READ_ONLY_OPTIMAL from our
-     * previous frame's transition. Calling this forces currentLayout to
-     * match the actual GPU state so the next transition works correctly.
-     */
-    public static void forceDepthLayout(VulkanImage depthImage) {
-        if (vulkanImageLayoutField == null) return;
-        try {
-            vulkanImageLayoutField.setInt(depthImage,
-                    org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-        } catch (Exception e) {
-            LOGGER.error("[DH-Vulkan] Failed to force depth layout", e);
-        }
-    }
-
-    /**
-     * Transition MC's depth image to SHADER_READ_ONLY_OPTIMAL for sampling.
-     * <p>
-     * Must be called AFTER endRenderPass() (depth is no longer an active
-     * attachment) and BEFORE any render pass that samples the depth image.
-     * <p>
-     * Since VulkanMod's render pass endRenderPass() transitions depth to
-     * DEPTH_STENCIL_ATTACHMENT_OPTIMAL (layout 3) but may not update the
-     * software-tracked currentLayout field consistently, we first force
-     * currentLayout to match the actual GPU state, then transition.
-     */
-    public static void transitionDepthForSampling(VulkanImage depthImage) {
-        try {
-            // Force currentLayout to match actual GPU state after endRenderPass.
-            // The render pass finalLayout puts depth in DEPTH_STENCIL_ATTACHMENT_OPTIMAL (3).
-            forceDepthLayout(depthImage);
-
-            // Now transition from DEPTH_STENCIL_ATTACHMENT (3) → SHADER_READ_ONLY (5)
-            org.lwjgl.vulkan.VkCommandBuffer cmd = Renderer.getCommandBuffer();
-            try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
-                depthImage.transitionImageLayout(stack, cmd,
-                        org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-            }
-        } catch (Exception e) {
-            LOGGER.error("[DH-Vulkan] Failed to transition depth for sampling", e);
-        }
-    }
-
-    /**
-     * Transition MC's depth image back to DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-     * after sampling is complete, so MC can use it as a depth attachment again.
-     * <p>
-     * Must be called AFTER the depth-reading render pass has ended and
-     * BEFORE rebindMainTarget() starts a new render pass with the depth
-     * as an attachment.
-     */
-    public static void transitionDepthForAttachment(VulkanImage depthImage) {
-        try {
-            org.lwjgl.vulkan.VkCommandBuffer cmd = Renderer.getCommandBuffer();
-            try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
-                depthImage.transitionImageLayout(stack, cmd,
-                        org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-            }
-        } catch (Exception e) {
-            LOGGER.error("[DH-Vulkan] Failed to transition depth for attachment", e);
-        }
-    }
-
     /**
      * Restore the original mainImageView on the depth image after draw.
      * Must be called after the draw that samples MC depth completes.
@@ -590,115 +464,6 @@ public final class Compat {
             savedDepthImage = null;
             savedOriginalView = 0;
         }
-    }
-
-    /**
-     * Convenience: prepare, bind, and restore in one call.
-     * Use when the full bind→upload→draw cycle happens within the caller.
-     *
-     * @deprecated Use {@link #prepareMcDepthForSampling} +
-     *             {@link #restoreMcDepthView} instead
-     */
-    @Deprecated
-    public static void bindMcDepthForSampling(int slot, VulkanImage depthImage) {
-        prepareMcDepthForSampling(slot, depthImage);
-        // Note: caller must call restoreMcDepthView() after draw
-    }
-
-    // ========================= //
-    // MC depth copy for deferred //
-    // ========================= //
-
-    /** Persistent depth copy image — recreated on resize */
-    private static VulkanImage mcDepthCopyImage = null;
-    private static int mcDepthCopyWidth = 0;
-    private static int mcDepthCopyHeight = 0;
-
-    /**
-     * Copy MC's swapchain depth to a separate image for sampling.
-     * <p>
-     * Must be called AFTER endRenderPass() (so the depth is not an active
-     * attachment) and BEFORE rebindMainTarget() (which re-attaches it).
-     * The returned image is safe to sample during the composite pass because
-     * it is NOT bound as an attachment.
-     * <p>
-     * The copy image is persistent and only recreated on resize.
-     */
-    public static VulkanImage copyMcDepthForSampling(VulkanImage srcDepth) {
-        try {
-            // Recreate copy image if dimensions changed
-            if (mcDepthCopyImage == null
-                    || mcDepthCopyWidth != srcDepth.width
-                    || mcDepthCopyHeight != srcDepth.height) {
-                if (mcDepthCopyImage != null) {
-                    mcDepthCopyImage.free();
-                }
-                // Create with TRANSFER_DST (receive copy) + SAMPLED (sample in shader)
-                int copyUsage = 0x04 /* VK_IMAGE_USAGE_SAMPLED_BIT */
-                        | 0x08 /* VK_IMAGE_USAGE_TRANSFER_DST_BIT */;
-                mcDepthCopyImage = VulkanImage.createDepthImage(
-                        srcDepth.format, srcDepth.width, srcDepth.height,
-                        copyUsage, false, true);
-                mcDepthCopyWidth = srcDepth.width;
-                mcDepthCopyHeight = srcDepth.height;
-                LOGGER.info("[DH-Vulkan] Created MC depth copy image: {}x{} format={}",
-                        srcDepth.width, srcDepth.height, srcDepth.format);
-            }
-
-            // Get the current command buffer from Renderer
-            org.lwjgl.vulkan.VkCommandBuffer cmdBuffer = (org.lwjgl.vulkan.VkCommandBuffer) rendererCmdBufferField
-                    .get(Renderer.getInstance());
-
-            try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
-                // Transition src depth to TRANSFER_SRC
-                srcDepth.transitionImageLayout(stack, cmdBuffer,
-                        org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-
-                // Transition copy to TRANSFER_DST
-                mcDepthCopyImage.transitionImageLayout(stack, cmdBuffer,
-                        org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-                // Copy depth
-                long srcId = (long) vulkanImageIdField.get(srcDepth);
-                long dstId = (long) vulkanImageIdField.get(mcDepthCopyImage);
-
-                org.lwjgl.vulkan.VkImageCopy.Buffer copyRegion = org.lwjgl.vulkan.VkImageCopy.calloc(1, stack);
-                copyRegion.get(0)
-                        .srcSubresource(s -> s
-                                .aspectMask(srcDepth.aspect)
-                                .mipLevel(0).baseArrayLayer(0).layerCount(1))
-                        .srcOffset(o -> o.set(0, 0, 0))
-                        .dstSubresource(s -> s
-                                .aspectMask(srcDepth.aspect)
-                                .mipLevel(0).baseArrayLayer(0).layerCount(1))
-                        .dstOffset(o -> o.set(0, 0, 0))
-                        .extent(e -> e.set(srcDepth.width, srcDepth.height, 1));
-
-                org.lwjgl.vulkan.VK10.vkCmdCopyImage(cmdBuffer,
-                        srcId, org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                        dstId, org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                        copyRegion);
-
-                // Transition copy to SHADER_READ_ONLY for sampling
-                mcDepthCopyImage.transitionImageLayout(stack, cmdBuffer,
-                        org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-            }
-
-            return mcDepthCopyImage;
-        } catch (Exception e) {
-            LOGGER.error("[DH-Vulkan] Failed to copy MC depth", e);
-            return srcDepth; // fallback to original (may not work on NVIDIA)
-        }
-    }
-
-    /** Clean up the persistent depth copy image */
-    public static void cleanupDepthCopy() {
-        if (mcDepthCopyImage != null) {
-            mcDepthCopyImage.free();
-            mcDepthCopyImage = null;
-        }
-        mcDepthCopyWidth = 0;
-        mcDepthCopyHeight = 0;
     }
 
     /**
@@ -717,9 +482,6 @@ public final class Compat {
         lastDepthImageId = 0;
         savedOriginalView = 0;
         savedDepthImage = null;
-
-        // Free the persistent MC depth copy image
-        cleanupDepthCopy();
     }
 
     // ========================= //
@@ -851,17 +613,6 @@ public final class Compat {
             try {
                 setModelOffsetMethod.invoke(null, x, y, z);
             } catch (Exception ignored) {}
-        }
-    }
-
-    /**
-     * Get the MeshData class for reflection. Returns null on MC 1.20.x (class doesn't exist).
-     */
-    public static Class<?> getMeshDataClass() {
-        try {
-            return Class.forName("com.mojang.blaze3d.vertex.MeshData");
-        } catch (ClassNotFoundException e) {
-            return null;
         }
     }
 

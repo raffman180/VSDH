@@ -139,10 +139,6 @@ public final class NativeColorTargets implements AutoCloseable {
         initialized = true;
     }
 
-    public void mipmaps(int index, Side side) {
-        mipmaps(java.util.List.of(index), ignored -> side);
-    }
-
     /** Mip chains of several targets, generated together (see NativeImageOps.mipmaps). */
     public void mipmaps(java.util.Collection<Integer> indices, java.util.function.IntFunction<Side> side) {
         requireOpen();
@@ -164,12 +160,7 @@ public final class NativeColorTargets implements AutoCloseable {
      * one (FinalPassRenderer). Swapping which image plays "main" has the same effect for every
      * read of the next frame, without the full-image copy (0.37 ms per frame for Photon at 1440p).
      * -Dvsdh.copyBack=true restores the copy.
-     */
-    public void copyBack(java.util.List<Integer> indices) {
-        copyBack(indices, java.util.Set.of());
-    }
-
-    /**
+     * <p>
      * {@code swappable}: targets whose next write fully replaces the alternate half (fullscreen
      * passes without blending). Iris leaves both halves equal after its copy; a swapped target's
      * alternate half holds an older state instead, which only a blended or partial write (geometry,
