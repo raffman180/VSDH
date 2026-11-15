@@ -831,5 +831,9 @@ Ergebnis verwerfen. Jeder Lauf mit Wachhund (Log länger als 6 Minuten still →
   (DH-Einstellung CPU-Last/Threads), nie DH-Config schreiben. Neu im Code: DH-Quad-Indexpuffer im Gerätespeicher (kein
   messbarer Gewinn, Parität mit AutoIndexBuffer), Diagnose `GPU_IDLE` (unter `vsdh.gpuSpikes`), `vsdh.vmaTrace`,
   `vsdh.swapchainImages` (Standard 3, auf maxImageCount begrenzt). Verworfen und entfernt: DH-Upload-Budget, Fence-Polling.
-  Offen: welcher Thread bei voller CPU den GPU-Start verzögert (Swapchain-Acquire oder Treiber-Submission).
+  10:38 entschieden (`-Dvsdh.separateUploadSubmit=true`, Uploads allein abgeschickt): die Uploads laufen sofort, der Frame
+  wartet 13-25 ms auf das Swapchain-Bild (Acquire-Semaphore). Die Präsentation gibt das Bild verspätet zurück, nur während
+  DH neues Fernland erzeugt (JFR grob: DH-World Gen, DH-Render Loader). Vermutlich verhungert der Flip-Thread des Treibers.
+  Mögliche spätere Linderung: Pack-Frames vor dem Swapchain-Warten rechnen lassen (Bild erst für FINAL/GUI), deckt höchstens
+  die eigene GPU-Zeit (~7 ms von ~20 ms bei Eclipse).
   Modpack enthält weiter 323C34DB (ohne Borderless); Nutzer hat noch nicht entschieden, ob die Nachtfassung hinein soll.

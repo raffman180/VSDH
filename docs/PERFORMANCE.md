@@ -819,8 +819,17 @@ Measured, in this order (all flights 30 s, RD 12; frame CSV plus `-Dvsdh.spikeMs
 profile: dhWater 0.57-0.89 vs 1.45-1.67 ms, dhOpaque 0.06-0.09 vs 0.15-0.26 ms). Most of the FPS gain is less distant
 terrain. What holds: the stalls belong to DH's loading work (CPU-heavy), not to steady rendering; priority 1 alone does
 not reliably remove them. Fewer DH threads trade loading speed for smoothness while moving. Player choice only; VSDH
-never writes DH config. Open: which thread the busy CPU delays (the GPU start waits on the swapchain acquire or on
-driver-side submission; not decidable from inside the process).
+never writes DH config.
+
+Decided at 10:38 with `-Dvsdh.separateUploadSubmit=true` (new diagnostic: the upload batch is submitted alone, without
+the swapchain wait): in every stall frame the uploads ran at once (beforeBatchMs 0.02-1.4) and the frame itself waited
+13-25 ms afterwards (afterBatchMs), and its only dependency is the swapchain acquire semaphore. The presentation engine
+returns the image late; with 4 images it was not better, so no image comes back during these moments. It happens only
+under DH's loading work; the JFR thread samples (10 s period, rough) put `DH-World Gen` and `DH-Render Loader` on top,
+so DH generates new distant terrain in the flight. Likely the driver's flip thread in the game process is starved; not
+reachable from Java without native thread enumeration (not done). Possible later mitigation: let pack frames run their
+world and composite passes before the swapchain wait (acquire the image only for FINAL and GUI); it would hide at most
+the frame's own GPU time (about 7 ms of a 20 ms wait in Eclipse).
 
 Also measured: the DH quad index buffer now lives in device memory like the renderer's own AutoIndexBuffer
 (`-Dvsdh.dhIndexHostMemory=true` = old host memory). DH passes cost 0.15 ms in Eclipse either way; no measurable gain,

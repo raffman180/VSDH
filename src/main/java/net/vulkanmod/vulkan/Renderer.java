@@ -112,6 +112,8 @@ public class Renderer {
     /** Troubleshooting switch: {@code -Dvsdh.legacyUploadSync=true} restores per-upload CPU fences. */
     private static final long DEBUG_CPU_DELAY_NANOS = Long.getLong("vsdh.debugCpuDelayUs", 0) * 1000;
     private static final boolean FRAME_UPLOAD_BATCH =!Boolean.getBoolean("vsdh.legacyUploadSync");
+    /** -Dvsdh.separateUploadSubmit=true: diagnostic, submits the frame's upload batch on its own (costs a small GPU gap). */
+    private static final boolean SEPARATE_UPLOAD_SUBMIT = Boolean.getBoolean("vsdh.separateUploadSubmit");
     private boolean frameUploadBatch;
     private static int imageIndex;
     private final FramePreparationState framePreparation = new FramePreparationState();
@@ -551,7 +553,17 @@ public class Renderer {
                 AdaptiveChunkUploadBudget.recordGpuBackpressure(transferWaitNanos);
             }
 
-            if (uploads != null) {
+            if (uploads != null && SEPARATE_UPLOAD_SUBMIT) {
+                // Diagnostic: the upload batch alone, without the swapchain wait, so GPU_IDLE shows whether the GPU
+                // waits before the uploads (driver/queue) or only before the frame (swapchain image).
+                vkEndCommandBuffer(uploads.getHandle());
+                VkSubmitInfo uploadSubmit = VkSubmitInfo.calloc(stack).sType$Default().pCommandBuffers(stack.pointers(uploads.getHandle()));
+                int uploadResult = vkQueueSubmit(DeviceManager.getGraphicsQueue().queue(), uploadSubmit, VK_NULL_HANDLE);
+                if (uploadResult != VK_SUCCESS)
+                    throw new RuntimeException("Failed to submit upload batch: %s".formatted(VkResult.decode(uploadResult)));
+                MemoryManager.getInstance().addFrameOp(uploads::reset);
+                submitInfo.pCommandBuffers(stack.pointers(currentCmdBuffer));
+            } else if (uploads != null) {
                 vkEndCommandBuffer(uploads.getHandle());
                 submitInfo.pCommandBuffers(stack.pointers(uploads.getHandle(), currentCmdBuffer));
                 MemoryManager.getInstance().addFrameOp(uploads::reset);

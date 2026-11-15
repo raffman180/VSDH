@@ -10,6 +10,7 @@
 - `-Dvsdh.vmaTrace=true` logs every GPU memory block the allocator takes or returns.
 - `-Dvsdh.gpuSpikes=true` also logs GPU idle gaps of 5 ms or more between frames (`GPU_IDLE`).
 - `-Dvsdh.swapchainImages=N` sets the swapchain image count (default 3, clamped to what the surface allows).
+- `-Dvsdh.separateUploadSubmit=true` submits the frame's upload batch on its own (to tell queue and swapchain waits apart).
 
 ## 0.27.0-beta (2026-11-14)
 
