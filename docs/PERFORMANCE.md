@@ -773,3 +773,18 @@ differences; repeat it with colour loops alone before quoting it.
 
 Mit großem Heap ist ZGC klar ruhiger als G1 (die frühere Notiz „ZGC nicht empfohlen“ galt dem 4-GiB-Testclient).
 Empfehlung an Spieler mit großem Heap: `-XX:+UseZGC -XX:+ZGenerational`. Die Mod setzt keine JVM-Flags.
+
+## Periodische Hänger mit DH: Upload-Menge ausgeschlossen (15.11.2026, Testclient, ohne Shader, exklusives Vollbild, 1440p, ZGC gen. 10 GiB)
+
+Without DH the 15-27 ms frames about every 0.8 s almost vanish (0.03/s frames >2 refresh intervals vs 0.60/s). A per-frame
+DH upload budget was tried and removed again: DH uploads at most 0.45-1.4 MB per frame in the flight (40-90 MB per 10 s),
+and capping it at 64 KiB (about 700 uploads moved to later frames per 10 s, no errors) left the spikes unchanged.
+
+| Run | Budget | FPS | >2 refresh/s | 0.1 % low | spikes |
+|---|---|---|---|---|---|
+| upbA1-3 | off | 710 / 748 / 723 | 0.33 / 0.20 / 0.30 | 73 / 116 / 74 | 11 / 6 / 14 |
+| upbB1-3 | 4 MiB (never reached) | 713 / 701 / 721 | 0.23 / 0.27 / 0.27 | 93 / 78 / 84 | 7 / 11 / 8 |
+| upsmall A/B, updiag B | 64 KiB | 755 / 694 / 743 | 0.27 / 0.53 / 0.43 | 79 / 49 / 60 | 10 / 21 / 14 |
+| updiag A | off | 737 | 0.33 | 72 | 12 |
+
+The cause is still open (see NEXT_AI_PROMPT, 15.11. 09:00).

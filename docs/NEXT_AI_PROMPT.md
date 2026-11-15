@@ -812,4 +812,12 @@ Ergebnis verwerfen. Jeder Lauf mit Wachhund (Log länger als 6 Minuten still →
   Review-Fixes (Maschinen-Key im Pack-Cache, openUncompiled nur für baubare Abschnitte, Ordner-Packs ohne Cache, fairer
   Lock, Borderless auf dem Monitor unter dem Fenster) sind kompiliert/getestet, aber NICHT im Client gestartet; der
   Borderless-Fenstertest (`scratchpad borderless-test.ps1`, Ausgabe build/reference/audio-test/client-bl1.log) lief beim
-  Abbruch noch. Modpack enthält noch die JAR von 00:34 (B7E63D55…), nicht die Nachtfassung.
+  Abbruch noch. Modpack enthält die JAR von 00:49 (323C34DB…, ohne Borderless), nicht die Nachtfassung.
+
+- 15.11. 09:00-09:20: Ursache der ~0,8-s-Hänger weiter eingegrenzt. Ohne DH (`-PtestNoDh`) fast keine (0,03/s Bilder >2
+  Bildwechsel gegen 0,60/s), JFR: in den Hängerbildern wartet der Render-Thread in `vkWaitForFences` (`Renderer.preInitFrame`),
+  also GPU-seitig. Geprüft und VERWORFEN: DH-Upload-Menge je Bild. Diagnose im Flug: höchstens 0,45-1,4 MB je Bild (40-90 MB
+  je 10 s); ein Upload-Budget von 64 KiB (700 verschobene Uploads je 10 s, fehlerfrei) änderte die Hänger nicht (none-Flüge
+  `upb*`, `upsmall*`, `updiag*`: >2 Bildwechsel 0,20-0,53/s in beiden Varianten, Rauschen). Code wieder entfernt.
+  Nächste Kandidaten: Freigabe/Neuanlage der DH-Puffer (`CachedBuffer.free` je ersetzter LOD, VMA-Blockanlage), DH-eigene
+  Pässe (SSAO/Fog/Composite) in diesen Bildern, DH generische Objekte; Werkzeug: GPU_PROFILE je Pass mit Max statt Mittel.
