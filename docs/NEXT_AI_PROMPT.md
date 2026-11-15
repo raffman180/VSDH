@@ -1060,3 +1060,33 @@ OFFEN, erst nach frischem „go“ (Testclient, nie die Prism-Instanz):
      terrain`, keine Löcher beim Herumfliegen, Blockänderungen bauen weiter neu, Schatten/DH unverändert; danach Pack mit
      anderem Tisch (voller Neubau). Erst wenn das hält, zum Standard machen.
   5. Danach erst CHANGELOG-/CurseForge-Aussage zu Zeiten im Spiel; bis dahin gilt „headless gemessen“.
+
+## Abend 15.11.2026 (Fable): unsichtbarer Spieler, 40-70 FPS, Pack-Dateiname - NICHTS im Spiel gestartet
+
+Meldungen des Spielers (Prism-Instanz, JAR von 0611b8f, Jurgens v1.2 ueber PackFileFallback, DH 3.3.3):
+1. "Ich bin unsichtbar" (Third Person: Ruestung und Items da, Koerper/Skin fehlt).
+   BELEGT: Jurgens hat kein `gbuffers_entities_translucent` (ZIP-Liste); `PlayerModel` nutzt `RenderType::entityTranslucent`
+   (neoforge-21.1.264-sources.jar); ohne eigenes Programm war `entityTranslucent == null`, `queueTransparentEntityBody` und
+   `renderEntityGeometryBody` gaben false zurueck, der Skin lief ueber den Standard-Shader in die Szene (nur colortex0).
+   Iris faellt hier auf `gbuffers_entities` zurueck (ProgramId.EntitiesTrans -> Entities, javap am Iris-JAR); das Pack rechnet
+   damit (Kommentar "Preserve skin-layer coverage in albedo only" unter PROGRAM_ENTITIES).
+   NICHT BELEGT: warum der Standard-Draw gar nichts zeigte statt falsch beleuchteter Haut (colortex0 wird beschrieben).
+   Falls der Koerper nach dem Fix weiter fehlt: ohne Pack in Third Person pruefen (Skin-Textur), dann
+   `-Dvsdh.translucentEntityFallback=false` im Vergleich, dann ETF / skinlayers3d / ImmediatelyFast einzeln herausnehmen.
+   FIX: `EntityPackPlan.translucentOrFallback` (auch `gbuffers_block_translucent` -> `gbuffers_block`), Tests in `EntityPackPlanTest`.
+2. "40-70 FPS mit jedem Shader, das Bild stockt": `config/vulkanmod_settings.json` des Spielers hatte `lowLatency: true`
+   (Schalter von heute, 78ec0f4), Borderless, VSync an, 180 Hz. Mechanik laut eigener Tabelle in PERFORMANCE.md: c + g statt
+   max(c, g), mit VSync auf ganze Intervalle gerundet -> 180/3 = 60, 180/4 = 45. Passt zur Meldung, ist aber NICHT gemessen.
+   GEAENDERT: Modus nur noch mit `-Dvsdh.lowLatency=true`, Schalter aus der Videoseite entfernt, gespeichertes `true` wird
+   ignoriert (Datei wird nicht angefasst; Sprachschluessel `vsdh.options.lowLatency*` sind jetzt unbenutzt).
+   GEAENDERT: `ShadowCasterBuilds` Standard AUS (`-Dvsdh.shadowCasterBuilds=true`), weil ungemessen.
+   GELASSEN (Begruendung in AGENTS.md): exakte Cull-Updates, fruehes Fence/Acquire, Pipeline-Cache-Schnappschuss, PreparePool.
+   ZU MESSEN nach frischem "go" (Testclient, nie Prism): Flug-A/B Jurgens + Eclipse, Borderless + VSync und exklusiv ohne VSync,
+   jeweils Standard gegen `vsdh.lowLatency=true`, `vsdh.shadowCasterBuilds=true`, `vsdh.earlyFrameWait=false`,
+   `vsdh.exactCullUpdates=false`, `vsdh.pipelineCacheSave=false`; dazu `-Dvsdh.gpuProfile=true` (shadow-Pass mit/ohne
+   Caster-Builds) und `-Dvsdh.chunkDiag=true` (Spike-Zeile zur Sekunde von "Pipeline cache saved").
+   Standards gelten fuer Spieler allgemein (jede GPU/CPU, Sichtweite, Pack, VSync an/aus, Fenstermodus), nicht fuer ein Setup.
+3. Pack-Datei: Log und Profil-Lesen nutzen die aufgeloeste Datei (`ShaderPackStartup.fileAndChoice`, `ShaderSettingsPage.readProfiles`).
+   "translations 0 from disk": kein Fehler belegt - der Speicher entstand erst in dieser Sitzung (erste `.tr` 17:01:02, 368
+   Dateien = 141 + 88 + 139); ob der zweite Start trifft, zeigt erst dessen Logzeile.
+Build + `verifyDhLinks` gruen, 212 Unit-Tests.

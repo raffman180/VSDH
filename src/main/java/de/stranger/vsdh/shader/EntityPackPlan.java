@@ -74,6 +74,28 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
                     alphas.getOrDefault("gbuffers_armor_glint", AlphaTest.NON_ZERO));
     }
 
+    /**
+     * {@code -Dvsdh.translucentEntityFallback=false}: translucent entity layers of a pack without its own
+     * translucent program go to the standard renderer's shader again, as before 15.11.2026.
+     */
+    static final boolean TRANSLUCENT_FALLBACK = !"false".equalsIgnoreCase(System.getProperty("vsdh.translucentEntityFallback"));
+
+    /**
+     * The program for a translucent layer (entity_translucent and its cull variants: player skins, the first-person
+     * arm's sleeve, horses, slimes' outer layer, translucent block entities). A pack without
+     * gbuffers_entities_translucent / gbuffers_block_translucent draws them with gbuffers_entities / gbuffers_block,
+     * as Iris does (ProgramId.EntitiesTrans and BlockTrans fall back to Entities and Block), with the 0.1 alpha test
+     * of the layer. They used to go to the standard renderer's shader, which writes one colour only: a pack that
+     * shades from its own albedo, normal and material targets then showed nothing of them (the player's body was
+     * invisible in third person while the armour, a cutout layer, was drawn). A program the pack has but that was
+     * refused keeps the standard draw, as its warning says.
+     */
+    static PackProgramSource.Prepared translucentOrFallback(PackProgramSource.Prepared own, boolean packHasProgram,
+                                                            PackProgramSource.Prepared cutout, boolean fallback) {
+        if (own != null) return own;
+        return fallback && !packHasProgram ? cutout : null;
+    }
+
     static EntityPackPlan prepare(OpenedPack pack, String prefix, ShaderChainPlan chain,
                                   Set<String> customUniforms, boolean shadows, boolean distant, Consumer<String> warning) {
         if (chain.targets().schedule().step(NAME).isEmpty()
@@ -114,16 +136,16 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
                             alphas.getOrDefault(BLOCK, AlphaTest.ONE_TENTH));
                     validate(blockSolid, customUniforms, shadows, distant, textures, chain.targets());
                     validate(blockCutout, customUniforms, shadows, distant, textures, chain.targets());
-                    blocks = new BlockPrograms(blockSolid, blockCutout,
-                            optional.prepare("gbuffers_block_translucent", inputs, AlphaTest.ONE_TENTH));
+                    blocks = new BlockPrograms(blockSolid, blockCutout, translucentOrFallback(
+                            optional.prepare("gbuffers_block_translucent", inputs, AlphaTest.ONE_TENTH),
+                            hasProgram(pack, prefix, chain, "gbuffers_block_translucent"), blockCutout, TRANSLUCENT_FALLBACK));
                 } catch (IOException | IllegalArgumentException | VulkanProgramCompiler.CompilationException failure) {
                     warning.accept("Keeping standard block entity rendering for " + prefix + BLOCK + ": " + failure.getMessage());
                 }
             }
             PackProgramSource.Prepared translucent = null;
-            if (chain.targets().schedule().step(TRANSLUCENT).isPresent()
-                    && pack.source().file(prefix + TRANSLUCENT + ".vsh").isPresent()
-                    && pack.source().file(prefix + TRANSLUCENT + ".fsh").isPresent()) {
+            boolean ownTranslucent = hasProgram(pack, prefix, chain, TRANSLUCENT);
+            if (ownTranslucent) {
                 try {
                     var source = PackProgramSource.prepare(pack, prefix + TRANSLUCENT, inputs, inputs.elements(),
                             alphas.getOrDefault(TRANSLUCENT, AlphaTest.ONE_TENTH));
@@ -133,6 +155,7 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
                     warning.accept("Keeping standard translucent entity rendering for " + prefix + TRANSLUCENT + ": " + failure.getMessage());
                 }
             }
+            translucent = translucentOrFallback(translucent, ownTranslucent, cutout, TRANSLUCENT_FALLBACK);
             HandPrograms hand = null;
             String handSolid = "gbuffers_hand";
             if (hasProgram(pack, prefix, chain, handSolid)) {
@@ -222,9 +245,9 @@ public record EntityPackPlan(PackProgramSource.Prepared solid, PackProgramSource
         if (blocks != null) {
             programs.add(blocks.solid());
             programs.add(blocks.cutout());
-            if (blocks.translucent() != null) programs.add(blocks.translucent());
+            if (blocks.translucent() != null && blocks.translucent() != blocks.cutout()) programs.add(blocks.translucent());
         }
-        if (translucent != null) programs.add(translucent);
+        if (translucent != null && translucent != cutout) programs.add(translucent); // the fallback is listed already
         if (hand != null) {
             programs.add(hand.solid());
             programs.add(hand.translucent());

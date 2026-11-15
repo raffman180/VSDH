@@ -157,11 +157,6 @@ public abstract class Options {
                                  },
                                  () -> minecraftOptions.enableVsync().get())
                                 .setTooltip(Component.translatable("vulkanmod.options.vsync.tooltip")),
-                         new SwitchOption(Component.translatable("vsdh.options.lowLatency"),
-                                 value -> config.lowLatency = value,
-                                 () -> config.lowLatency)
-                                .setActivationFn(DeviceManager::isPresentWaitEnabled)
-                                .setTooltip(Component.translatable("vsdh.options.lowLatency.tooltip")),
                 }),
                 new OptionBlock("", new Option<?>[]{
                         new RangeOption(Component.translatable("options.guiScale"),

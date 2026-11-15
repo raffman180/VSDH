@@ -50,11 +50,14 @@ class InputLatencyTest {
     }
 
     @Test
-    void thePropertyOverridesTheSettingOnlyWhenItSaysTrueOrFalse() {
+    void onlyThePropertyTurnsTheModeOn() {
         assertFalse(InputLatency.lowLatency(null, false, true, false), "off by default");
-        assertTrue(InputLatency.lowLatency(null, true, true, false));
-        assertTrue(InputLatency.lowLatency("", true, true, false));
+        // A settings file that still says lowLatency=true (the switch existed for a few hours on 15.11.2026) must
+        // not serialise CPU and GPU again: 40-70 FPS with every pack at 180 Hz was the report.
+        assertFalse(InputLatency.lowLatency(null, true, true, false), "the saved setting alone is ignored");
+        assertFalse(InputLatency.lowLatency("", true, true, false));
         assertFalse(InputLatency.lowLatency("false", true, true, false));
         assertTrue(InputLatency.lowLatency("TRUE", false, true, false));
+        assertTrue(InputLatency.lowLatency("true", true, true, false));
     }
 }

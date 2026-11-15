@@ -16,10 +16,11 @@ package net.vulkanmod.vulkan;
  * {@link #EARLY_WAIT}: the same two waits run at the end of {@code Renderer.endFrame}, before the event poll. Nothing
  * else moves; the later calls find the fence signalled and the image acquired.
  * <p>
- * Low latency mode ({@code VK_KHR_present_id} + {@code VK_KHR_present_wait}, opt-in): additionally waits there until
- * the frame presented last is on screen, so no finished frame queues in front of the one about to read the mouse.
- * It costs frames whenever a frame takes longer than one refresh interval with VSync (the next one starts a whole
- * interval later), which is why it is off by default.
+ * Low latency mode ({@code VK_KHR_present_id} + {@code VK_KHR_present_wait}, {@code -Dvsdh.lowLatency=true} only):
+ * additionally waits there until the frame presented last is on screen, so no finished frame queues in front of the
+ * one about to read the mouse. It costs frames whenever CPU plus GPU time of a frame exceed one refresh interval with
+ * VSync (the next one starts a whole interval later; 1/(c+g) instead of 1/max(c,g) without VSync), which every shader
+ * pack does: experimental, not a video setting.
  */
 public final class InputLatency {
     private InputLatency() {}
@@ -37,17 +38,22 @@ public final class InputLatency {
 
     private static final String LOW_LATENCY_PROPERTY = System.getProperty("vsdh.lowLatency");
 
-    /** Whether frames carry a present id and wait for the previous one: needs the device feature and the Vulkan swapchain. */
+    /** Whether frames carry a present id and wait for the previous one: needs the property, the device feature and the Vulkan swapchain. */
     public static boolean lowLatency(boolean configured, boolean deviceSupport, boolean dxgi) {
         return lowLatency(LOW_LATENCY_PROPERTY, configured, deviceSupport, dxgi);
     }
 
-    /** {@code -Dvsdh.lowLatency=true|false} overrides the setting; anything else leaves the setting in charge. */
+    /**
+     * Only {@code -Dvsdh.lowLatency=true} turns the mode on since 15.11.2026 (evening). The saved video setting
+     * ({@code Config.lowLatency}) is no longer honoured and its switch is gone from the settings page: with it on,
+     * every frame waits for the previous one to be on screen, so CPU and GPU time add up instead of overlapping and
+     * with VSync the sum is rounded up to whole refresh intervals. A player who had switched it on reported 40-70 FPS
+     * with every pack at 180 Hz (refresh/3 to refresh/4). {@code configured} stays in the signature so the reason is
+     * visible at the call site and in the test.
+     */
     static boolean lowLatency(String property, boolean configured, boolean deviceSupport, boolean dxgi) {
         if (!deviceSupport || dxgi) return false;
-        if ("true".equalsIgnoreCase(property)) return true;
-        if ("false".equalsIgnoreCase(property)) return false;
-        return configured;
+        return "true".equalsIgnoreCase(property);
     }
 
     /**

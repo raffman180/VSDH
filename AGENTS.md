@@ -256,3 +256,24 @@ added: with warm stores a pack prepares in 0.5-2 s (JIT-warm) and the Shader pag
 -Dvsdh.keepTerrainOnSwitch=true (opt-in, NOT tested in game): a pack change in a world keeps the built sections when both
 packs have the same block.properties table (WorldPackSet.sameTerrainContract; the 44-byte format is pack-independent) and
 only re-marks sections whose build was interrupted (WorldRenderer.resumeBuilders); default stays allChanged.
+Evening 15.11. (player report "40-70 FPS with every pack, the picture hitches", config had lowLatency=true): low latency
+mode makes every frame wait for the previous one to be on screen, so CPU and GPU time add up (VSync: rounded up to whole
+refresh intervals, 180 Hz -> 60/45; no VSync: 1/(c+g) instead of 1/max(c,g)). That is a loss with every GPU-bound scene,
+i.e. with shader packs on any GPU; it is no longer a video setting. Only -Dvsdh.lowLatency=true turns it on; Config.lowLatency
+stays in the file but is not read (InputLatency.lowLatency). Do not bring the switch back without an in-game FPS A/B with a pack.
+ShadowCasterBuilds is opt-in (-Dvsdh.shadowCasterBuilds=true) until measured: besides the region copies, never-built air
+sections stay dirty and pay the caster test, two set lookups and a chunk lookup on every scan pass, and every section it
+builds is drawn into the shadow map from then on. This supersedes "-Dvsdh.shadowCasterBuilds=false for A/B" above.
+Rule from this day: a change with per-frame cost that was not measured in game ships off (opt-in switch); defaults must hold
+for players in general (any GPU/CPU, render distance, pack, VSync on/off, window mode), never for one test setup.
+Kept on after review: exact cull updates (flight A/B: equal median FPS), early fence/acquire (moves waits, adds none; the
+limiter is deadline-based), pipeline cache snapshot (one vkGetPipelineCacheData copy 3-20 s after a pipeline burst, not per frame;
+its render-thread time is still unmeasured: -Dvsdh.pipelineCacheSave=false if a hitch follows the "Pipeline cache saved" line).
+Translucent entity layers (entity_translucent and cull variants: player skin, 3D skin layers, horses) of a pack WITHOUT
+gbuffers_entities_translucent / gbuffers_block_translucent draw with gbuffers_entities / gbuffers_block (cutout variant, alpha
+0.1), as Iris (ProgramId.EntitiesTrans -> Entities, BlockTrans -> Block; javap on the pinned Iris JAR). They used to fall to the
+standard shader, which writes colortex0 only: in a deferred pack the player's body was missing in third person while armour
+(cutout) was drawn. EntityPackPlan.translucentOrFallback; -Dvsdh.translucentEntityFallback=false. A program the pack has but
+that was refused keeps the standard draw. EntityPackPlan.programs() lists a shared program once. Not checked in game yet.
+A configured pack whose file is gone (PackFileFallback) is named by its real file in the log ("ready: v1.2 (configured: v1.1,
+file not found)") and the Shader page reads profiles from the resolved file; vsdh.json is still not rewritten.

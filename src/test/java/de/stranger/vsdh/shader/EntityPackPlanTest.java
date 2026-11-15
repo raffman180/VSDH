@@ -67,6 +67,33 @@ class EntityPackPlanTest {
         }
     }
 
+    @Test
+    void packWithoutTranslucentProgramDrawsTranslucentEntitiesWithItsEntityProgram(@TempDir Path root) throws Exception {
+        // Iris: ProgramId.EntitiesTrans falls back to Entities. Player skins are entity_translucent; with the
+        // standard shader in a deferred pack's targets the player's body was invisible.
+        writePack(root, """
+                #version 130
+                void main() { gl_FragColor = vec4(.5); }
+                """);
+        try (var pack = OpenedPack.open(root, Map.of(), "")) {
+            var chain = ShaderChainPlan.prepare(pack, "");
+            var plan = EntityPackPlan.prepare(pack, "", chain, Set.of(), false, false, message -> fail(message));
+            assertNotNull(plan);
+            assertSame(plan.cutout(), plan.translucent());
+            assertTrue(plan.translucent().translated().stages().get(ProgramStage.FRAGMENT).text().contains("discard"),
+                    "the layer's 0.1 alpha test");
+            assertEquals(2, plan.programs().size(), "the shared program is listed once");
+        }
+    }
+
+    @Test
+    void translucentFallbackRule() {
+        // Nothing to fall back from; the switch off; a program the pack has but that was refused keeps the standard draw.
+        assertNull(EntityPackPlan.translucentOrFallback(null, false, null, true));
+        assertNull(EntityPackPlan.translucentOrFallback(null, false, null, false));
+        assertNull(EntityPackPlan.translucentOrFallback(null, true, null, true));
+    }
+
     private static void writePack(Path root, String fragment) throws Exception {
         var shaders = Files.createDirectory(root.resolve("shaders"));
         Files.writeString(shaders.resolve("gbuffers_entities.vsh"), """

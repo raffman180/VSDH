@@ -3,12 +3,31 @@
 ## Unreleased
 
 ### Fixed
+- Players no longer lose their body in third person with shader packs that have no `gbuffers_entities_translucent`
+  program (armour and held items were drawn, skin and 3D skin layers were not). Player skins, and other translucent
+  entity layers, are drawn with the pack's `gbuffers_entities` program in that case, as Iris does; translucent block
+  entities likewise fall back to `gbuffers_block`. They used to be drawn with the standard shader, which a pack that
+  shades from its own colour, normal and material buffers does not show.
+  `-Dvsdh.translucentEntityFallback=false` restores the old behaviour. Not yet checked in game.
+
+- Frame rate with shader packs: "Low Latency Mode" (added earlier in this cycle) made every frame wait until the
+  previous one was on screen. With a shader pack that adds the processor's and the graphics card's time per frame
+  instead of letting them overlap, and with VSync rounds the sum up to whole refresh intervals (a third or a quarter
+  of the refresh rate where the same scene otherwise ran much faster). The switch is removed from the video settings
+  and a saved "on" is ignored; `-Dvsdh.lowLatency=true` still enables the mode for experiments. Not yet measured in
+  game.
+
+- The Shader page no longer logs "Cannot read the profiles of shader pack ..." each time it opens when the configured
+  pack file was replaced by a newer version: profiles are read from the file that is actually used, and the log names
+  that file (`Vulkan shaderpack ready: <file> (configured: <saved name>, file not found)`). The saved choice is not
+  rewritten.
+
 - Shadows of terrain the camera has not looked at yet appear without turning towards it. A hill, tree or building
   behind or beside the player was only built once it came into view, so after joining a world, switching the pack or
   turning around its shadow arrived seconds late (and a block change outside the view never updated the shadow).
   While a shader pack draws a shadow map, the renderer now also builds the waiting sections the light can see, after
-  the visible ones and within the same per-frame budget (`-Dvsdh.shadowCasterBuilds=false` restores the old
-  behaviour). Not yet measured in game.
+  the visible ones and within the same per-frame budget. Off by default until it has been measured in game:
+  `-Dvsdh.shadowCasterBuilds=true` turns it on.
 
 - Shader packs that build their tables in numbered setup programs (`setup1.csh` ... `setup99.csh`) now get all of
   them run once, in order, as in Iris. Only `setup.csh` was run before, so Jurgens Shader v1.1 had empty cloud noise
@@ -50,11 +69,9 @@
   no measurable frame-time change, `-Dvsdh.dhIndexHostMemory=true` restores it).
 
 ### Added
-- Video setting "Low Latency Mode" (off by default; `-Dvsdh.lowLatency=true|false` overrides it): a frame starts
-  only once the previous one is on screen (`VK_KHR_present_wait`), so no finished frame waits in front of the one
-  that reads the mouse. Works in borderless and exclusive fullscreen and is greyed out without driver support. With
-  VSync the frame rate drops to half the refresh rate whenever a frame takes longer than one refresh interval.
-  Not yet measured in game.
+- Experimental `-Dvsdh.lowLatency=true` (Java argument, not a video setting; see Fixed): a frame starts only once
+  the previous one is on screen (`VK_KHR_present_wait`), borderless and exclusive fullscreen only. It lowers the
+  frame rate whenever processor plus graphics card time of a frame exceed one refresh interval.
 
 ### Added (diagnostics, off by default)
 - `-Dvsdh.inputTrace=true` logs `INPUT_TRACE` every five seconds: time from the input poll to the present call.

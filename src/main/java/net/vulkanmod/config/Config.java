@@ -28,8 +28,9 @@ public class Config {
      */
     public boolean borderlessFullscreen = false;
     /**
-     * Low latency mode (net.vulkanmod.vulkan.InputLatency): a frame starts only once the previous one is on screen.
-     * Needs VK_KHR_present_wait and the Vulkan swapchain; -Dvsdh.lowLatency=true|false overrides it.
+     * Former "Low Latency Mode" switch (15.11.2026, a few hours). No longer read: the mode cost a player two thirds
+     * of the frame rate with shader packs and is now reached only with -Dvsdh.lowLatency=true
+     * (net.vulkanmod.vulkan.InputLatency). The field stays so that an existing settings file keeps its value.
      */
     public boolean lowLatency = false;
     public int performancePreset = PerformancePreset.BALANCED.id;

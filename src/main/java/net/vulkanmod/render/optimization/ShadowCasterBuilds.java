@@ -8,13 +8,20 @@ package net.vulkanmod.render.optimization;
  * arrived seconds late. While a pack draws a shadow map, sections inside its caster volume that wait for a build are
  * therefore started too, after the camera's own ones: nothing while a visible section still waits, only with what is
  * left of the frame's schedule time, and never into the last {@link #QUEUE_RESERVE} worker slots.
- * {@code -Dvsdh.shadowCasterBuilds=false} turns it off, {@code -Dvsdh.shadowCasterBuildsPerFrame=N} changes the count.
+ * Opt-in: {@code -Dvsdh.shadowCasterBuilds=true} turns it on, {@code -Dvsdh.shadowCasterBuildsPerFrame=N} changes the count.
  * Render thread only.
  */
 public final class ShadowCasterBuilds {
     private ShadowCasterBuilds() {}
 
-    public static final boolean ENABLED = !"false".equalsIgnoreCase(System.getProperty("vsdh.shadowCasterBuilds"));
+    /**
+     * Off by default since 15.11.2026 (evening): never measured in game, and the same day brought an FPS and hitch
+     * report. Its costs per frame while on: the scan below (never-built air sections stay dirty for ever, so each of
+     * them runs the caster test, two set lookups and a chunk lookup on every pass, not only "flag reads"), up to
+     * {@link #PER_FRAME} region copies on the render thread, and every section it builds is drawn into the shadow
+     * map from then on although the camera never saw it. {@code -Dvsdh.shadowCasterBuilds=true} turns it on.
+     */
+    public static final boolean ENABLED = "true".equalsIgnoreCase(System.getProperty("vsdh.shadowCasterBuilds"));
     /** Starts per frame. Each start of a non-empty section copies its region on the render thread (about 0.2 ms). */
     public static final int PER_FRAME = Math.clamp(Integer.getInteger("vsdh.shadowCasterBuildsPerFrame", 4), 1, 16);
     /** Grid sections looked at per frame; a 33 x 24 x 33 grid is covered in 13 frames. */

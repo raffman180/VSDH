@@ -471,8 +471,8 @@ public final class ShaderPackStartup {
             var prepared=current.pending.join();
             WorldShaderSession.install(prepared.set());
             active=current.selection;
-            markPackPipelines(name);
-            LOGGER.info("Vulkan shaderpack ready: {}",name);
+            markPackPipelines(prepared.packFile());
+            LOGGER.info("Vulkan shaderpack ready: {}",fileAndChoice(prepared.packFile(),name));
             announce(mc,prepared,name);
         } catch(RuntimeException failure) {
             LOGGER.error("Could not activate Vulkan shaderpack "+name,failure);
@@ -495,13 +495,13 @@ public final class ShaderPackStartup {
             WorldShaderSession.replaceInWorld(prepared==null?null:prepared.set());
             active=current.selection;
             if(prepared!=null) { // count what the switch itself already built
-                pipelineReportPack=name;pipelineReportCount=pipelineCount;pipelineReportNanos=pipelineNanos;
+                pipelineReportPack=prepared.packFile();pipelineReportCount=pipelineCount;pipelineReportNanos=pipelineNanos;
             }
             if(prepared==null) {
                 LOGGER.info("Vulkan shaderpack off in the world; standard renderer active");
                 notify(mc,"off",Component.translatable("vsdh.shader.standard"));
             } else {
-                LOGGER.info("Vulkan shaderpack switched in the world: {}",name);
+                LOGGER.info("Vulkan shaderpack switched in the world: {}",fileAndChoice(prepared.packFile(),name));
                 announce(mc,prepared,name);
             }
         } catch(RuntimeException failure) {
@@ -511,6 +511,11 @@ public final class ShaderPackStartup {
             requested=active;
             notify(mc,"failed",Component.translatable("vsdh.shader.failed.details"));
         }
+    }
+
+    /** The file that was loaded, and the saved choice when a newer file of the pack stood in for it (PackFileFallback). */
+    static String fileAndChoice(String packFile,String configured) {
+        return packFile.equals(configured)?packFile:packFile+" (configured: "+configured+", file not found)";
     }
 
     /** The ready toast; says when another version of the pack or a smaller shadow map was used. */
