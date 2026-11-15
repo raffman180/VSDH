@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Fixed
+- Terrain and block entities at the screen edge no longer appear late while turning: the visible-section set was only
+  recomputed after the camera had turned 2 degrees or moved half a block, so a strip at the leading edge stayed
+  empty until the next step. It is now recomputed whenever the camera or the culling frustum changes
+  (`-Dvsdh.exactCullUpdates=false` restores the old thresholds). Not measured in game yet.
+
 ### Changed
 - Distant Horizons' shared quad index buffer lives in GPU memory like the renderer's own index buffers (was host memory;
   no measurable frame-time change, `-Dvsdh.dhIndexHostMemory=true` restores it).

@@ -851,3 +851,32 @@ Ergebnis verwerfen. Jeder Lauf mit Wachhund (Log länger als 6 Minuten still →
   über zwei Puffer beachten. Weitere Ideen: ETW/PresentMon für den Hänger-Mechanismus, Flug mit `-PtestFlightFps=160`,
   Opt-in-DH-Lastregler, Land-Route im Flug, swapAfterGeometry-Bildvergleich, dh_water-Überzeichnung zählen,
   Pipeline-Erstellzeit sichtbar machen und Cache nach Pack-Installation speichern.
+
+- 15.11.2026 (Fable, NUR Code + Unit-Tests, NICHT im Spiel gestartet): Nutzer: „wenn ich mich umdrehe zieht es etwas nach,
+  sehr unsmooth, Performance auch nicht“. Gefunden: `WorldRenderer.setupRenderer` lief den Sichtgraph nur neu, wenn die
+  Kamera sich um mehr als 2° je Achse gedreht oder 0,5 Block bewegt hatte (aus dem gepinnten Reforged; Original-VulkanMod
+  hat die 2° ebenfalls), und der Cull-Frustum hat keinen Rand (`VFrustum.offsetToFullyIncludeCameraCube` endet schon bei
+  INTERSECT). Abschnitte, die ganz außerhalb des alten Frustums lagen, fehlten bis zur nächsten Stufe: bei 1440p/FOV 70
+  ein Streifen bis ~90 px am vorderen Bildrand (Himmel bzw. DH-LODs), der in 2°-Stufen nachgefüllt wird; Block-Entities
+  nutzen denselben alten Frustum. Sodium (`SodiumWorldRenderer.setupTerrain`, 1.21.1/stable) markiert den Graph bei jeder
+  Änderung von Position, Pitch, Yaw oder Projektion neu. Fix: `GraphUpdatePolicy` (neu laufen bei jeder Änderung von
+  Kamera oder Cull-Matrix, also auch FOV), Schalter `-Dvsdh.exactCullUpdates=false`. Test `GraphUpdatePolicyTest` zeigt
+  u. a., dass 1,5° Drehung Abschnitte ins Bild bringt, die der alte Frustum verwirft. 167 Unit-Tests, verifyDhLinks PASS.
+  Geprüft und NICHT schuld (Code): Vorframe-Matrizen (`WorldMatrices.begin/commit` genau einmal je `renderLevel`,
+  gebobbte View in aktuell und vorher, `previousCameraPosition`/Fract aus demselben Stand, kein Reset je Bild; DH:
+  `dhPreviousProjection` beim Commit), Schatten-/DH-Frustum aus dem aktuellen Bild, Kamera/PartialTick (beginWorld bekommt
+  Kamera und View desselben `renderLevel`). Kein unbudgetierter Posten beim Drehen gefunden außer dem Graph-Lauf selbst
+  (alte `[ChunkDiag]`-Spike-Zeilen: meist 0,1-0,25 ms, bis ~2 ms, Ausreißer beim Weltbeitritt). Bekannt, nicht geändert:
+  `cameraPosition` wird nicht wie in Iris ab 30000 Blöcken verschoben (float-Genauigkeit weit draußen); `lastFrame` im
+  Graph ist ein short und läuft jetzt schneller um (wie bisher im Flug).
+  OFFEN, erst nach frischem „go“ des Nutzers:
+  1. Dreh-Serie gegen Iris mit TAA-Pack: `-PtestSysProps=vsdh.turnSeries=true,vsdh.turnSeries.shore=true` (VSDH und
+     Iris-Client, Eclipse und Complementary), dann dieselbe mit `vsdh.exactCullUpdates=false`: fehlen am Bildrand noch
+     Abschnitte bzw. kehrt der Streifen mit dem Schalter zurück? Dazu `vsdh.turnSeries.ground=true` (echtes Gehen).
+  2. Flug-A/B je 3 Läufe: `run-vsdh-026-flight.ps1 -Packs Eclipse -Tag cullA -HighResolution -SkipIris` gegen
+     `-Extra '-PtestSysProps=vsdh.exactCullUpdates=false'` (Tag cullB); Mediane, >1/>2/>3-Intervall-Bilder
+     (`flight-analyse.py`), „DH land draws“ und dhOpaque/dhWater gleich? Mit `-Dvsdh.chunkDiag=true` die `graph`-Zeit lesen.
+     Kostet der Lauf je Bild im großen Pack messbar (hohe Sichtweite), ist die Alternative ein Frustum-Rand statt
+     häufigerer Läufe (2°-Stufe braucht bei FOV 70 etwa +30 % Frustum-Querschnitt, deshalb nicht gewählt).
+  3. Bleibt „zieht nach“ danach: ist es Schlieren (TAA/Bewegungsunschärfe des Packs, mit Iris vergleichen,
+     `zzUniformProbe.zip`) oder Eingabelatenz (Bildvorlauf/Präsentation, FPS-Grenze knapp unter 165 testen)?

@@ -33,6 +33,7 @@ import net.vulkanmod.render.chunk.build.BlockRenderer;
 import net.vulkanmod.render.chunk.build.RenderRegionBuilder;
 import net.vulkanmod.render.chunk.build.TaskDispatcher;
 import net.vulkanmod.render.chunk.build.task.ChunkTask;
+import net.vulkanmod.render.chunk.graph.GraphUpdatePolicy;
 import net.vulkanmod.render.chunk.graph.SectionGraph;
 import net.vulkanmod.render.vertex.TerrainRenderType;
 import net.vulkanmod.vulkan.Renderer;
@@ -55,7 +56,6 @@ import net.vulkanmod.render.optimization.AdaptiveChunkUploadBudget;
 import net.vulkanmod.render.optimization.ChunkFrameDiagnostics;
 
 public class WorldRenderer {
-    private static final float GRAPH_MOVEMENT_THRESHOLD_SQUARED = 0.25f;
     private static WorldRenderer INSTANCE;
 
     private final Minecraft minecraft;
@@ -72,6 +72,8 @@ public class WorldRenderer {
     private float lastCameraZ;
     private float lastCamRotX;
     private float lastCamRotY;
+    /** Culling matrix (projection * view) of the last visible-set walk. */
+    private final Matrix4f lastGraphFrustum = new Matrix4f();
 
     private SectionGrid sectionGrid;
     private final Map<ChunkArea,StaticQueue<RenderSection>> shadowDrawQueues=new IdentityHashMap<>();
@@ -182,17 +184,20 @@ public class WorldRenderer {
 
         this.minecraft.getProfiler().popPush("update");
 
-        boolean cameraMoved = false;
         float d_xRot = Math.abs(camera.getXRot() - this.lastCamRotX);
         float d_yRot = Math.abs(camera.getYRot() - this.lastCamRotY);
-        cameraMoved |= d_xRot > 2.0f || d_yRot > 2.0f;
 
         float cameraDeltaX = cameraX - this.lastCameraX;
         float cameraDeltaY = cameraY - this.lastCameraY;
         float cameraDeltaZ = cameraZ - this.lastCameraZ;
-        cameraMoved |= cameraSectionChanged
-                || cameraDeltaX * cameraDeltaX + cameraDeltaY * cameraDeltaY + cameraDeltaZ * cameraDeltaZ
-                >= GRAPH_MOVEMENT_THRESHOLD_SQUARED;
+        // The visible set is culled with the frustum of its last walk: walk again whenever the camera or the
+        // frustum changed at all, not only after 2 degrees or half a block (GraphUpdatePolicy).
+        VFrustum cullFrustum = GraphUpdatePolicy.EXACT && !isCapturedFrustum
+                ? ((net.vulkanmod.interfaces.FrustumMixed) frustum).customFrustum() : null;
+        boolean frustumChanged = cullFrustum != null && !cullFrustum.sameMatrix(this.lastGraphFrustum);
+        boolean cameraMoved = GraphUpdatePolicy.cameraChanged(GraphUpdatePolicy.EXACT, d_xRot, d_yRot,
+                cameraDeltaX * cameraDeltaX + cameraDeltaY * cameraDeltaY + cameraDeltaZ * cameraDeltaZ,
+                cameraSectionChanged, frustumChanged);
         this.graphNeedsUpdate |= cameraMoved;
 
         if (!isCapturedFrustum) {
@@ -204,6 +209,7 @@ public class WorldRenderer {
                 this.lastCameraZ = cameraZ;
                 this.lastCamRotX = camera.getXRot();
                 this.lastCamRotY = camera.getYRot();
+                if (cullFrustum != null) cullFrustum.copyMatrix(this.lastGraphFrustum);
 
                 long graphStart = System.nanoTime();
                 this.sectionGraph.update(camera, frustum, spectator);

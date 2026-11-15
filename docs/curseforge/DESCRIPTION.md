@@ -43,8 +43,11 @@ shader loader; the game refuses to start with a clear message if one of them is 
 
 - Set *Max Framerate* slightly below your monitor's refresh rate (for example 160 on a 165 Hz screen). In our tests
   this removed the long frames caused by the driver's present queue.
-- Java argument `-XX:-ClassUnloadingWithConcurrentMark` shortened Java's longest garbage-collection pauses from up to
-  33 ms to about 1 ms in our measurements. Keep the default G1 collector.
+- Java garbage collector: in our 10 GiB shader + DH flights, generational ZGC (`-XX:+UseZGC -XX:+ZGenerational`) had
+  the fewest long frames; with the default G1, `-XX:-ClassUnloadingWithConcurrentMark` shortened the longest pauses
+  from up to 33 ms to about 1 ms.
+- With Distant Horizons, a lower DH CPU load / thread count reduces short stalls while new far terrain is generated,
+  at the cost of slower LOD loading.
 - If you use Spark, turn off its `backgroundProfiler` in `config/spark/config.json`; it pauses the game many times per
   second.
 

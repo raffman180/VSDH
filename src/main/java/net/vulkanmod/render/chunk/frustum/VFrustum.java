@@ -44,6 +44,15 @@ public class VFrustum {
         this.viewVector = this.matrix.transformTranspose(new Vector4f(0.0F, 0.0F, 1.0F, 0.0F));
     }
 
+    /** Whether this frustum was built from exactly the given projection * view matrix. */
+    public boolean sameMatrix(Matrix4f other) {
+        return this.matrix.equals(other);
+    }
+
+    public void copyMatrix(Matrix4f destination) {
+        destination.set(this.matrix);
+    }
+
     public int cubeInFrustum(float x1, float y1, float z1, float x2, float y2, float z2) {
         float f = (float) (x1 - this.camX);
         float f1 = (float) (y1 - this.camY);
