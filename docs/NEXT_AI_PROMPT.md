@@ -839,3 +839,15 @@ Ergebnis verwerfen. Jeder Lauf mit Wachhund (Log länger als 6 Minuten still →
   Modpack enthält weiter 323C34DB (ohne Borderless); Nutzer hat noch nicht entschieden, ob die Nachtfassung hinein soll.
   11:05: DH-Priorität 1 statt 5 mit Eclipse (je 4 Läufe, gleiche Ferne laut dhOpaque/dhWater): Ø 134,6 vs 130,0 FPS,
   >3-Intervall-Frames Ø 0,27 vs 0,34/s, innerhalb der Streuung, höchstens schwacher Spielertipp.
+
+- 15.11. 11:10, Ideenliste von Fable (nur gelesen) und Vorprüfung „spätes Swapchain-Warten“: Eclipse-Flug mit GPU-Profil,
+  Uploads normal vs. getrennt abgeschickt (`lateacq*`). Ständige GPU-Lücke je Frame ~0,7 ms bleibt gleich groß, verteilt
+  sich getrennt aber auf ~0,27 ms vor den Uploads und ~0,45 ms danach (= Warten auf das Swapchain-Bild, abzüglich ~0,1 ms
+  Kosten der zweiten Übergabe). Ein Frame, der Welt- und Pack-Pässe vor dem Swapchain-Warten rechnet, könnte also je
+  Frame ~0,3-0,45 ms füllen (Eclipse ~4-6 % FPS, ungemessen) und in Hängern bis ~7 ms verdecken. Umsetzungsplan
+  (Fable): Acquire bleibt in beginFrame, Submit vor `chain.render(Stage.FINAL…)` in `WorldShaderSession.finishWorldBody`
+  ohne Semaphore/Fence, FINAL+Blit+GUI in einem `extraCommandBuffers` mit Acquire-Wait, Fence, renderFinished;
+  `DefaultMainPass.begin` in Pack-Frames verzögern; DXGI-Pfad, abortFrame, Resize, Screenshot-flushCmds, GpuTimestamps
+  über zwei Puffer beachten. Weitere Ideen: ETW/PresentMon für den Hänger-Mechanismus, Flug mit `-PtestFlightFps=160`,
+  Opt-in-DH-Lastregler, Land-Route im Flug, swapAfterGeometry-Bildvergleich, dh_water-Überzeichnung zählen,
+  Pipeline-Erstellzeit sichtbar machen und Cache nach Pack-Installation speichern.
