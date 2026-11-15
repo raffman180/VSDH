@@ -62,11 +62,6 @@ public class GraphicsQueue extends Queue {
         return batch;
     }
 
-    /** Whether {@link #detachBatch} on this thread would hand out the batch (no nested level is open). */
-    public boolean atOutermostBatch() {
-        return recordingDepth == 1 && recordingThread == Thread.currentThread();
-    }
-
     /** Submits a batch returned by {@link #detachBatch} on its own. */
     public void submitDetached(CommandPool.CommandBuffer batch) {
         submitCommands(batch);

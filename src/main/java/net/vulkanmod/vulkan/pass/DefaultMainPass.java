@@ -268,21 +268,6 @@ public class DefaultMainPass implements MainPass {
         Renderer.applyScissor();
     }
 
-    /**
-     * The frame-start bookkeeping of {@link #begin} without the render pass: target selection and viewport state.
-     * {@link #rebindMainTarget} binds the target later with the LOAD pass, whose begin moves the colour image out
-     * of its present layout itself (RenderPass.transitionForRendering).
-     */
-    @Override
-    public boolean beginWithoutTarget() {
-        this.renderScaleResolvedThisFrame = false;
-        ensureMainFramebuffer();
-        // No logical size while nothing is bound; rebindMainTarget sets it as begin would.
-        Renderer.clearViewportScale();
-        Renderer.setViewport(0, 0, this.swapChain.getWidth(), this.swapChain.getHeight());
-        return true;
-    }
-
     @Override
     public void end(VkCommandBuffer commandBuffer) {
         Renderer.getInstance().endRenderPass(commandBuffer);

@@ -845,7 +845,7 @@ DH thread priority 1 vs 5 with Eclipse (16 threads, 4 runs each alternating, GPU
 Same distant terrain (one priority-1 run a little less), slightly fewer stalls and +3 % FPS on average; within the run
 spread, so at most a weak player tip, not a measured fix.
 
-## Late swapchain wait (15.11.2026, implemented, opt-in, NOT measured in game)
+## Late swapchain wait (15.11.2026, measured worse, removed again; code in commit 8fe3174)
 
 `-Dvsdh.lateAcquire=true` (default off). The mitigation named above: a pack frame submits its upload batch and all
 world and pack passes up to COMPOSITE in a first `vkQueueSubmit` without the swapchain wait and without a fence
@@ -877,3 +877,30 @@ Known limits, to check in game: the split costs one more `vkQueueSubmit` (the se
 0.1 ms GPU gap); texture uploads recorded after the split run after the world passes instead of before them; with
 `frameQueueSize=1` the GPU now runs the world while the CPU records FINAL and GUI, which no code path was seen to
 depend on. A/B plan: docs/NEXT_AI_PROMPT.md, entry 15.11.2026.
+
+### Result in game (15.11.2026, test client, Eclipse, 2560x1440 window, DH 3.3.3, 30 s flights, interleaved)
+
+| Run | lateAcquire | avg FPS | >2 refresh/s | >3 refresh/s |
+|---|---|---|---|---|
+| 1 | on | 116.8 | 31.7 | 3.2 |
+| 1 | off | 125.0 | 4.2 | 1.0 |
+| 2 | on | 115.6 | 31.1 | 4.3 |
+| 2 | off | 124.5 | 3.7 | 0.8 |
+| 3 | on | 133.3 | 27.0 | 1.9 |
+| 3 | off | 122.1 | 4.1 | 1.5 |
+
+The split ran in every frame (`LATE_ACQUIRE earlySubmits = deferredFrames, refused=0`); the Eclipse screenshot run
+rendered normally. GPU profile pair: `imageWait` was 0 already without the split and `lateImageWait` 0 with it, i.e.
+in this window run the GPU never waited for the image; instead it idled `lateSubmitGap` ~0.3 ms until the CPU had
+recorded and submitted FINAL/GUI, and frame pacing became much worse (8x more frames over two refresh intervals).
+Removed; the per-frame gap of ~0.7 ms is not an image wait here. Not retested in exclusive fullscreen, where the DH
+stalls were measured.
+
+## Exact cull updates (15.11.2026, measured)
+
+Turn series (Complementary, `vsdh.turnSeries.shore`): with the old 2-degree/0.5-block rule the leading screen edge
+showed DH LODs where real terrain belonged (frame 32, island at the right edge); with `GraphUpdatePolicy` the real
+terrain is there. Edge-strip pixel statistics over the whole series stay within run noise (mostly water).
+Eclipse 1440p flights, 3 interleaved pairs: avg FPS on 130.5/127.5/133.3, off 130.1/130.4/140.7 (medians equal);
+frames >2 refresh intervals per s on 4.3/3.6/4.1, off 7.7/6.9/6.3. The flight is mostly straight, so this is a hint,
+not proof of a smoothness gain.

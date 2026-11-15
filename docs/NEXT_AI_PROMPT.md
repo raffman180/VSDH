@@ -907,3 +907,13 @@ Ergebnis verwerfen. Jeder Lauf mit Wachhund (Log länger als 6 Minuten still →
      ändern, Vollbild wechseln, Pack im Spiel wechseln, Dimension wechseln, Hand/GUI/Chat sichtbar, Renderskalierung ≠ 100 %.
   4. Erst wenn B nicht schlechter ist und das Bild stimmt: Standard umdrehen (`LateAcquire.ENABLED`), AGENTS.md/CHANGELOG
      anpassen. Sonst Schalter aus lassen und Ergebnis hier und in PERFORMANCE.md festhalten.
+
+- 15.11.2026 13:30 (Spieltests nach „go“, Testclient): Dreh-Fix (`GraphUpdatePolicy`) bestätigt: Drehserie zeigt mit Fix
+  echtes Gelände am vorderen Rand, ohne nur DH-LODs (Bild `build/reference/turn-cull/turn-032-fix-an-aus.png`); Eclipse-Flüge
+  3 Paare: FPS gleich, weniger Bilder >2 Intervalle (3,6-4,3 vs 6,3-7,7/s). Spätes Swapchain-Warten gemessen und WIEDER
+  ENTFERNT (Commit 8fe3174 enthält den Code): Split lief in jedem Frame, aber >2-Intervall-Bilder 27-32/s statt 3,7-4,2/s,
+  Bildwarten war schon 0, GPU wartete stattdessen ~0,3 ms auf den zweiten Submit. Zahlen in PERFORMANCE.md.
+  Weiter offen aus der Ideenliste: Pipeline-Cache nach Pack-Installation speichern, PresentMon/ETW für DH-Hänger
+  (exklusives Vollbild), Opt-in-DH-Lastregler (Nutzerentscheidung), Dreh-Fix im Modpack des Nutzers bestätigen.
+  Achtung: Die Shader-Session (Jurgens-Shader) nutzt dieselbe GPU; vor jedem Lauf Prism-Clients am Elternprozess
+  prismlauncher.exe erkennen (kurze Befehlszeile) und sich mit ihr absprechen.

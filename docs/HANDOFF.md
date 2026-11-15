@@ -6,6 +6,14 @@ Fork-Empfehlung die autonome Weiterarbeit bis zum Ziel beauftragt. Keine erneute
 Grundsatzfrage Addon/Fork. Eine JAR enthält die Mod-IDs `vsdh` und `vsdh_renderer` (bis 14.11.2026 `vulkanmod`; das echte VulkanMod ist als unverträglich eingetragen);
 die originale Reforged-JAR darf nicht parallel installiert sein.
 
+## Stand 15.11.2026 mittags — Dreh-Fix, Agent-Setup
+
+`CLAUDE.md` + `.claude/agents/fable.md` + Projekt-Skills (`.claude/skills/vsdh-build-check`, `vsdh-frame-pacing`,
+`vsdh-release-docs`): komplexe Aufgaben gehen an den Subagenten Fable, die Hauptsession prüft und committet.
+Sichtbarkeit wird bei jeder Kamera-/Frustum-Änderung neu berechnet (`GraphUpdatePolicy`, `-Dvsdh.exactCullUpdates=false`),
+im Testclient bestätigt. Spätes Swapchain-Warten gemessen schlechter und entfernt (Commit 8fe3174). Zahlen:
+`docs/PERFORMANCE.md` (Ende), nächste Schritte: `docs/NEXT_AI_PROMPT.md` (Ende).
+
 ## Aktuell 0.26 — Speicher-Churn (13.11.2026 vormittags, `dist/0.26.0-dev-perf`)
 
 Mixins: `net.vulkanmod.mixin.optimization.MaterialRuleListMixin`/`SurfaceSequenceRuleMixin` (Access Transformer

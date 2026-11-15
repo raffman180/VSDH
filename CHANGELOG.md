@@ -6,17 +6,11 @@
 - Terrain and block entities at the screen edge no longer appear late while turning: the visible-section set was only
   recomputed after the camera had turned 2 degrees or moved half a block, so a strip at the leading edge stayed
   empty until the next step. It is now recomputed whenever the camera or the culling frustum changes
-  (`-Dvsdh.exactCullUpdates=false` restores the old thresholds). Not measured in game yet.
+  (`-Dvsdh.exactCullUpdates=false` restores the old thresholds). Checked in the test client; no measurable FPS cost.
 
 ### Changed
 - Distant Horizons' shared quad index buffer lives in GPU memory like the renderer's own index buffers (was host memory;
   no measurable frame-time change, `-Dvsdh.dhIndexHostMemory=true` restores it).
-
-### Added (opt-in, not measured in game)
-- `-Dvsdh.lateAcquire=true`: shader-pack frames hand the world and pack passes to the GPU before waiting for the
-  swapchain image; only the final pass, hand and GUI wait for it. Meant to fill the per-frame wait for the image
-  (about 0.45 ms) and part of the long waits while Distant Horizons loads. Off by default until it is measured.
-  With `-Dvsdh.gpuProfile=true` the log shows `LATE_ACQUIRE` counts and the `lateImageWait` / `lateSubmitGap` passes.
 
 ### Added (diagnostics, off by default)
 - `-Dvsdh.vmaTrace=true` logs every GPU memory block the allocator takes or returns.

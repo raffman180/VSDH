@@ -13,21 +13,6 @@ public interface MainPass {
 
     void end(VkCommandBuffer commandBuffer);
 
-    /**
-     * Late swapchain wait (net.vulkanmod.vulkan.LateAcquire): starts the frame like {@link #begin} but without
-     * beginning a render pass on the main target, so no command uses the swapchain image yet. The first
-     * {@link #rebindMainTarget} binds it with the LOAD pass. False when this pass cannot do that; the caller then
-     * calls {@link #begin}.
-     */
-    default boolean beginWithoutTarget() {
-        return false;
-    }
-
-    /** True from {@link #beginWithoutTarget} until the main target is first bound in this frame. */
-    default boolean mainTargetDeferred() {
-        return false;
-    }
-
 
     default void onResize() {}
 

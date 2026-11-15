@@ -733,8 +733,7 @@ public final class WorldShaderSession implements MainPass {
         if (hand != null) hand.beginFrame(camera, view, handPartialTick);
         uniforms.capture(camera,view,projection,partialTick,worldDepth.width,worldDepth.height);
         float[] fog=RenderSystem.getShaderFogColor();
-        // ownPasses: while the main pass is unbegun (late swapchain wait) this prelude must not bind it.
-        try (var scope=Renderer.getInstance().temporaryRenderTarget(true)) {
+        try (var scope=Renderer.getInstance().temporaryRenderTarget()) {
             chain.beginFrame(new dev.vitrail.pack.target.TargetDirectives.Colour(fog[0],fog[1],fog[2],1));
             storage.prepareFrame();
             customImages.beginFrame();
@@ -871,35 +870,17 @@ public final class WorldShaderSession implements MainPass {
         net.vulkanmod.vulkan.queries.GpuTimestamps.mark("lateHand");
         Renderer renderer=Renderer.getInstance();renderer.endRenderPass();
         active=false;Renderer.setMainTargetRowsBottomUp(false);scene=null;
-        if (mainDeferred) {
-            // Late swapchain wait (net.vulkanmod.vulkan.LateAcquire): nothing recorded so far uses the swapchain
-            // image. COMPOSITE still draws into pack targets only, so it runs without a main target; then the
-            // frame so far goes to the GPU without the image wait. FINAL is the first pass that writes the
-            // swapchain image: its scope binds the main target (LOAD pass, keeps the world depth for what
-            // follows) in the second command buffer, which is submitted with the wait at the end of the frame.
-            // The hand order is unchanged: this runs before the vanilla hand depth clear, which lands after FINAL.
-            try (var scope=renderer.temporaryRenderTarget(true)) { renderComposite(); }
-            renderer.submitBeforeSwapchain();
-            try (var scope=renderer.temporaryRenderTarget()) { renderFinal(); }
-        } else {
-            try (var scope=renderer.temporaryRenderTarget()) {
-                renderComposite();
-                renderFinal();
-            }
+        try (var scope=renderer.temporaryRenderTarget()) {
+            storageBarrier();
+            chain.render(ShaderChainPlan.Stage.COMPOSITE,null,this::writeFullscreen,this::writeCompute,this::external);
+            // Stage tails under their own labels: a pack pass is named "composite" or "final" too.
+            net.vulkanmod.vulkan.queries.GpuTimestamps.mark("compositeTail");
+            chain.render(ShaderChainPlan.Stage.FINAL,delegate.getColorAttachment(),this::writeFullscreen,this::writeCompute,this::external);
+            net.vulkanmod.vulkan.queries.GpuTimestamps.mark("finalTail");
+            depth.endFrame();uniforms.commit();frames++;
         }
-        bindDelegateTarget();
+        delegate.rebindMainTarget();
         if(frameObserver!=null)frameObserver.accept(this);
-    }
-    private void renderComposite() {
-        storageBarrier();
-        chain.render(ShaderChainPlan.Stage.COMPOSITE,null,this::writeFullscreen,this::writeCompute,this::external);
-        // Stage tails under their own labels: a pack pass is named "composite" or "final" too.
-        net.vulkanmod.vulkan.queries.GpuTimestamps.mark("compositeTail");
-    }
-    private void renderFinal() {
-        chain.render(ShaderChainPlan.Stage.FINAL,delegate.getColorAttachment(),this::writeFullscreen,this::writeCompute,this::external);
-        net.vulkanmod.vulkan.queries.GpuTimestamps.mark("finalTail");
-        depth.endFrame();uniforms.commit();frames++;
     }
     private void writeFullscreen(ShaderChainPlan.Pass source,NativeFullscreenPass pipeline) {uniforms.write(pipeline,true,0,0);}
     /**
@@ -1018,21 +999,8 @@ public final class WorldShaderSession implements MainPass {
             if(gui!=null)gui.getChat().addMessage(net.minecraft.network.chat.Component.translatable(
                     "vsdh.shader.frameFailed",where,String.valueOf(failure.getMessage())));
         }
-        if(wasActive) { try { bindDelegateTarget(); } catch(RuntimeException ignored) {} }
+        if(wasActive) { try { delegate.rebindMainTarget(); } catch(RuntimeException ignored) {} }
     }
-
-    // ---- Late swapchain wait: the default main pass stays unbegun until something needs the swapchain image. ----
-
-    /**
-     * True from {@link #begin} until the delegate's target is first bound in this frame. While it is set, no
-     * command of the frame uses the swapchain image, which is what Renderer.submitBeforeSwapchain needs. Every
-     * path of this host that reaches the delegate's target clears it first, so a frame that turns out not to be a
-     * pack frame (invalid camera, failed graph, an abort, a mod drawing before the world) simply binds the target
-     * late and goes out in one submission as before.
-     */
-    private boolean mainDeferred;
-    @Override public boolean mainTargetDeferred() {return mainDeferred;}
-    private void bindDelegateTarget() {mainDeferred=false;delegate.rebindMainTarget();}
 
     /** Whether the pack finished the last world frame, which is what the GUI overlays sit on. */
     private boolean packPicture;
@@ -1076,7 +1044,7 @@ public final class WorldShaderSession implements MainPass {
     }
 
     @Override public void rebindMainTarget() {
-        if (!active) {bindDelegateTarget();return;}
+        if (!active) {delegate.rebindMainTarget();return;}
         if (Renderer.getInstance().getBoundRenderPass()==scene.pass()) return;
         Renderer.getInstance().endRenderPass();
         try (MemoryStack stack=MemoryStack.stackPush()) {
@@ -1097,21 +1065,16 @@ public final class WorldShaderSession implements MainPass {
     }
     @Override public int getDepthAttachmentGlId() {return delegate.getDepthAttachmentGlId();}
     @Override public void bindAsTexture() {
-        if (!active) {mainDeferred=false;delegate.bindAsTexture();return;}
+        if (!active) {delegate.bindAsTexture();return;}
         Renderer.getInstance().endRenderPass();
         try (MemoryStack stack=MemoryStack.stackPush()) {getColorAttachment().transitionImageLayout(stack,Renderer.getCommandBuffer(),org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);}
         net.vulkanmod.vulkan.texture.VTextureSelector.bindTexture(getColorAttachment());
     }
     @Override public RenderPass resumeRenderPass(RenderPass pass) {return delegate.resumeRenderPass(pass);}
-    @Override public void begin(VkCommandBuffer command,MemoryStack stack) {
-        mainDeferred=net.vulkanmod.vulkan.LateAcquire.defersMainPass(net.vulkanmod.vulkan.LateAcquire.ENABLED,
-                !closed&&Minecraft.getInstance().level!=null,failedDepth==null&&!pendingRelease)
-                &&delegate.beginWithoutTarget();
-        if(!mainDeferred)delegate.begin(command,stack);
-    }
-    @Override public void end(VkCommandBuffer command) {if(active)abortFrame("presentation",new IllegalStateException("World shader frame leaked into presentation"));mainDeferred=false;delegate.end(command);}
-    @Override public void onResize() {mainDeferred=false;releaseGraph();delegate.onResize();}
-    @Override public void resolveRenderScaleForGui() {if(active)abortFrame("GUI",new IllegalStateException("World shader frame leaked into GUI"));mainDeferred=false;delegate.resolveRenderScaleForGui();}
+    @Override public void begin(VkCommandBuffer command,MemoryStack stack) {delegate.begin(command,stack);}
+    @Override public void end(VkCommandBuffer command) {if(active)abortFrame("presentation",new IllegalStateException("World shader frame leaked into presentation"));delegate.end(command);}
+    @Override public void onResize() {releaseGraph();delegate.onResize();}
+    @Override public void resolveRenderScaleForGui() {if(active)abortFrame("GUI",new IllegalStateException("World shader frame leaked into GUI"));delegate.resolveRenderScaleForGui();}
     @Override public void mainTargetBindWrite() {if(active)rebindMainTarget();else delegate.mainTargetBindWrite();}
     @Override public void mainTargetUnbindWrite() {delegate.mainTargetUnbindWrite();}
     @Override public void cleanUp() {releaseGraph();closed=true;current=null;delegate.cleanUp();}
