@@ -30,7 +30,8 @@ import static org.lwjgl.vulkan.KHRSwapchain.*;
 import static org.lwjgl.vulkan.VK10.*;
 
 public class SwapChain extends Framebuffer {
-    private static final int DEFAULT_IMAGE_COUNT = 3;
+    // -Dvsdh.swapchainImages=N: images requested from the Vulkan swapchain (A/B of acquire stalls; clamped to the surface limits).
+    private static final int DEFAULT_IMAGE_COUNT = Math.max(2, Integer.getInteger("vsdh.swapchainImages", 3));
 
     // -Dvsdh.presentMode=mailbox: diagnostic switch to compare the uncapped present modes.
     private static final int defUncappedMode = "mailbox".equals(System.getProperty("vsdh.presentMode"))
@@ -132,6 +133,8 @@ public class SwapChain extends Framebuffer {
             }
 
             int requestedImages = Math.max(DEFAULT_IMAGE_COUNT, surfaceProperties.capabilities.minImageCount());
+            if (surfaceProperties.capabilities.maxImageCount() > 0)
+                requestedImages = Math.min(requestedImages, surfaceProperties.capabilities.maxImageCount());
 
             IntBuffer imageCount = stack.ints(requestedImages);
 

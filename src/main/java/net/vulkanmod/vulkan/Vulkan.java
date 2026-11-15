@@ -364,6 +364,7 @@ public class Vulkan {
             allocatorCreateInfo.pVulkanFunctions(vulkanFunctions);
             allocatorCreateInfo.instance(instance);
             allocatorCreateInfo.vulkanApiVersion(VK_API_VERSION_1_2);
+            net.vulkanmod.vulkan.memory.VmaTrace.install(allocatorCreateInfo);
 
             PointerBuffer pAllocator = stack.pointers(VK_NULL_HANDLE);
 

@@ -154,11 +154,16 @@ public final class Compat {
         return new VertexBuffer(sizeBytes, MemoryTypes.GPU_MEM);
     }
 
+    /**
+     * The shared quad index buffer every DH draw reads. In device memory like the renderer's own AutoIndexBuffer: in host
+     * memory each DH draw fetched its indices over PCIe (VSDH, 15.11.2026). {@code -Dvsdh.dhIndexHostMemory=true} restores
+     * the old placement for A/B.
+     */
     public static Object createIndexBuffer(int sizeBytes) {
-
-        return new IndexBuffer(sizeBytes, MemoryTypes.HOST_MEM, IndexBuffer.IndexType.INT);
-
+        return new IndexBuffer(sizeBytes, DH_INDEX_HOST_MEMORY ? MemoryTypes.HOST_MEM : MemoryTypes.GPU_MEM, IndexBuffer.IndexType.INT);
     }
+
+    private static final boolean DH_INDEX_HOST_MEMORY = Boolean.getBoolean("vsdh.dhIndexHostMemory");
 
     // ========================= //
     // Buffer operations //

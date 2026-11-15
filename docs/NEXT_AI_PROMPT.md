@@ -821,3 +821,15 @@ Ergebnis verwerfen. Jeder Lauf mit Wachhund (Log länger als 6 Minuten still →
   `upb*`, `upsmall*`, `updiag*`: >2 Bildwechsel 0,20-0,53/s in beiden Varianten, Rauschen). Code wieder entfernt.
   Nächste Kandidaten: Freigabe/Neuanlage der DH-Puffer (`CachedBuffer.free` je ersetzter LOD, VMA-Blockanlage), DH-eigene
   Pässe (SSAO/Fog/Composite) in diesen Bildern, DH generische Objekte; Werkzeug: GPU_PROFILE je Pass mit Max statt Mittel.
+
+- 15.11. 09:20-10:30 (Nutzer: „code und teste weiter bis 11:30“, „smoothste experience mit shader“): Hänger eingegrenzt,
+  Details und Tabelle in `docs/PERFORMANCE.md` (letzter Abschnitt). In den Hängerbildern ist die GPU 16-30 ms untätig, BEVOR
+  der schon abgeschickte Frame beginnt; die CPU wartet derweil im Fence. Ausgeschlossen: GPU-Arbeit, Treiber-Speicher
+  (`-Dvsdh.vmaTrace`), Fence-Warteart, Swapchain-Bildzahl (`-Dvsdh.swapchainImages`), Mailbox. Zusammenhang: DHs Ladearbeit
+  (16 Worker auf 32 logischen Kernen, wie im Spieler-Pack). 4 DH-Threads: kaum Hänger, aber deutlich weniger geladene
+  Ferne im 30-s-Flug (kein fairer Bildvergleich); Priorität 1 allein unzuverlässig. Nur Empfehlung an den Spieler
+  (DH-Einstellung CPU-Last/Threads), nie DH-Config schreiben. Neu im Code: DH-Quad-Indexpuffer im Gerätespeicher (kein
+  messbarer Gewinn, Parität mit AutoIndexBuffer), Diagnose `GPU_IDLE` (unter `vsdh.gpuSpikes`), `vsdh.vmaTrace`,
+  `vsdh.swapchainImages` (Standard 3, auf maxImageCount begrenzt). Verworfen und entfernt: DH-Upload-Budget, Fence-Polling.
+  Offen: welcher Thread bei voller CPU den GPU-Start verzögert (Swapchain-Acquire oder Treiber-Submission).
+  Modpack enthält weiter 323C34DB (ohne Borderless); Nutzer hat noch nicht entschieden, ob die Nachtfassung hinein soll.

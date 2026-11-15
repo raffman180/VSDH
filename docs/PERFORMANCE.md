@@ -787,4 +787,41 @@ and capping it at 64 KiB (about 700 uploads moved to later frames per 10 s, no e
 | upsmall A/B, updiag B | 64 KiB | 755 / 694 / 743 | 0.27 / 0.53 / 0.43 | 79 / 49 / 60 | 10 / 21 / 14 |
 | updiag A | off | 737 | 0.33 | 72 | 12 |
 
-The cause is still open (see NEXT_AI_PROMPT, 15.11. 09:00).
+The cause was narrowed down later the same morning (next section).
+
+## Periodische Hänger mit DH: Ursache eingegrenzt (15.11.2026 09:20-10:30, Testclient, exklusives Vollbild, 1440p, ZGC gen. 10 GiB)
+
+Measured, in this order (all flights 30 s, RD 12; frame CSV plus `-Dvsdh.spikeMs=12` breakdown lines):
+
+1. GPU work per frame never spikes: `-Dvsdh.gpuSpikes=true` found no long GPU frame in the no-shader flight (0.8 ms each).
+2. Per-frame GPU idle gaps (new `GPU_IDLE` line under `vsdh.gpuSpikes`): in every stall frame the GPU sat idle 16-30 ms
+   **before** the frame's first command buffer (the upload batch) began, while the CPU waited the same time in
+   `vkWaitForFences` (`gpuWait` 14-26 ms). The work was submitted; the GPU did not start it.
+3. Not driver memory: `-Dvsdh.vmaTrace=true` (new, logs every vkAllocateMemory/vkFreeMemory) shows one allocation in the
+   whole flight, not at the stalls.
+4. Not the fence wait itself: polling the fence for up to 2 ms before blocking (`fenceSpinUs`, removed again) left the
+   stalls unchanged (>2 refresh 0.53/0.47 vs 0.57/0.40 per s).
+5. Not the swapchain: 4 instead of 3 images (`-Dvsdh.swapchainImages=4`, kept as a switch) unchanged (0.33/0.47 vs
+   0.23/0.57); Mailbox halves FPS (356) and is not better.
+6. DH CPU load: the test client's DH config (16 worker threads, priority 5, the same as the player's pack) changed for
+   test runs only and restored byte for byte afterwards:
+
+| Scene | DH threads | FPS | >2 refresh/s | >3 refresh/s | lateMs/s |
+|---|---|---|---|---|---|
+| no shader | 16 (base, 2 runs this series) | 703 / 716 | 0.53 / 0.50 | 0.37 / 0.37 | 7.9 / 7.6 |
+| no shader | 4 (4 runs) | 830 / 847 / 834 / 845 | 0.20 / 0.07 / 0.23 / 0.30 | 0.03 / 0.03 / 0.10 / 0.13 | 1.5-4.5 |
+| no shader | 8 | 706 / 712 | 0.33 / 0.47 | 0.23 / 0.33 | 5.2 / 8.0 |
+| no shader | 16 at priority 1 (4 runs) | 704 / 702 / 701 / 686 | 0.03 / 0.43 / 0.60 / 0.27 | 0.03 / 0.27 / 0.47 / 0.20 | 0.9-10.9 |
+| Eclipse | 16 (4 runs) | 131.5 / 127.3 / 136.4 / 127.2 | 0.57 / 0.83 / 0.57 / 0.47 | 0.23 / 0.43 / 0.30 / 0.20 | 188-232 |
+| Eclipse | 4 (4 runs) | 167.4 / 160.8 / 159.7 / 157.5 | 0.23 / 0.33 / 0.23 / 0.37 | 0.17 / 0.20 / 0.13 / 0.23 | 47-76 |
+
+**Not a fair picture comparison:** with 4 threads DH loads far less distant terrain during the 30 s flight (Eclipse GPU
+profile: dhWater 0.57-0.89 vs 1.45-1.67 ms, dhOpaque 0.06-0.09 vs 0.15-0.26 ms). Most of the FPS gain is less distant
+terrain. What holds: the stalls belong to DH's loading work (CPU-heavy), not to steady rendering; priority 1 alone does
+not reliably remove them. Fewer DH threads trade loading speed for smoothness while moving. Player choice only; VSDH
+never writes DH config. Open: which thread the busy CPU delays (the GPU start waits on the swapchain acquire or on
+driver-side submission; not decidable from inside the process).
+
+Also measured: the DH quad index buffer now lives in device memory like the renderer's own AutoIndexBuffer
+(`-Dvsdh.dhIndexHostMemory=true` = old host memory). DH passes cost 0.15 ms in Eclipse either way; no measurable gain,
+kept for parity.

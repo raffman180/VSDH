@@ -186,6 +186,13 @@ public final class GpuTimestamps {
                 double idle = (previous - lastFrameEnd) * nanosPerTick / 1_000_000.0;
                 if (idle < 100) { idleSum += idle; idleFrames++; }
                 long bStart = batchTimes[slot * 2], bEnd = batchTimes[slot * 2 + 1];
+                if (SPIKES && idle >= 5 && idle < 1000) {
+                    // The GPU sat idle between two frames: who held it, the upload batch or the time before it?
+                    boolean batch = batchValid[slot] && bStart >= lastFrameEnd && bEnd <= previous && bEnd >= bStart;
+                    LOGGER.info(String.format(java.util.Locale.ROOT, "GPU_IDLE gapMs=%.2f beforeBatchMs=%s batchMs=%s",
+                            idle, batch ? String.format(java.util.Locale.ROOT, "%.2f", (bStart - lastFrameEnd) * nanosPerTick / 1_000_000.0) : "-",
+                            batch ? String.format(java.util.Locale.ROOT, "%.2f", (bEnd - bStart) * nanosPerTick / 1_000_000.0) : "-"));
+                }
                 if (batchValid[slot] && bStart >= lastFrameEnd && bEnd <= previous && bEnd >= bStart) {
                     gapBeforeBatchSum += (bStart - lastFrameEnd) * nanosPerTick / 1_000_000.0;
                     batchSum += (bEnd - bStart) * nanosPerTick / 1_000_000.0;

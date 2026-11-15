@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- Distant Horizons' shared quad index buffer lives in GPU memory like the renderer's own index buffers (was host memory;
+  no measurable frame-time change, `-Dvsdh.dhIndexHostMemory=true` restores it).
+
+### Added (diagnostics, off by default)
+- `-Dvsdh.vmaTrace=true` logs every GPU memory block the allocator takes or returns.
+- `-Dvsdh.gpuSpikes=true` also logs GPU idle gaps of 5 ms or more between frames (`GPU_IDLE`).
+- `-Dvsdh.swapchainImages=N` sets the swapchain image count (default 3, clamped to what the surface allows).
+
 ## 0.27.0-beta (2026-11-14)
 
 First public beta.
