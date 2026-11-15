@@ -834,3 +834,13 @@ the frame's own GPU time (about 7 ms of a 20 ms wait in Eclipse).
 Also measured: the DH quad index buffer now lives in device memory like the renderer's own AutoIndexBuffer
 (`-Dvsdh.dhIndexHostMemory=true` = old host memory). DH passes cost 0.15 ms in Eclipse either way; no measurable gain,
 kept for parity.
+
+DH thread priority 1 vs 5 with Eclipse (16 threads, 4 runs each alternating, GPU profile to check the LOD amount):
+
+| Priority | FPS | >2 refresh/s | >3 refresh/s | dhOpaque / dhWater ms (windows 4-7) |
+|---|---|---|---|---|
+| 5 (pack default) | 127.4 / 127.6 / 124.8 / 140.3 | 0.73 / 0.70 / 0.67 / 0.80 | 0.47 / 0.27 / 0.33 / 0.27 | 0.18-0.20 / 1.52-1.57 |
+| 1 | 130.5 / 135.5 / 142.8 / 129.6 | 0.73 / 0.60 / 0.63 / 0.67 | 0.33 / 0.17 / 0.37 / 0.20 | 0.13-0.23 / 1.12-1.57 |
+
+Same distant terrain (one priority-1 run a little less), slightly fewer stalls and +3 % FPS on average; within the run
+spread, so at most a weak player tip, not a measured fix.

@@ -837,3 +837,5 @@ Ergebnis verwerfen. Jeder Lauf mit Wachhund (Log länger als 6 Minuten still →
   Mögliche spätere Linderung: Pack-Frames vor dem Swapchain-Warten rechnen lassen (Bild erst für FINAL/GUI), deckt höchstens
   die eigene GPU-Zeit (~7 ms von ~20 ms bei Eclipse).
   Modpack enthält weiter 323C34DB (ohne Borderless); Nutzer hat noch nicht entschieden, ob die Nachtfassung hinein soll.
+  11:05: DH-Priorität 1 statt 5 mit Eclipse (je 4 Läufe, gleiche Ferne laut dhOpaque/dhWater): Ø 134,6 vs 130,0 FPS,
+  >3-Intervall-Frames Ø 0,27 vs 0,34/s, innerhalb der Streuung, höchstens schwacher Spielertipp.
