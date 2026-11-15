@@ -54,6 +54,14 @@
   (cache: Y KiB loaded)`. `-Dvsdh.pipelineCacheSave=false` restores saving at exit only. Not yet measured in game.
 
 ### Changed
+- Fewer automatic chunk builder threads on small processors when playing on a server: with "Chunk Builder Threads"
+  on Auto the renderer never starts more builders than Sodium does on the same processor (4 logical processors: 1
+  instead of 2, 6: 2 instead of 3, 8: 2 instead of 4, 10: 4 instead of 5). That leaves more of a small CPU to the
+  game, the collector and other mods; terrain may fill in a little slower there. Single-player and processors with 12
+  or more threads are unchanged, and a number set by hand is used as it is. `-Dvsdh.builderThreadCap=false` restores
+  the old numbers. Not yet measured in game.
+- The two Vulkan present extensions of the experimental low latency mode are only requested from the driver when
+  that mode is asked for (`-Dvsdh.lowLatency=true`), no longer for every player.
 - Switching shader packs is much faster. A pack's programs are now translated and compiled side by side on several
   processor cores instead of one after another, and the compiled programs are kept in `config/vsdh-shadercache`, so a
   pack that was used before (same file, profile and options) is read back instead of compiled again, also after a
@@ -79,6 +87,9 @@
 - `-Dvsdh.gpuSpikes=true` also logs GPU idle gaps of 5 ms or more between frames (`GPU_IDLE`).
 - `-Dvsdh.swapchainImages=N` sets the swapchain image count (default 3, clamped to what the surface allows).
 - `-Dvsdh.separateUploadSubmit=true` submits the frame's upload batch on its own (to tell queue and swapchain waits apart).
+- "Skipping shader frame with invalid camera input" is now also logged at the 10th, 100th, 1000th ... skipped frame with
+  the running count, so a pack picture that keeps falling back to the standard renderer shows in the log (one such
+  line at a world join is harmless).
 
 ## 0.27.0-beta (2026-11-14)
 

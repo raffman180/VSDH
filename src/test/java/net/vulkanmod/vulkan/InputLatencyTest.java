@@ -60,4 +60,15 @@ class InputLatencyTest {
         assertTrue(InputLatency.lowLatency("TRUE", false, true, false));
         assertTrue(InputLatency.lowLatency("true", true, true, false));
     }
+
+    @Test
+    void thePresentExtensionsAreOnlyAskedForWithTheMode() {
+        // Every player's device used to be created with VK_KHR_present_id/present_wait; now only the opt-in mode's.
+        assertFalse(InputLatency.presentWaitWanted(null, null), "default: device without the extensions");
+        assertFalse(InputLatency.presentWaitWanted(null, "true"));
+        assertFalse(InputLatency.presentWaitWanted("false", null));
+        assertTrue(InputLatency.presentWaitWanted("true", null));
+        assertTrue(InputLatency.presentWaitWanted("TRUE", ""));
+        assertFalse(InputLatency.presentWaitWanted("true", "false"), "-Dvsdh.presentWait=false still wins");
+    }
 }

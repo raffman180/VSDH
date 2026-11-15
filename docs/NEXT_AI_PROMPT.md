@@ -1090,3 +1090,46 @@ Meldungen des Spielers (Prism-Instanz, JAR von 0611b8f, Jurgens v1.2 ueber PackF
    "translations 0 from disk": kein Fehler belegt - der Speicher entstand erst in dieser Sitzung (erste `.tr` 17:01:02, 368
    Dateien = 141 + 88 + 139); ob der zweite Start trifft, zeigt erst dessen Logzeile.
 Build + `verifyDhLinks` gruen, 212 Unit-Tests.
+
+## Nacht 15.11.2026 (Fable): „Es stottert noch immer“ - NICHTS im Spiel gestartet (Spieler spielte)
+
+Auftrag: Ruckler mit Packs in Einzelspieler und auf Server; Lösungen für Spieler allgemein, Daten des Spielers nur als Beleg.
+Stand vorher: 4a9be4b, sauber. Nicht committet.
+
+BELEGT (Spielerlog/-config nur gelesen; vorhandene Aufnahmen `build/reference/bench-026/monkeytalk-jfr/`, Tabelle in
+`docs/PERFORMANCE.md`, Abschnitt „Safepoints statt Renderer“):
+1. Installiertes JAR = 4a9be4b (SHA-1 gleich `build/libs` vor meinem Build): `lowLatency: true` der Datei wirkt nicht mehr,
+   `ShadowCasterBuilds` ist aus. Das Ruckeln besteht also MIT den Abend-Korrekturen.
+2. Spark-Hintergrundprofiler (Einzelspieler, Windows = Java-Engine): 100 Thread-Dump-Safepoints/s, 2,9-3,3 s Stopp in 57 s,
+   15-17 Stopps >= 25 ms, längster 175-192 ms. Im Spielerlog vom 15.11. steht die Startzeile wieder (17:25:33).
+3. ZGC ohne `-XX:+ZGenerational` (Prism: `JvmArgs="-XX:+UseZGC "`, 10 GiB): `CleanClassLoaderDataMetaspaces` 8-10 ms etwa alle
+   2,4 s; DH meldet „Insufficient memory detected“; DH 16 Threads, Server „49 ticks behind“.
+4. Nur 10/76 bzw. 14/154 der Frames > 25 ms liegen auf solchen Stopps; der Rest ist Client-Tick-Arbeit anderer Mods
+   (Subtle Effects, Detailed Map, Tick-Hörer) - unverändert gegenüber dem 14.11.
+5. `VSync an + maxFps 180 bei 180 Hz`: Begrenzung genau auf der Bildwiederholrate; empfohlen ist knapp darunter (AGENTS.md).
+NICHT BELEGT: ein Render-Thread-Hänger in VSDH selbst. Durchgesehen ohne Fund: Fence-/Idle-Waits (nur Recreate, Screenshot,
+doppelt vorbereiteter Slot), `ShaderPackStartup.tick` (join nur nach `isDone`), `PipelineCacheStore` (Schnappschuss nur bei
+geänderter Größe; im Spielerlog keine „saved“-Zeile), `PreparePool` (16 Threads Priorität 4 nur 1-7 s nach Pack-Wahl, Vorwärmen
+4 Threads Priorität 1), frühe Waits inkl. Recreate/DXGI, `GraphUpdatePolicy`, `PipelineCacheFile`, Setup-Computes,
+`EntityPackPlan`-Fallback, `PackFileFallback`, `keepTerrainOnSwitch` (aus), `SpirvCache`-Schlüssel (nur gelesen).
+
+GEÄNDERT (Build + `verifyDhLinks` grün, 218 Unit-Tests; alles ungemessen, je mit Schalter):
+- `ChunkSchedulingPolicy`: automatische Builder-Zahl höchstens Sodiums (`-Dvsdh.builderThreadCap=false`); Test
+  `ChunkSchedulingPolicyTest`. Betrifft nur Server-Betrieb auf 4-10 logischen Prozessoren; der Spieler (32) bleibt bei 8.
+- `InputLatency.presentWaitWanted` / `DeviceManager`: die zwei Present-Erweiterungen nur noch mit `-Dvsdh.lowLatency=true`.
+- `WorldShaderSession` + `LogSteps`: „Skipping shader frame“ beim 1., 10., 100. ... Mal mit Zähler.
+
+ZU MESSEN nach frischem „go“ (Testclient mit dem Modpack, nie Prism; je 3 Flüge, Mediane, `flight-analyse.py`):
+1. Spark: `backgroundProfiler` true/false in der Testclient-Config -> Frames > 25 ms je 30 s, `Corr.java` am JFR.
+2. JVM: `-XX:+UseZGC` gegen `-XX:+UseZGC -XX:+ZGenerational` (CleanClassLoaderDataMetaspaces-Zahl, Frames > 2 Intervalle).
+3. DH-Threads 16/8/4 mit `-Dvsdh.gpuProfile=true` (dhOpaque/dhWater vergleichen, sonst ungültig).
+4. `-Dvsdh.builderThreadCap=false` gegen Standard auf einem 8-Thread-Rechner oder mit `-XX:ActiveProcessorCount=8`:
+   „Visible sections complete after“ und 1%-Lows auf einem Server.
+5. Standard gegen `-Dvsdh.earlyFrameWait=false`, `-Dvsdh.exactCullUpdates=false`, `-Dvsdh.pipelineCacheSave=false`
+   (steht noch vom Abend aus), jeweils Borderless + VSync und exklusiv ohne VSync, `-Dvsdh.spikeMs=12`.
+6. Ob der Zähler in „Skipping shader frame ... (N skipped so far)“ über 1 hinaus wächst (Ok Zoomer im Modpack).
+Offen als Idee, nicht umgesetzt: einmaliger Hinweis (wie `UnsupportedModNotice`), wenn Spark unter Windows mit
+Hintergrundprofiler im Einzelspieler läuft - erst nach Messung 1.
+Kleine Render-Thread-Allokationen aus derselben Aufnahme, in HEAD noch vorhanden, kein Ruckel-Beleg:
+`GlFramebuffer.captureBindings` (26 MB/30 s), `Pipeline.DescriptorSets.updateDescriptorSet` (41 MB),
+`NativeImageOps.mipmaps` (12 MB), `NativeDistantPass.render` (Integer-Liste, 8 MB), `RenderRegionBuilder.createRegion` (35 MB).

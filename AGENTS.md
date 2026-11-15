@@ -277,3 +277,23 @@ standard shader, which writes colortex0 only: in a deferred pack the player's bo
 that was refused keeps the standard draw. EntityPackPlan.programs() lists a shared program once. Not checked in game yet.
 A configured pack whose file is gone (PackFileFallback) is named by its real file in the log ("ready: v1.2 (configured: v1.1,
 file not found)") and the Shader page reads profiles from the resolved file; vsdh.json is still not rewritten.
+Night 15.11. (stutter report "es stottert noch immer", NOTHING run in game; evidence: the player's log/config and the two
+existing recordings build/reference/bench-026/monkeytalk-jfr/mt-turn1 + mt-profile1 with their frame CSVs, same modpack, ZGC).
+The installed JAR already was 4a9be4b (SHA-1 equal to build/libs): saved lowLatency=true was ignored, so that was not it.
+Measured in those recordings (scratch tools, see docs/PERFORMANCE.md): spark's background profiler (starts with the integrated
+server; on Windows it uses its Java engine, "spark-java-sampler" threads) ran 100 thread-dump safepoints per second, each
+stops every thread: 2.9-3.3 s of stop in 57 s, 40-45 stops >=5.5 ms, 15-17 >=25 ms, longest 175-192 ms (mostly the time until
+all threads reach the safepoint while 16 DH threads run); ZGC's own pauses were <1 ms, but its VM operation
+CleanClassLoaderDataMetaspaces stopped ~8-10 ms about every 2.4 s. Of the frames >25 ms in the CSVs only 10 of 76 and 14 of
+154 overlap such a stop: the larger part stays client-tick work of other mods (Subtle Effects, Detailed Map, ClientTick
+listeners), as found on 14.11. Advice for players (never set from code, never write another mod's config): spark
+config/spark/config.json backgroundProfiler=false, generational ZGC, fewer DH threads, FPS cap a few frames below the refresh
+rate. Do not claim a VSDH fix for this stutter. Render-thread allocation in that flight: 25 MB/s (DH world gen threads: ~300).
+Automatic chunk builder count is never above Sodium's on the same CPU (ChunkSchedulingPolicy.sodiumBuilderThreadCount =
+clamp(max(p/3, p-6), 1, 10), javap on the pinned sodium-neoforge-0.6.13 JAR; Sodium priority 3, ours stays 1): changes only
+remote mode on 4/6/8/10 logical processors (2->1, 3->2, 4->2, 5->4); single-player (p/4) and >=12 processors are unchanged,
+a count set by hand is not capped. -Dvsdh.builderThreadCap=false. Not measured in game (terrain fills in slower there).
+VK_KHR_present_id/present_wait are enabled on the device only with -Dvsdh.lowLatency=true (InputLatency.presentWaitWanted);
+they were enabled for every player since 78ec0f4 with nothing using them. A precaution, no measured effect either way.
+"Skipping shader frame with invalid camera input" is logged at the 1st, 10th, 100th ... skip with the running count (LogSteps):
+one at a join is harmless (seen in the player's log), a growing count means frames fall back to the standard renderer.

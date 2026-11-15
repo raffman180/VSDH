@@ -529,3 +529,9 @@ Die Vorbereitung eines Packs (vorher 18-22 s, nacheinander auf einem Thread) lä
 im Spiel nicht gestartet. Zahlen, Schalter und die offene Spielprüfung: `docs/PERFORMANCE.md`, Abschnitt
 „Pack preparation time“, und `docs/NEXT_AI_PROMPT.md`. Der Terrain-Neubau beim Wechsel in der Welt bleibt Standard;
 `-Dvsdh.keepTerrainOnSwitch=true` ist ein ungetestetes Opt-in.
+
+Nacht 15.11.2026: Ruckel-Meldung des Spielers offline untersucht (nichts gestartet). Kein VSDH-Fehler belegt; die vorhandenen
+Aufnahmen zeigen Safepoint-Stopps des Spark-Hintergrundprofilers und Tick-Arbeit anderer Mods (`docs/PERFORMANCE.md`,
+Abschnitt „Safepoints statt Renderer“). Geändert und ungemessen: automatische Builder-Zahl höchstens wie Sodium
+(`-Dvsdh.builderThreadCap=false`), Present-Erweiterungen nur mit `-Dvsdh.lowLatency=true`, Zähler in der Meldung
+übersprungener Pack-Frames. Messliste: `docs/NEXT_AI_PROMPT.md`, letzter Abschnitt.

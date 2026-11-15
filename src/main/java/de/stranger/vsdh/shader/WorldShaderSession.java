@@ -639,9 +639,11 @@ public final class WorldShaderSession implements MainPass {
         var position=camera.getPosition();
         if (!view.isFinite() || !projection.isFinite() || !Double.isFinite(position.x)
                 || !Double.isFinite(position.y) || !Double.isFinite(position.z)) {
-            if (skippedFrames++==0) org.slf4j.LoggerFactory.getLogger("VSDH").warn(
-                    "Skipping shader frame with invalid camera input: viewFinite={}, projectionFinite={}, position={}",
-                    view.isFinite(),projection.isFinite(),position);
+            // The 1st, 10th, 100th ... skipped frame: one at a join is harmless, a growing count is a picture that
+            // falls back to the standard renderer again and again (it used to be logged once and never again).
+            if (LogSteps.powerOfTen(++skippedFrames)) org.slf4j.LoggerFactory.getLogger("VSDH").warn(
+                    "Skipping shader frame with invalid camera input: viewFinite={}, projectionFinite={}, position={} ({} skipped so far)",
+                    view.isFinite(),projection.isFinite(),position,skippedFrames);
             return; // Keep the established vanilla target and do not advance matrix/colour history.
         }
         VulkanImage worldDepth=delegate.getDepthAttachment(), output=delegate.getColorAttachment();

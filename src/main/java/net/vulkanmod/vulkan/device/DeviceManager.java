@@ -318,7 +318,8 @@ public abstract class DeviceManager {
             presentWaitEnabled = false;
             if (presentWaitAvailable(stack)) {
                 // Low latency mode: present ids and a wait for a present to reach the screen. Both features must be
-                // enabled at device creation (VUID-vkWaitForPresentKHR-presentWait-06234); unused they cost nothing.
+                // enabled at device creation (VUID-vkWaitForPresentKHR-presentWait-06234). Asked for only with
+                // -Dvsdh.lowLatency=true (InputLatency.PRESENT_WAIT_ALLOWED): no other player gets the extensions.
                 deviceExtensions.add(org.lwjgl.vulkan.KHRPresentId.VK_KHR_PRESENT_ID_EXTENSION_NAME);
                 deviceExtensions.add(org.lwjgl.vulkan.KHRPresentWait.VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
                 var presentId = org.lwjgl.vulkan.VkPhysicalDevicePresentIdFeaturesKHR.calloc(stack).sType$Default().presentId(true);
@@ -328,8 +329,9 @@ public abstract class DeviceManager {
                 createInfo.pNext(presentId.address());
                 presentWaitEnabled = true;
             }
-            org.slf4j.LoggerFactory.getLogger("VulkanMod").info("Present wait (low latency mode): {}",
-                    presentWaitEnabled ? "VK_KHR_present_wait" : "not available");
+            if (net.vulkanmod.vulkan.InputLatency.PRESENT_WAIT_ALLOWED)
+                org.slf4j.LoggerFactory.getLogger("VulkanMod").info("Present wait (low latency mode): {}",
+                        presentWaitEnabled ? "VK_KHR_present_wait" : "not available");
             org.slf4j.LoggerFactory.getLogger("VulkanMod").info("Attachment feedback loops: {}",
                     attachmentFeedbackLoopEnabled ? "VK_EXT_attachment_feedback_loop_layout" : "not supported (snapshot copies)");
             createInfo.ppEnabledExtensionNames(asPointerBuffer(deviceExtensions));

@@ -29,14 +29,22 @@ public final class InputLatency {
     public static final boolean EARLY_WAIT = !"false".equalsIgnoreCase(System.getProperty("vsdh.earlyFrameWait"));
     /** {@code -Dvsdh.earlyAcquire=false}: only the fence wait moves; the swapchain image is acquired at the clear. */
     public static final boolean EARLY_ACQUIRE = EARLY_WAIT && !"false".equalsIgnoreCase(System.getProperty("vsdh.earlyAcquire"));
-    /** {@code -Dvsdh.presentWait=false}: do not enable the two present extensions on the device at all. */
-    public static final boolean PRESENT_WAIT_ALLOWED = !"false".equalsIgnoreCase(System.getProperty("vsdh.presentWait"));
+    private static final String LOW_LATENCY_PROPERTY = System.getProperty("vsdh.lowLatency");
+    /**
+     * Whether the device is created with VK_KHR_present_id and VK_KHR_present_wait. Only for the opt-in low latency
+     * mode since 15.11.2026 (night): they used to be enabled for every player although nothing but that mode uses
+     * them, and what a driver does differently with them enabled was never measured. {@code -Dvsdh.presentWait=false}
+     * keeps them off even with the mode asked for.
+     */
+    public static final boolean PRESENT_WAIT_ALLOWED = presentWaitWanted(LOW_LATENCY_PROPERTY, System.getProperty("vsdh.presentWait"));
+
+    static boolean presentWaitWanted(String lowLatencyProperty, String presentWaitProperty) {
+        return "true".equalsIgnoreCase(lowLatencyProperty) && !"false".equalsIgnoreCase(presentWaitProperty);
+    }
     /** {@code -Dvsdh.inputTrace=true}: logs poll-to-present times every five seconds. */
     public static final boolean TRACE = Boolean.getBoolean("vsdh.inputTrace");
     /** A present that never reaches the screen (covered window, lost surface) must not hold the game. */
     public static final long PRESENT_WAIT_TIMEOUT_NANOS = 100_000_000L;
-
-    private static final String LOW_LATENCY_PROPERTY = System.getProperty("vsdh.lowLatency");
 
     /** Whether frames carry a present id and wait for the previous one: needs the property, the device feature and the Vulkan swapchain. */
     public static boolean lowLatency(boolean configured, boolean deviceSupport, boolean dxgi) {

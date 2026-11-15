@@ -1049,3 +1049,43 @@ To check in game after a go (test client, Prism instance stays closed):
 4. `-Dvsdh.keepTerrainOnSwitch=true`: change an option or profile of the installed pack in a world (same
    block.properties): log `Pack change kept the built terrain`; no holes after flying around, block changes still
    rebuild, shadows and DH unchanged; then a pack with another table (full rebuild as before).
+
+### Ruckeln im großen Modpack: Safepoints statt Renderer (15.11. nachts, Fable; NUR vorhandene Aufnahmen + Log, nichts gestartet)
+
+Anlass: „Es stottert noch immer etwas“ (Einzelspieler und Server, mit Packs). Das installierte JAR war bereits 4a9be4b
+(SHA-1 gleich `build/libs`), `lowLatency: true` in der Datei wurde also schon ignoriert.
+Ausgewertet: `build/reference/bench-026/monkeytalk-jfr/mt-turn1.jfr` und `mt-profile1.jfr` (14.11., gleiches Modpack,
+ZGC, je 30 s Flug mit Frame-CSV) mit den Werkzeugen in `monkeytalk-jfr/tools/safepoints/`
+(`java Corr.java <jfr>`, `java Frames.java <jfr> <csv> 6.06`, `java LongF.java <jfr> <csv> 18.2 main`, `java Alloc.java <jfr> <csv>`).
+
+| Stopp aller Threads (ab Weltbeginn, 57 s) | Anzahl | Summe | längster | >= 5,5 ms | >= 25 ms |
+|---|---|---|---|---|---|
+| `ThreadDump` (Aufrufer `spark-java-sampler-*`) turn1 | 5638 | 3332 ms | 192 ms | 40 | 17 |
+| `ThreadDump` profile1 | 5727 | 2926 ms | 175 ms | 45 | 15 |
+| `CleanClassLoaderDataMetaspaces` (ZGC, nach einem Zyklus) | 24-25 | 186-205 ms | 10-11 ms | 24-25 | 0 |
+| ZGC-Pausen selbst (`XMarkStart/End`, `XRelocateStart`) | 76-79 | 10-13 ms | 0,7-2,5 ms | 0 | 0 |
+
+Spark startet mit dem integrierten Server einen Hintergrund-Profiler; unter Windows gibt es async-profiler nicht, also
+nimmt es die Java-Variante (Zeile im Spielerlog vom 15.11.: „The async-profiler engine is not supported for your os/arch
+(windows11/amd64), so the built-in Java engine will be used instead“). Die holt 100-mal je Sekunde Stacktraces über einen
+Safepoint. Die Operation selbst ist kurz (5187 von 5638 unter 0,5 ms); lang wird der Stopp, wenn ein Thread den Safepoint
+spät erreicht (16 DH-Threads unter Last). Im Mehrspieler-Teil desselben Logs fehlt die Spark-Zeile: dort läuft dieser
+Profiler nicht.
+
+Anteil an den langen Frames (CSV gegen Safepoints, mindestens 2 ms Überdeckung): turn1 10 von 76 Frames > 25 ms,
+profile1 14 von 154. Der größere Rest sind weiterhin Client-Tick-Arbeiten anderer Mods auf dem Render-Thread
+(profile1, Samples in Frames > 18 ms: Subtle Effects 26 %, Detailed Map 21 %, `ClientTickEvent.Post`-Hörer; in kurzen
+Frames 0 %; 198 Samples, also grob) – wie am 14.11. festgestellt. Render-Thread-Allokation im Flug: 25 MB/s
+(DH-Weltgenerator-Threads über die ganze Aufnahme ≈ 300 MB/s).
+
+Folgerung: kein belegter VSDH-Fehler hinter diesem Ruckeln. Empfehlungen an Spieler (nie aus dem Code setzen):
+`config/spark/config.json` -> `"backgroundProfiler": false`; generationales ZGC (`-XX:+UseZGC -XX:+ZGenerational`, der
+Spieler hatte nur `-XX:+UseZGC`); weniger DH-Threads (16 von 32; DH meldete selbst „Insufficient memory detected“);
+Bildratenbegrenzung einige Bilder unter der Bildwiederholrate statt genau darauf. Zu messen (A/B im Testclient mit dem
+Modpack, nach frischem „go“): Flug mit/ohne Spark-Hintergrundprofiler, `-XX:+ZGenerational`, DH 4/8/16 Threads; je 3 Läufe,
+`flight-analyse.py`, dazu `-Dvsdh.spikeMs=12` und JFR (`Corr.java` muss dann 0 `ThreadDump` zeigen).
+
+Geändert (alles ungemessen, je mit Schalter): automatische Builder-Zahl nie über Sodiums
+(`clamp(max(p/3, p-6), 1, 10)`, `javap` am gepinnten Sodium-0.6.13-JAR; betrifft nur Server-Betrieb auf 4/6/8/10 logischen
+Prozessoren: 2->1, 3->2, 4->2, 5->4; `-Dvsdh.builderThreadCap=false`); `VK_KHR_present_id/present_wait` nur noch mit
+`-Dvsdh.lowLatency=true`; übersprungene Pack-Frames werden beim 1., 10., 100. ... mit Zähler gemeldet.
