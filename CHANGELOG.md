@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Fixed
+- Shadows of terrain the camera has not looked at yet appear without turning towards it. A hill, tree or building
+  behind or beside the player was only built once it came into view, so after joining a world, switching the pack or
+  turning around its shadow arrived seconds late (and a block change outside the view never updated the shadow).
+  While a shader pack draws a shadow map, the renderer now also builds the waiting sections the light can see, after
+  the visible ones and within the same per-frame budget (`-Dvsdh.shadowCasterBuilds=false` restores the old
+  behaviour). Not yet measured in game.
+
 - Shader packs that build their tables in numbered setup programs (`setup1.csh` ... `setup99.csh`) now get all of
   them run once, in order, as in Iris. Only `setup.csh` was run before, so Jurgens Shader v1.1 had empty cloud noise
   volumes (filled in `setup2`-`setup10`) and no multiple-scattering table (`setup1`): no volumetric clouds, a clear

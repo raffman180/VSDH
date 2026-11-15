@@ -19,6 +19,7 @@ import net.vulkanmod.render.optimization.ChunkCatchUp;
 import net.vulkanmod.render.optimization.ChunkFrameDiagnostics;
 import net.vulkanmod.render.optimization.ChunkSchedulingPolicy;
 import net.vulkanmod.render.optimization.DelayedRebuildQueue;
+import net.vulkanmod.render.optimization.ShadowCasterBuilds;
 import net.vulkanmod.render.chunk.util.AreaSetQueue;
 import net.vulkanmod.render.chunk.util.ResettableQueue;
 import org.joml.FrustumIntersection;
@@ -410,6 +411,78 @@ public class SectionGraph {
                 section.markRebuildScheduled(now);
             }
         }
+    }
+
+    private final ShadowCasterBuilds.Picks<RenderSection> shadowPicks = new ShadowCasterBuilds.Picks<>(ShadowCasterBuilds.PER_FRAME);
+    private int shadowCursor;
+    private long shadowBurstStartNanos;
+    private int shadowBurstSections, shadowIdleScanned;
+    private static final boolean LOG_EVERY_SHADOW_BURST = Boolean.getBoolean("vsdh.chunkDiag");
+
+    /**
+     * Starts builds for sections the shadow light may see and the camera's walk has not queued: never built, or changed
+     * since their last build (see {@link ShadowCasterBuilds}). Called by the pack's shadow pass with its caster test
+     * (null keeps everything) and the reach of its shadow map, both camera-relative. A window of the grid is scanned per
+     * frame and its nearest candidates are started; never-built sections without blocks are left alone, they cast nothing.
+     *
+     * @param cameraScheduleNanos time {@link #schedulePendingRebuilds} took this frame
+     * @return sections started
+     */
+    public int scheduleShadowBuilds(WorldRenderer.ShadowBoxTest test, float reach, double cameraX, double cameraY, double cameraZ,
+                                    long cameraScheduleNanos) {
+        int budget = ShadowCasterBuilds.budget(ShadowCasterBuilds.ENABLED, ShadowCasterBuilds.PER_FRAME, this.pendingRebuilds.size(),
+                cameraScheduleNanos, this.taskDispatcher.queuedTaskCount());
+        if (budget == 0) return 0;
+        RenderSection[] sections = this.sectionGrid.sections;
+        int count = sections == null ? 0 : sections.length;
+        if (count == 0) return 0;
+        long start = System.nanoTime();
+        long timeLeft = ShadowCasterBuilds.timeLeft(cameraScheduleNanos);
+        ShadowCasterBuilds.Picks<RenderSection> picks = this.shadowPicks;
+        picks.clear();
+        int limit = Math.min(ShadowCasterBuilds.SCAN, count);
+        for (int scanned = 0; scanned < limit; scanned++) {
+            if (this.shadowCursor >= count) this.shadowCursor = 0;
+            RenderSection section = sections[this.shadowCursor++];
+            // Dirty means no valid build is in flight: scheduling clears it and every change sets it again.
+            if (section == null || !section.isDirty()) continue;
+            float x = (float) (section.xOffset - cameraX), y = (float) (section.yOffset - cameraY), z = (float) (section.zOffset - cameraZ);
+            if (ShadowCasterBuilds.outOfReach(reach, x, y, z)) continue;
+            if (test != null && !test.visible(x, y, z, x + 16, y + 16, z + 16)) continue;
+            if (!section.chunkRenderReady() || this.pendingRebuildSet.contains(section) || this.delayedRebuilds.contains(section)
+                    || section.isInRebuildCooldown(start, ChunkSchedulingPolicy.REBUILD_COOLDOWN_NANOS)) continue;
+            // A built section that lost its blocks must still be rebuilt, or its old geometry keeps casting.
+            if (section.isUncompiled() && !this.renderRegionCache.hasBlocks(this.level, section.xOffset >> 4, section.yOffset >> 4,
+                    section.zOffset >> 4)) continue;
+            double dx = x + 8.0, dy = y + 8.0, dz = z + 8.0;
+            picks.offer(section, dx * dx + dy * dy + dz * dz);
+        }
+        int found = picks.size(), started = 0;
+        for (int i = 0; i < found && started < budget; i++) {
+            if (i > 0 && System.nanoTime() - start >= timeLeft) break;
+            if (!this.taskDispatcher.hasTaskCapacity()) break;
+            RenderSection section = picks.get(i);
+            if (section.rebuildChunkAsync(this.taskDispatcher, this.renderRegionCache)) {
+                section.setNotDirty();
+                section.markRebuildScheduled(start);
+                started++;
+            }
+        }
+        picks.clear();
+        if (started > 0) {
+            if (this.shadowBurstSections == 0) this.shadowBurstStartNanos = start;
+            this.shadowBurstSections += started;
+            this.shadowIdleScanned = 0;
+        } else if (found == 0 && this.shadowBurstSections > 0 && (this.shadowIdleScanned += limit) >= count) {
+            // One whole pass over the grid found nothing left: how long the light lacked casters outside the view.
+            long nanos = start - this.shadowBurstStartNanos;
+            if (LOG_EVERY_SHADOW_BURST || nanos >= 1_000_000_000L)
+                Initializer.LOGGER.info("Shadow casters outside the view complete after {} ms ({} sections started)",
+                        nanos / 1_000_000, this.shadowBurstSections);
+            this.shadowBurstSections = 0;
+            this.shadowIdleScanned = 0;
+        }
+        return started;
     }
 
     private boolean notInFrustum(RenderSection renderSection) {

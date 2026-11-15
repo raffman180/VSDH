@@ -957,3 +957,15 @@ fullscreen with VSync, uncapped and with the pack. PresentMon, if installed: the
 (names differ between 1.x and 2.x, not checked here) for the test client; low latency mode on/off. Also check FPS and frames >2 refresh
 intervals in the flight A/B (no loss expected for the early waits; a loss is expected for low latency mode whenever
 FPS < refresh rate), and resize, minimise/restore, fullscreen switches and a pack switch with the early acquire.
+
+## Shadow casters outside the view (15.11.2026, not measured in game)
+
+Report: shadows arrive too late (Jurgens HIGH, shadowDistance 192). Cause by code path: the shadow pass draws only
+uploaded sections, and sections were built only when the camera's walk queued them (`prebuildHidden`: one never-built
+section per frame within 96 blocks). `ShadowCasterBuilds` / `SectionGraph.scheduleShadowBuilds` now start waiting sections
+inside the caster volume from the shadow pass: 4 per frame at most, none while a camera section waits, inside the rest of
+the normal 1 ms schedule time, never into the last 32 worker queue slots; never-built sections without blocks are skipped.
+Expected cost: a 2048-section scan per frame (flag reads, estimated 20-40 us), about 0.2 ms region copy per started
+non-empty section, a graph walk after each finished upload as before. The earlier 4-per-frame prebuild over the whole
+render distance was measured together with the 5/3 ms budgets and cost 1% lows; this one keeps the time budget, so it
+needs its own flight A/B (`-Dvsdh.shadowCasterBuilds=false`, `-Dvsdh.shadowCasterBuildsPerFrame=2|8`) before any claim.

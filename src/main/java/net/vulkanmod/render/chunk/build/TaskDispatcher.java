@@ -188,6 +188,11 @@ public class TaskDispatcher {
                 < ChunkSchedulingPolicy.MAX_QUEUED_BUILD_TASKS;
     }
 
+    /** Build tasks waiting for a worker (ShadowCasterBuilds keeps part of the queue free for the camera). */
+    public synchronized int queuedTaskCount() {
+        return this.highPriorityTasks.size() + this.lowPriorityTasks.size();
+    }
+
     @Nullable
     private synchronized ChunkTask pollTask() {
         boolean highAvailable = !this.highPriorityTasks.isEmpty();

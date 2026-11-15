@@ -87,6 +87,8 @@ public class WorldRenderer {
 
     private SectionGraph sectionGraph;
     private boolean graphNeedsUpdate;
+    /** Time the camera's rebuild scheduling took in the last setupRenderer; the shadow pass builds with the rest. */
+    private long lastScheduleNanos;
 
     private final Set<BlockEntity> globalBlockEntities = Sets.newHashSet();
 
@@ -219,7 +221,8 @@ public class WorldRenderer {
 
         long scheduleStart = System.nanoTime();
         this.sectionGraph.schedulePendingRebuilds();
-        ChunkFrameDiagnostics.recordSchedule(System.nanoTime() - scheduleStart,
+        this.lastScheduleNanos = System.nanoTime() - scheduleStart;
+        ChunkFrameDiagnostics.recordSchedule(this.lastScheduleNanos,
                 this.sectionGraph.readyRebuildCount(), this.sectionGraph.delayedRebuildCount());
 
         this.indirectBuffers[Renderer.getCurrentFrame()].reset();
@@ -611,6 +614,16 @@ public class WorldRenderer {
             return;
         }
         prepareShadowDrawsByList(test,cameraX,cameraY,cameraZ);
+    }
+
+    /**
+     * Starts builds for waiting sections inside the light's caster volume that the camera has not queued
+     * (ShadowCasterBuilds, -Dvsdh.shadowCasterBuilds=false). Same test and camera as {@link #prepareShadowDraws};
+     * reach is the half extent of the cube around the camera the shadow map can cover.
+     */
+    public int scheduleShadowBuilds(ShadowBoxTest test,float reach,double cameraX,double cameraY,double cameraZ) {
+        if(sectionGrid==null||sectionGraph==null)return 0;
+        return sectionGraph.scheduleShadowBuilds(test,reach,cameraX,cameraY,cameraZ,lastScheduleNanos);
     }
 
     /** The kept list of drawable sections, one run per area: nothing is read from a section the light rejects. */

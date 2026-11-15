@@ -65,6 +65,18 @@ public class RenderRegionBuilder {
         return new RenderRegion(level, secX, secY, secZ, blockData, lightData, entityMap);
     }
 
+    /**
+     * Whether a build of this section would have anything to compile; the same test {@link #createRegion} starts with.
+     * Reads the level directly so a scan over many chunks does not push the camera's chunks out of the cache.
+     */
+    public boolean hasBlocks(Level level, int secX, int secY, int secZ) {
+        var sections = level.getChunk(secX, secZ).getSections();
+        int index = level.getSectionIndexFromSectionY(secY);
+        if (index < 0 || index >= sections.length) return false;
+        LevelChunkSection section = sections[index];
+        return section != null && !section.hasOnlyAir();
+    }
+
     private void copySectionDataLayers(Level level, SectionPos pos, DataLayer[] lightData, int sectionIndex) {
         int lightDataBase = sectionIndex * RenderRegion.LIGHT_LAYER_COUNT;
         DataLayer blockDataLayer;

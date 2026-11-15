@@ -985,3 +985,42 @@ Ergebnis verwerfen. Jeder Lauf mit Wachhund (Log länger als 6 Minuten still →
   Dimension wechseln (Graph neu, Setup läuft erneut), Nether/End (keine Setup-Programme dort). Bleibt das Bild trotz
   Wolken heller: Belichtung ansehen (`composite7.csh` exposure.glsl, AUTO_EXPOSURE/LOCAL_EXPOSURE im `atmAtlasImg`,
   `eyeBrightnessSmooth`) mit `packs-debug/zzUniformProbe.zip` gegen Iris.
+- 15.11.2026, „Die Schatten laden zu lange, das muss alles sofort passieren“ (Jurgens-Shader, Profil HIGH: shadowDistance
+  192, shadowMapResolution 3072, `shadow.culling = reversed`, voxelDistance 49; DH 3.3.3, Sichtweite 16). In der Instanz lag
+  nur `Jurgens-Shader-v1.2.zip` (v1.1 nicht mehr vorhanden); gelesen wurde v1.2. URSACHE (Codepfad, nicht im Spiel
+  nachgestellt): Sektionen werden nur gebaut, wenn der Kamera-Graph sie einreiht (`SectionGraph.updateRenderChunks` ->
+  `rebuildQueue`); `schedulePendingRebuilds` verwirft sogar wartende Sektionen, die der letzte Lauf nicht mehr besucht hat
+  (`section.getLastFrame() != this.lastFrame`), und `prebuildHidden` baut nur 1 nie gebaute Sektion pro Bild im Umkreis von
+  96 Blöcken und nur, wenn nichts Sichtbares wartet. Der Schattenpass zeichnet aber nur hochgeladene Sektionen
+  (`ShadowSectionList`: `getChunkArea() != null && !isCompletelyEmpty()`). Berg, Baum oder Dach hinter/neben/über der Kamera
+  im Schattenvolumen werfen also erst Schatten, wenn man hingesehen hat; Blockänderungen außerhalb des Blicks aktualisieren
+  den Schatten gar nicht. Iris 1.8.12 + Sodium 0.6.13 verhalten sich genauso (`MixinRenderSectionManagerShadow`: eigene
+  `shadowTaskLists`, aber `updateChunks`/`uploadChunks` werden im Schattenpass abgebrochen), VSDH geht hier bewusst weiter.
+  NICHT die Ursache: (2) Uploads laufen in `Renderer.beginFrame` vor `renderLevel`, `CompileResult.updateSection` ->
+  `setCompletelyEmpty` -> `ShadowSectionList.changed()`, `refresh` liest die Epoche im selben Bild: eine in diesem Bild
+  hochgeladene Sektion steht im selben Bild in der Schattenkarte. (3) `WorldShaderSession` ruft `shadows.render` in jedem
+  Bild ohne Intervall; die Karte wird jedes Bild geleert und neu gezeichnet. Jurgens setzt `dhShadow.enabled = false`:
+  DH-LODs kommen nie in die Schattenkarte, `DH_SHADOWS` sind Bildschirmraum-Schatten aus dem DH-Tiefenbild
+  (`program/deferred.glsl`), die laut Pack-Text nichts außerhalb des Bildes werfen können. (4) `lib/shadows.glsl` hat keinen
+  Zeit- oder Verlaufsterm (kein frameTimeCounter/worldTime/History im Schatten-Lookup).
+  FIX: `ShadowCasterBuilds` + `SectionGraph.scheduleShadowBuilds`, aufgerufen aus `NativeWorldShadows.render` nach
+  `prepareShadowDraws` mit demselben `ShadowCuller`-Test: pro Bild ein Fenster von 2048 Gittersektionen, daraus die 4
+  nächsten wartenden (dirty, Chunk baubar, in `ShadowCuller.visible` und im Würfel shadowDistance*1.414, nie gebaute nur mit
+  Blöcken, nicht in Kamera-Warteschlange/Cooldown); Budget 0, solange eine sichtbare Sektion wartet, nur im Rest der
+  normalen 1 ms Planungszeit, nie in die letzten 32 Worker-Plätze. Schalter `-Dvsdh.shadowCasterBuilds=false`,
+  `-Dvsdh.shadowCasterBuildsPerFrame=N` (1-16). Test `ShadowCasterBuildsTest` (6). Build + verifyDhLinks grün.
+  KOSTEN (geschätzt, nicht gemessen): Scan ~20-40 µs pro Bild, solange ein Pack Schatten zeichnet; je gestarteter
+  nichtleerer Sektion ~0.2 ms Regionskopie auf dem Render-Thread (höchstens 4, gedeckelt durch 1 ms gesamt); jeder fertige
+  Upload löst wie bisher einen Graph-Lauf aus; mehr gebaute Sektionen = mehr Terrain-Puffer (die wären beim Umdrehen ohnehin
+  entstanden). Blockänderungen außerhalb des Blicks (Wasser, Farmen, Redstone) bauen jetzt im Schattenvolumen alle 250 ms neu.
+  OFFEN, erst nach frischem „go“ (Jurgens HIGH, DH an, Sichtweite 16, Testclient mit `vsdh.chunkDiag`):
+  1. Welt betreten mit Blick nach unten/gegen eine Wand, Sonne im Rücken über einem Berg/Wald: Zeit, bis dessen Schatten im
+     Bild liegt, mit Standard und mit `-PtestSysProps=vsdh.shadowCasterBuilds=false`. Logzeile `Shadow casters outside the
+     view complete after N ms (M sections started)` gegen `Visible sections complete after N ms` lesen.
+  2. Turn-Serie (`vsdh.turnSeries=true`) und Flug auf einen Berg hinter der Kamera zu (rückwärts/seitlich fliegen): poppen
+     Schatten beim Umdrehen noch? Mit/ohne Schalter Bildpaare an gleicher Stelle.
+  3. Block hinter dem Spieler setzen/entfernen (Schatten fällt ins Bild): ändert sich der Schatten ohne Umdrehen?
+  4. Flug-A/B (`run-vsdh-026-flight.ps1 -Packs <Jurgens> -HighResolution`, je 3 Läufe, Median): 1% Low und >2-Intervall-Bilder
+     mit Schalter an/aus; dazu `vsdh.shadowCasterBuildsPerFrame=2` und `=8`. Wird es schlechter: Zahl senken, nie die Zeit
+     erhöhen (5/3-ms-Budgets kosteten 1% Lows). Erst danach eine Aussage in CHANGELOG/CurseForge.
+  5. Nether (Jurgens zeichnet dort nur die Voxelkarte über den Schattenpass) und Pack ohne Schattenprogramm: keine Starts.

@@ -175,10 +175,14 @@ public final class NativeWorldShadows implements AutoCloseable {
         var world=WorldRenderer.getInstance();
         var cameraPosition=camera.getPosition();
         var culler=culler(uniforms);
-        world.prepareShadowDraws(culler.shape()==ShadowCuller.Shape.NONE?null:new WorldRenderer.ShadowBoxTest() {
+        WorldRenderer.ShadowBoxTest casterTest=culler.shape()==ShadowCuller.Shape.NONE?null:new WorldRenderer.ShadowBoxTest() {
             @Override public boolean visible(float minX,float minY,float minZ,float maxX,float maxY,float maxZ) {return culler.visible(minX,minY,minZ,maxX,maxY,maxZ);}
             @Override public boolean contains(float minX,float minY,float minZ,float maxX,float maxY,float maxZ) {return culler.contains(minX,minY,minZ,maxX,maxY,maxZ);}
-        },cameraPosition.x,cameraPosition.y,cameraPosition.z);
+        };
+        world.prepareShadowDraws(casterTest,cameraPosition.x,cameraPosition.y,cameraPosition.z);
+        // Casters the camera never looked at are not built yet: start them, after the camera's own sections.
+        if(plan.shadow().casters().terrain()||plan.shadow().casters().translucent())
+            world.scheduleShadowBuilds(casterTest,buildReach(plan.directives().shadowDistance()),cameraPosition.x,cameraPosition.y,cameraPosition.z);
         lastCuller=culler;
         int previousTexture=RenderSystem.getShaderTexture(0);
         int previousOverlay=RenderSystem.getShaderTexture(1), previousLightmap=RenderSystem.getShaderTexture(2);
@@ -220,6 +224,13 @@ public final class NativeWorldShadows implements AutoCloseable {
             RenderSystem.setShaderTexture(1,previousOverlay);
             RenderSystem.setShaderTexture(2,previousLightmap);
         }
+    }
+    /**
+     * Half extent of the camera-centred cube outside which no section can reach the shadow map: the map spans
+     * +-shadowDistance across the light, a square that may stand diagonally to the world axes.
+     */
+    static float buildReach(float shadowDistance) {
+        return Float.isFinite(shadowDistance)&&shadowDistance>0?shadowDistance*1.4143f:Float.POSITIVE_INFINITY;
     }
     public long drawCommands() {return drawCommands;}
     /** Shape chosen for the last light pass; NONE before the first frame. */
