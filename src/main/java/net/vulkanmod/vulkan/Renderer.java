@@ -115,6 +115,14 @@ public class Renderer {
     /** -Dvsdh.separateUploadSubmit=true: diagnostic, submits the frame's upload batch on its own (costs a small GPU gap). */
     private static final boolean SEPARATE_UPLOAD_SUBMIT = Boolean.getBoolean("vsdh.separateUploadSubmit");
     private boolean frameUploadBatch;
+    /** False for the batch reopened after an early submit: the GPU_GAP stamps describe the frame's first batch. */
+    private boolean frameUploadBatchTimed;
+    /** Layout of the frame's swapchain image when its command buffer began (LateAcquire.splits). */
+    private int frameStartTargetLayout = LateAcquire.NO_IMAGE;
+    /** Open scopes of callers that begin their own passes (temporaryRenderTarget(true)). */
+    private int ownPassScopes;
+    private static final boolean LATE_ACQUIRE_LOG = net.vulkanmod.vulkan.queries.GpuTimestamps.ENABLED
+            || Boolean.getBoolean("vsdh.syncTrace");
     private static int imageIndex;
     private final FramePreparationState framePreparation = new FramePreparationState();
     private VkCommandBuffer currentCmdBuffer;
@@ -174,6 +182,18 @@ public class Renderer {
     private VkCommandBuffer[][] extraCommandBuffers;
     private int extraUsed;
 
+    /** Returns one frame slot's early upload batch to its pool; one object per slot, so the split allocates nothing. */
+    private static final class BatchRelease implements Runnable {
+        net.vulkanmod.vulkan.queue.CommandPool.CommandBuffer batch;
+
+        @Override public void run() {
+            var done = this.batch;
+            this.batch = null;
+            if (done != null) done.reset();
+        }
+    }
+    private BatchRelease[] earlyBatchReleases;
+
     private void allocateCommandBuffers() {
         if (commandBuffers != null) {
             commandBuffers.forEach(commandBuffer -> vkFreeCommandBuffers(device, Vulkan.getCommandPool(), commandBuffer));
@@ -212,6 +232,8 @@ public class Renderer {
                 throw new RuntimeException("Failed to allocate command buffers: %s".formatted(VkResult.decode(vkResult)));
             }
             extraCommandBuffers = new VkCommandBuffer[framesNum][EXTRA_SUBMITS];
+            earlyBatchReleases = new BatchRelease[framesNum];
+            for (int i = 0; i < framesNum; i++) earlyBatchReleases[i] = new BatchRelease();
             for (int i = 0; i < framesNum; i++)
                 for (int j = 0; j < EXTRA_SUBMITS; j++)
                     extraCommandBuffers[i][j] = new VkCommandBuffer(pExtra.get(i * EXTRA_SUBMITS + j), device);
@@ -253,6 +275,93 @@ public class Renderer {
             beginCommandBuffer(stack);
             net.vulkanmod.vulkan.queries.GpuTimestamps.continueIn(next);
             saved.resume(this, stack);
+        }
+        return true;
+    }
+
+    /**
+     * Late swapchain wait ({@link LateAcquire}): submits the upload batch and everything this frame recorded so far
+     * without the swapchain image wait and without a fence, then continues the frame in a spare command buffer of
+     * the same slot. Called by the pack host between COMPOSITE and FINAL; returns false and changes nothing when
+     * the frame does not qualify.
+     * <ul>
+     * <li>Image: refused unless the main pass is still unbegun, no render pass is open and the swapchain image
+     * still has the layout it had when the frame began. Every use of that image (attachment, sampling, copy) first
+     * moves it out of the present layout, so an unchanged layout means no recorded command touches it.</li>
+     * <li>Uploads: the frame's upload batch goes first in the same vkQueueSubmit, as in {@link #submitFrame}; a new
+     * batch then collects the uploads of FINAL and GUI and goes first in the final submission. No CPU fence.</li>
+     * <li>Fence and signals: none here. The frame fence and the render-finished signal of the final submission also
+     * cover this one (fence and semaphore signal operations include all commands earlier in submission order), so
+     * the slot's buffers, descriptor pools and frame ops are released exactly as before. A frame that is dropped
+     * after this point (resize) leaves only pack-target work behind, and the recreate waits for the device.</li>
+     * <li>Transfer-queue uploads: the same {@code waitFences} the final submission does, only earlier.</li>
+     * <li>State: a new command buffer has no dynamic state; viewport, line width and depth bias are recorded again
+     * from the tracked values, pipeline, blend constants and stencil are rebound on next use (beginCommandBuffer),
+     * and every render pass begin sets viewport and scissor itself.</li>
+     * </ul>
+     */
+    public boolean submitBeforeSwapchain() {
+        if (!LateAcquire.ENABLED) return false;
+        net.vulkanmod.vulkan.queue.GraphicsQueue graphics = DeviceManager.getGraphicsQueue();
+        VulkanImage target = this.recordingCmds && !skipRendering ? Vulkan.getSwapChain().getColorAttachment() : null;
+        boolean split = LateAcquire.splits(true, this.recordingCmds && !skipRendering, swapChainUpdate,
+                this.acquiredImageWaitPending, this.mainPass.mainTargetDeferred() && this.boundRenderPass == null,
+                !this.frameUploadBatch || graphics.atOutermostBatch(), this.frameStartTargetLayout,
+                target != null ? target.getCurrentLayout() : LateAcquire.NO_IMAGE,
+                this.extraCommandBuffers == null ? 0 : EXTRA_SUBMITS - this.extraUsed);
+        LateAcquire.decided(split, LATE_ACQUIRE_LOG);
+        if (!split) return false;
+
+        try (MemoryStack stack = stackPush()) {
+            VkCommandBuffer early = currentCmdBuffer;
+            net.vulkanmod.vulkan.queue.CommandPool.CommandBuffer uploads = detachFrameUploadBatch();
+            int vkResult = vkEndCommandBuffer(early);
+            this.recordingCmds = false;
+            try {
+                if (vkResult != VK_SUCCESS)
+                    throw new RuntimeException("Failed to record early frame part: %s".formatted(VkResult.decode(vkResult)));
+
+                VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack);
+                submitInfo.sType(VK_STRUCTURE_TYPE_SUBMIT_INFO);
+                if (uploads != null) {
+                    vkEndCommandBuffer(uploads.getHandle());
+                    submitInfo.pCommandBuffers(stack.pointers(uploads.getHandle(), early));
+                    BatchRelease release = this.earlyBatchReleases[currentFrame];
+                    if (release.batch == null) {
+                        release.batch = uploads;
+                        MemoryManager.getInstance().addFrameOp(release);
+                    } else {
+                        MemoryManager.getInstance().addFrameOp(uploads::reset); // slot dropped a frame; rare
+                    }
+                } else {
+                    submitInfo.pCommandBuffers(stack.pointers(early));
+                }
+
+                // Uploads on the transfer queue have to be complete before draws read them, as in submitFrame.
+                long fenceWaitStart = System.nanoTime();
+                Synchronization.INSTANCE.waitFences();
+                net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordFenceWait(System.nanoTime() - fenceWaitStart);
+
+                // No wait semaphore, no signal, no fence: see the method comment.
+                vkResult = vkQueueSubmit(graphics.queue(), submitInfo, VK_NULL_HANDLE);
+                if (vkResult != VK_SUCCESS)
+                    throw new RuntimeException("Failed to submit early frame part: %s".formatted(VkResult.decode(vkResult)));
+                net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordSubmit(graphics.queue());
+            } finally {
+                // Also after a failure: the rest of the frame needs a command buffer that is recording.
+                VkCommandBuffer next = extraCommandBuffers[currentFrame][extraUsed++];
+                vkResetCommandBuffer(next, 0);
+                currentCmdBuffer = next;
+                beginCommandBuffer(stack);
+                long revision = viewportRevision;
+                boolean glSelection = glViewportSelection;
+                if (viewportInitialized) setViewport(VIEWPORT_BOX[0], VIEWPORT_BOX[1], VIEWPORT_BOX[2], VIEWPORT_BOX[3], stack);
+                restoreViewportRevision(revision, glSelection);
+                vkCmdSetLineWidth(next, this.appliedLineWidth);
+                vkCmdSetDepthBias(next, this.appliedDepthBiasUnits, 0.0F, this.appliedDepthBiasFactor);
+                net.vulkanmod.vulkan.queries.GpuTimestamps.continueAfterEarlySubmit(next);
+                openFrameUploadBatch(false);
+            }
         }
         return true;
     }
@@ -456,9 +565,13 @@ public class Renderer {
                                float depth, int stencil) {}
 
     private void beginRenderPass(MemoryStack stack) {
+        VulkanImage target = Vulkan.getSwapChain().getColorAttachment();
+        this.frameStartTargetLayout = target != null ? target.getCurrentLayout() : LateAcquire.NO_IMAGE;
+        this.ownPassScopes = 0;
         beginCommandBuffer(stack);
         net.vulkanmod.vulkan.queries.GpuTimestamps.beginFrame(currentCmdBuffer, currentFrame);
         mainPass.begin(currentCmdBuffer, stack);
+        if (LateAcquire.ENABLED && mainPass.mainTargetDeferred()) LateAcquire.deferred();
         resetDynamicState(currentCmdBuffer);
     }
 
@@ -695,6 +808,15 @@ public class Renderer {
 
 
     public RenderTargetScope temporaryRenderTarget() {
+        return temporaryRenderTarget(false);
+    }
+
+    /**
+     * {@code ownPasses}: the caller begins its own render passes inside the scope and needs no draw target of the
+     * renderer. While the main pass is still unbegun (late swapchain wait) such a scope, and any scope nested in
+     * it, binds nothing, so the swapchain image stays unused; otherwise it behaves like the plain scope.
+     */
+    public RenderTargetScope temporaryRenderTarget(boolean ownPasses) {
         GlFramebuffer.BindingSnapshot bindings = GlFramebuffer.captureBindings();
         GlFramebuffer coldDraw = !this.recordingCmds ? GlFramebuffer.getBoundFramebuffer() : null;
         RenderingState coldRaster = coldDraw != null ? captureRenderingState() : null;
@@ -714,14 +836,20 @@ public class Renderer {
                     coldRaster.restoreViewportState(stack);
                 }
             }
-            if (this.boundRenderPass == null) {
-                if (GlFramebuffer.getBoundFramebuffer() != null) GlFramebuffer.ensureDrawFramebufferRendering();
-                else this.mainPass.rebindMainTarget();
+            boolean unbound = this.boundRenderPass == null && (ownPasses || this.ownPassScopes > 0)
+                    && GlFramebuffer.getBoundFramebuffer() == null && this.mainPass.mainTargetDeferred();
+            if (!unbound) {
+                if (this.boundRenderPass == null) {
+                    if (GlFramebuffer.getBoundFramebuffer() != null) GlFramebuffer.ensureDrawFramebufferRendering();
+                    else this.mainPass.rebindMainTarget();
+                }
+                if (this.boundFramebuffer == null || this.boundRenderPass == null)
+                    throw new IllegalStateException("Temporary framebuffer rendering requires an available draw target");
             }
-            if (this.boundFramebuffer == null || this.boundRenderPass == null)
-                throw new IllegalStateException("Temporary framebuffer rendering requires an available draw target");
 
-            return new RenderTargetScope(captureRenderingState(), bindings);
+            RenderTargetScope scope = new RenderTargetScope(captureRenderingState(), bindings, ownPasses);
+            if (ownPasses) this.ownPassScopes++;
+            return scope;
         } catch (RuntimeException | Error failure) {
             bindings.restore();
             throw failure;
@@ -731,16 +859,19 @@ public class Renderer {
     public final class RenderTargetScope implements AutoCloseable {
         private final RenderingState saved;
         private final GlFramebuffer.BindingSnapshot bindings;
+        private final boolean ownPasses;
         private boolean closed;
 
-        private RenderTargetScope(RenderingState saved, GlFramebuffer.BindingSnapshot bindings) {
+        private RenderTargetScope(RenderingState saved, GlFramebuffer.BindingSnapshot bindings, boolean ownPasses) {
             this.saved = saved;
             this.bindings = bindings;
+            this.ownPasses = ownPasses;
         }
 
         @Override public void close() {
             if (closed) return;
             closed = true;
+            if (ownPasses && ownPassScopes > 0) ownPassScopes--;
             try (MemoryStack stack = stackPush()) {
                 endRenderPass(currentCmdBuffer);
                 saved.resume(Renderer.this, stack);
@@ -939,7 +1070,7 @@ public class Renderer {
         }
         net.vulkanmod.render.optimization.ChunkFrameDiagnostics.recordUploadPhase(uploadPhaseNanos);
         framePreparation.preparationCompleted(currentFrame);
-        openFrameUploadBatch();
+        openFrameUploadBatch(true);
     }
 
     /**
@@ -948,18 +1079,19 @@ public class Renderer {
      * them before the frame's reads, as the former per-upload submissions were; dropping their
      * fences removes the CPU wait in {@link #submitFrame} that stalled the GPU between frames.
      */
-    private void openFrameUploadBatch() {
+    private void openFrameUploadBatch(boolean timed) {
         if (this.frameUploadBatch || !FRAME_UPLOAD_BATCH) return;
         DeviceManager.getGraphicsQueue().startRecording();
         this.frameUploadBatch = true;
-        if (net.vulkanmod.vulkan.queries.GpuTimestamps.ENABLED)
+        this.frameUploadBatchTimed = timed;
+        if (timed && net.vulkanmod.vulkan.queries.GpuTimestamps.ENABLED)
             net.vulkanmod.vulkan.queries.GpuTimestamps.beginBatch(DeviceManager.getGraphicsQueue().getCommandBuffer().getHandle(), currentFrame);
     }
 
     /** Ends this frame's upload batch for {@link #submitFrame}; null if none (or still nested). */
     private net.vulkanmod.vulkan.queue.CommandPool.CommandBuffer detachFrameUploadBatch() {
         if (!this.frameUploadBatch) return null;
-        if (net.vulkanmod.vulkan.queries.GpuTimestamps.ENABLED)
+        if (this.frameUploadBatchTimed && net.vulkanmod.vulkan.queries.GpuTimestamps.ENABLED)
             net.vulkanmod.vulkan.queries.GpuTimestamps.endBatch(DeviceManager.getGraphicsQueue().getCommandBuffer().getHandle(), currentFrame);
         this.frameUploadBatch = false;
         return DeviceManager.getGraphicsQueue().detachBatch();
@@ -967,7 +1099,7 @@ public class Renderer {
 
     private void closeFrameUploadBatch() {
         if (!this.frameUploadBatch) return;
-        if (net.vulkanmod.vulkan.queries.GpuTimestamps.ENABLED)
+        if (this.frameUploadBatchTimed && net.vulkanmod.vulkan.queries.GpuTimestamps.ENABLED)
             net.vulkanmod.vulkan.queries.GpuTimestamps.endBatch(DeviceManager.getGraphicsQueue().getCommandBuffer().getHandle(), currentFrame);
         this.frameUploadBatch = false;
         DeviceManager.getGraphicsQueue().endRecordingAndSubmit();

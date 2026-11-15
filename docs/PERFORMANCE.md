@@ -844,3 +844,36 @@ DH thread priority 1 vs 5 with Eclipse (16 threads, 4 runs each alternating, GPU
 
 Same distant terrain (one priority-1 run a little less), slightly fewer stalls and +3 % FPS on average; within the run
 spread, so at most a weak player tip, not a measured fix.
+
+## Late swapchain wait (15.11.2026, implemented, opt-in, NOT measured in game)
+
+`-Dvsdh.lateAcquire=true` (default off). The mitigation named above: a pack frame submits its upload batch and all
+world and pack passes up to COMPOSITE in a first `vkQueueSubmit` without the swapchain wait and without a fence
+(`Renderer.submitBeforeSwapchain`), and FINAL, hand and GUI in a second command buffer whose submission waits for the
+image, signals render-finished and the frame fence. Acquire stays in `beginFrame`.
+
+Why it is valid (Vulkan specification, checked 15.11.2026 in KhronosGroup/Vulkan-Docs):
+- Synchronization, "Fences", fence signaling: "Fence signal operations that are defined by vkQueueSubmit additionally
+  include in the first synchronization scope all commands that occur earlier in submission order." The frame fence
+  on the second submission therefore also covers the first; no second fence or timeline semaphore is needed.
+- Command Buffers, "Queue Submission", vkQueueSubmit: the first scope of each semaphore signal operation "includes
+  every command in the same batch ... and all commands that occur earlier in submission order" (render-finished and
+  the DXGI render timeline cover the early part); the second scope of each semaphore wait operation "includes every
+  command in the same batch ... and all commands that occur later in submission order", so the early batch is not
+  held by the image wait.
+
+What keeps the swapchain image out of the early part: the default main pass is not begun in such frames
+(`MainPass.beginWithoutTarget`); the pack host clears `mainDeferred` on every path that binds the delegate's target;
+and the split is refused unless the image still has its frame-start layout (any use has to leave the present layout
+first). Frames without a pack host, without a level, with a failed graph, with a pending recreate or after a readback
+flush keep the single submission.
+
+Diagnostics: under `-Dvsdh.gpuProfile=true` or `-Dvsdh.syncTrace=true` the log prints
+`LATE_ACQUIRE deferredFrames=.. earlySubmits=.. refused=..` every 5 s; `GPU_PROFILE` gains `lateSubmitGap` (GPU
+finished the early part before the rest was submitted) and `lateImageWait` (what is left of the image wait), and
+`imageWait` at the frame start drops to about zero.
+
+Known limits, to check in game: the split costs one more `vkQueueSubmit` (the separate upload submit cost about
+0.1 ms GPU gap); texture uploads recorded after the split run after the world passes instead of before them; with
+`frameQueueSize=1` the GPU now runs the world while the CPU records FINAL and GUI, which no code path was seen to
+depend on. A/B plan: docs/NEXT_AI_PROMPT.md, entry 15.11.2026.

@@ -115,6 +115,25 @@ public final class GpuTimestamps {
         if (recording != null) recording = command;
     }
 
+    /**
+     * Late swapchain wait (Renderer.submitBeforeSwapchain): the frame's earlier commands were submitted without
+     * the swapchain image wait and the frame continues in {@code command}, whose submission carries that wait.
+     * "lateSubmitGap" is the time between the early part's last mark and the start of this buffer (the GPU ran
+     * out of work before the rest was submitted); "lateImageWait" is what is left of the image wait after that.
+     * On the Vulkan swapchain the wait holds COLOR_ATTACHMENT_OUTPUT only, so the TOP_OF_PIPE stamp is not held by
+     * it; on the DXGI path the wait holds every stage and both labels together are the wait.
+     */
+    public static void continueAfterEarlySubmit(VkCommandBuffer command) {
+        if (!ENABLED || recording == null) return;
+        recording = command;
+        int slot = recordingSlot, index = counts[slot];
+        if (index >= MARKS) return;
+        vkCmdWriteTimestamp(command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, pools[slot], index);
+        labels[slot][index] = "lateSubmitGap";
+        counts[slot] = index + 1;
+        mark("lateImageWait");
+    }
+
     /** Attributes the GPU work recorded since the previous mark to {@code label}. */
     public static void mark(String label) {
         if (!ENABLED || recording == null) return;

@@ -880,3 +880,30 @@ Ergebnis verwerfen. Jeder Lauf mit Wachhund (Log länger als 6 Minuten still →
      häufigerer Läufe (2°-Stufe braucht bei FOV 70 etwa +30 % Frustum-Querschnitt, deshalb nicht gewählt).
   3. Bleibt „zieht nach“ danach: ist es Schlieren (TAA/Bewegungsunschärfe des Packs, mit Iris vergleichen,
      `zzUniformProbe.zip`) oder Eingabelatenz (Bildvorlauf/Präsentation, FPS-Grenze knapp unter 165 testen)?
+
+- 15.11.2026 (Fable, NUR Code + Unit-Tests, NICHT im Spiel gestartet): „spätes Swapchain-Warten“ umgesetzt, Schalter
+  `-Dvsdh.lateAcquire=true`, Standard AUS. Ablauf im Pack-Frame: `WorldShaderSession.begin` lässt den Standard-MainPass
+  unbegonnen (`MainPass.beginWithoutTarget`, nur mit geladener Welt und brauchbarem Graph), `beginWorldBody` und COMPOSITE
+  laufen in `temporaryRenderTarget(true)` ohne Hauptziel, danach `Renderer.submitBeforeSwapchain()`: Upload-Batch + alles
+  Bisherige in einem vkQueueSubmit ohne Semaphore und ohne Fence; FINAL, Hand, GUI im Reserve-Kommandopuffer, dessen
+  Submit wie bisher auf das Bild wartet, renderFinished und die Frame-Fence signalisiert (Fence deckt den frühen Submit
+  mit ab: Vulkan-Spezifikation, Fences, „all commands that occur earlier in submission order“). Sicherung: der Split
+  findet nur statt, wenn das Swapchain-Bild noch das Layout vom Frame-Beginn hat, kein Pass offen ist, das Bildwarten
+  noch aussteht (kein flushCmds davor), kein Recreate ansteht (`LateAcquire.splits`, `LateAcquireTest`). Alles andere
+  (Frames ohne Pack-Host, ohne Welt, abgebrochene/übersprungene Pack-Frames) bleibt bei einem Submit. Gilt für
+  Vulkan-Swapchain und DXGI-Pfad (dort ist das „Bildwarten“ die Timeline-Semaphore der letzten D3D-Kopie; Gewinn
+  dort vermutlich kleiner). Details und Risiken: `docs/PERFORMANCE.md`, letzter Abschnitt.
+  OFFEN, erst nach frischem „go“ des Nutzers (kein anderes Spiel offen, Client beobachten):
+  1. Je 3 Läufe abwechselnd: `run-vsdh-026-flight.ps1 -Packs Eclipse -HighResolution -SkipIris -Tag lateA1` (…A2, A3)
+     und `run-vsdh-026-flight.ps1 -Packs Eclipse -HighResolution -SkipIris -Tag lateB1 -Extra '-PtestSysProps=vsdh.lateAcquire=true'`
+     (…B2, B3). Auswertung `python flight-analyse.py '<glob>'`: Median-FPS, >1/>2/>3-Intervall-Bilder je s, „DH land
+     draws“ gleich?
+  2. Je ein Lauf mit GPU-Profil: dieselben Befehle mit zusätzlich `-PtestGpuProfile` in `-Extra` (Tags lateAgpu,
+     lateBgpu). Im B-Log prüfen: `LATE_ACQUIRE deferredFrames=… earlySubmits=… refused=…` (earlySubmits ≈ deferredFrames;
+     wenn refused hoch ist, fasst etwas vor FINAL das Swapchain-Bild an, dann mit `-Dvsdh.syncTrace=true` suchen),
+     `GPU_PROFILE … imageWait≈0 … lateSubmitGap=… lateImageWait=…`, `idleBetweenFramesMs` gegen A, dhOpaque/dhWater gleich.
+     Erwartung (ungemessen): idleBetweenFrames sinkt um bis zu ~0,3-0,45 ms, Hänger werden um die eigene GPU-Zeit kürzer.
+  3. Bildprüfung im B-Lauf: Screenshot (F2 bzw. Test-Screenshot), Fenster minimieren/wiederherstellen, Fenstergröße
+     ändern, Vollbild wechseln, Pack im Spiel wechseln, Dimension wechseln, Hand/GUI/Chat sichtbar, Renderskalierung ≠ 100 %.
+  4. Erst wenn B nicht schlechter ist und das Bild stimmt: Standard umdrehen (`LateAcquire.ENABLED`), AGENTS.md/CHANGELOG
+     anpassen. Sonst Schalter aus lassen und Ergebnis hier und in PERFORMANCE.md festhalten.
