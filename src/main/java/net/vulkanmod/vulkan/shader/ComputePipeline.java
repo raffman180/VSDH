@@ -58,7 +58,9 @@ public final class ComputePipeline extends Pipeline {
             info.stage().pName(stack.UTF8("main"));
             info.layout(pipelineLayout);
             LongBuffer result = stack.mallocLong(1);
+            long began = System.nanoTime();
             int status = vkCreateComputePipelines(DeviceManager.vkDevice, PIPELINE_CACHE, info, null, result);
+            PipelineCacheStore.created(System.nanoTime() - began);
             if (status != VK_SUCCESS) throw new RuntimeException("Failed to create compute pipeline " + name + ": " + status);
             return result.get(0);
         }

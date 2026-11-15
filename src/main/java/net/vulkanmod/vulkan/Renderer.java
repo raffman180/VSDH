@@ -301,6 +301,9 @@ public class Renderer {
         if (recreatingSwapChain)
             return;
 
+        // Writes the pipeline cache back once a burst of pipeline creations has ended (file write on a worker).
+        net.vulkanmod.vulkan.shader.PipelineCacheStore.frame();
+
         // Exclusive fullscreen <-> same-sized borderless window (Borderless Window mod, F11 handling of other
         // mods) sends no resize: rebuild so the present path follows the real window mode.
         if (!swapChainUpdate && Vulkan.getSwapChain() != null && Vulkan.getSwapChain().windowModeChanged()) {

@@ -917,3 +917,20 @@ Ergebnis verwerfen. Jeder Lauf mit Wachhund (Log länger als 6 Minuten still →
   (exklusives Vollbild), Opt-in-DH-Lastregler (Nutzerentscheidung), Dreh-Fix im Modpack des Nutzers bestätigen.
   Achtung: Die Shader-Session (Jurgens-Shader) nutzt dieselbe GPU; vor jedem Lauf Prism-Clients am Elternprozess
   prismlauncher.exe erkennen (kurze Befehlszeile) und sich mit ihr absprechen.
+
+- 15.11.2026 (Pipeline-Cache, nur Build + Unit-Tests, NICHT im Spiel geprüft): Befund: alle Pipelines liefen schon über den
+  einen Cache (`GraphicsPipeline`, `ComputePipeline`, nur Render-Thread; Pack-Vorbereitung erzeugt keine GPU-Objekte), er
+  wurde aber nur beim sauberen Beenden gespeichert. Neu `PipelineCacheStore`/`PipelineCacheFile`: Speichern 3 s nach der
+  letzten Pipeline-Erzeugung (spätestens nach 20 s) aus `Renderer.beginFrame`, Datei atomar auf einem Worker, nur bei
+  geänderter Größe; Kopfprüfung (vendorID/deviceID/pipelineCacheUUID) beim Laden. `-Dvsdh.pipelineCacheSave=false` = alt.
+  OFFEN im Spiel (nach „go“): (1) kalt: `config/vulkanmod_pipeline_cache.bin` des Testclients löschen, Pack starten, Welt
+  betreten; im Log `Pipeline cache: 0 KiB loaded`, dann `Pack pipelines of <pack>: N created in X ms (cache: 0 KiB loaded)`
+  und `Pipeline cache saved: …`. (2) Client per Taskmanager beenden, neu starten: `Pipeline cache: Y KiB loaded`, X deutlich
+  kleiner bei gleichem N? Achtung: der NVIDIA-Treiber hat einen eigenen Shader-Cache auf der Platte, der Unterschied kann
+  klein sein; für einen echten Kaltstart müsste auch der geleert werden (nie aus dem Code, Nutzerentscheidung). (3) Pack im
+  Spiel wechseln und Dimension wechseln: je eine Zeile, kein Ruckler beim Speichern (Frame-CSV um den Zeitpunkt der
+  „saved“-Zeile). (4) Beschädigte Datei (auf 10 Bytes kürzen): Start ohne Absturz, `not used (truncated header …)`.
+- 15.11.2026 13:37, Pipeline-Cache im Testclient kurz geprüft (Eclipse, abgebrochen, weil der Nutzer spielen wollte): kalt
+  `0 KiB loaded`, danach `saved 121 KiB` und `saved 1467 KiB`, `Pack pipelines of Eclipse: 48 created in 77 ms`; warm
+  `1467 KiB loaded`, `63 created in 30 ms` (Zahl der Pipelines unterschiedlich, Szene lief verschieden lang). Kein Absturz.
+  Nicht geprüft: Neustart nach Kill, abgeschnittene Datei, Pack-Wechsel in der Welt, Ruckler beim Speichern.

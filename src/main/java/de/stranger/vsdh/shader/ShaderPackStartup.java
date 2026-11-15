@@ -374,7 +374,30 @@ public final class ShaderPackStartup {
         return path;
     }
 
+    /**
+     * Pipelines are built lazily in the first frames that draw with a pack, not at installation. The counters are
+     * marked when a pack is installed and reported once, when pipelines were created since and none for a while.
+     */
+    private static String pipelineReportPack;
+    private static long pipelineReportCount,pipelineReportNanos;
+
+    private static void markPackPipelines(String name) {
+        pipelineReportPack=name;
+        pipelineReportCount=net.vulkanmod.vulkan.shader.PipelineCacheStore.createdCount();
+        pipelineReportNanos=net.vulkanmod.vulkan.shader.PipelineCacheStore.createdNanos();
+    }
+
+    private static void reportPackPipelines() {
+        long count=net.vulkanmod.vulkan.shader.PipelineCacheStore.createdCount()-pipelineReportCount;
+        if(count<=0 || !net.vulkanmod.vulkan.shader.PipelineCacheStore.quiet())return;
+        LOGGER.info("Pack pipelines of {}: {} created in {} ms (cache: {} KiB loaded)",pipelineReportPack,count,
+                (net.vulkanmod.vulkan.shader.PipelineCacheStore.createdNanos()-pipelineReportNanos)/1_000_000,
+                net.vulkanmod.vulkan.shader.PipelineCacheStore.loadedBytes()>>10);
+        pipelineReportPack=null;
+    }
+
     private static void tick(ClientTickEvent.Post event) {
+        if(pipelineReportPack!=null)reportPackPipelines();
         var current=request;
         if(current==null || current.pending!=null && !current.pending.isDone())return;
         var mc=Minecraft.getInstance();
@@ -418,6 +441,7 @@ public final class ShaderPackStartup {
         try {
             if(previous!=null)previous.uninstall();
             active=Selection.OFF;
+            pipelineReportPack=null;
             if(current.pending==null) {
                 LOGGER.info("Vulkan shaderpack off; standard renderer active");
                 notify(mc,"off",Component.translatable("vsdh.shader.standard"));
@@ -426,6 +450,7 @@ public final class ShaderPackStartup {
             var prepared=current.pending.join();
             WorldShaderSession.install(prepared.set());
             active=current.selection;
+            markPackPipelines(name);
             LOGGER.info("Vulkan shaderpack ready: {}",name);
             announce(mc,prepared,name);
         } catch(RuntimeException failure) {
@@ -443,8 +468,14 @@ public final class ShaderPackStartup {
         String name=current.selection.name();
         try {
             Prepared prepared=current.pending==null?null:current.pending.join();
+            pipelineReportPack=null;
+            long pipelineCount=net.vulkanmod.vulkan.shader.PipelineCacheStore.createdCount();
+            long pipelineNanos=net.vulkanmod.vulkan.shader.PipelineCacheStore.createdNanos();
             WorldShaderSession.replaceInWorld(prepared==null?null:prepared.set());
             active=current.selection;
+            if(prepared!=null) { // count what the switch itself already built
+                pipelineReportPack=name;pipelineReportCount=pipelineCount;pipelineReportNanos=pipelineNanos;
+            }
             if(prepared==null) {
                 LOGGER.info("Vulkan shaderpack off in the world; standard renderer active");
                 notify(mc,"off",Component.translatable("vsdh.shader.standard"));

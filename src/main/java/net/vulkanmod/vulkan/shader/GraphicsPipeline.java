@@ -238,7 +238,10 @@ public class GraphicsPipeline extends Pipeline {
 
             LongBuffer pGraphicsPipeline = stack.callocLong(1);
 
-            if (vkCreateGraphicsPipelines(DeviceManager.vkDevice, PIPELINE_CACHE, pipelineInfo, null, pGraphicsPipeline) != VK_SUCCESS) {
+            long began = System.nanoTime();
+            int created = vkCreateGraphicsPipelines(DeviceManager.vkDevice, PIPELINE_CACHE, pipelineInfo, null, pGraphicsPipeline);
+            PipelineCacheStore.created(System.nanoTime() - began);
+            if (created != VK_SUCCESS) {
                 if (pGraphicsPipeline.get(0) != VK_NULL_HANDLE)
                     vkDestroyPipeline(DeviceManager.vkDevice, pGraphicsPipeline.get(0), null);
                 throw new RuntimeException("Failed to create graphics pipeline");

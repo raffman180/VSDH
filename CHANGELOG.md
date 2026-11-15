@@ -8,6 +8,13 @@
   empty until the next step. It is now recomputed whenever the camera or the culling frustum changes
   (`-Dvsdh.exactCullUpdates=false` restores the old thresholds). Checked in the test client; no measurable FPS cost.
 
+- The Vulkan pipeline cache (`config/vulkanmod_pipeline_cache.bin`) is now also saved a few seconds after new
+  pipelines were built (after a shader pack's first frames, a pack switch, a new dimension), not only when the game
+  closes normally, so a crash or a killed game no longer loses it. It is written through a temporary file on a
+  background thread, skipped when nothing changed, and a file from another GPU or driver version, or a damaged one,
+  is ignored instead of being handed to the driver. The log shows `Pack pipelines of <pack>: N created in X ms
+  (cache: Y KiB loaded)`. `-Dvsdh.pipelineCacheSave=false` restores saving at exit only. Not yet measured in game.
+
 ### Changed
 - Distant Horizons' shared quad index buffer lives in GPU memory like the renderer's own index buffers (was host memory;
   no measurable frame-time change, `-Dvsdh.dhIndexHostMemory=true` restores it).
