@@ -208,7 +208,10 @@ public class SectionGraph {
             // A section that was never compiled has no visibility data yet (0): the walk used to stop there, so after
             // a world join or pack switch the visible set grew one ring of sections per compile and the near ground
             // filled in over seconds. Treat it as open until its own data arrives (-Dvsdh.openUncompiled=false).
-            byte visible = OPEN_UNCOMPILED && !renderSection.isCompiled() ? ALL_DIRECTIONS : renderSection.getVisibilityDirs();
+            // Only sections that can be built now: unloaded chunks inside the grid (server view distance below the
+            // client's) would otherwise open the walk to thousands of sections that never compile (review 15.11.).
+            byte visible = OPEN_UNCOMPILED && !renderSection.isCompiled() && renderSection.chunkRenderReady()
+                    ? ALL_DIRECTIONS : renderSection.getVisibilityDirs();
             byte dirs = (byte) (visible & renderSection.getDirections());
 
             visitAdjacentNodes(renderSection, dirs);
@@ -378,7 +381,7 @@ public class SectionGraph {
         for (int scanned = 0, limit = Math.min(PREBUILD_SCAN, count); scanned < limit; scanned++) {
             if (this.prebuildCursor >= count) this.prebuildCursor = 0;
             RenderSection section = sections[this.prebuildCursor++];
-            if (section == null || !section.awaitsFirstBuild() || section.getLastFrame() == this.lastFrame
+            if (section == null || !section.awaitsFirstBuild() || !section.chunkRenderReady() || section.getLastFrame() == this.lastFrame
                     || this.pendingRebuildSet.contains(section)) continue;
             double dx = section.xOffset() + 8 - camera.x, dy = section.yOffset() + 8 - camera.y, dz = section.zOffset() + 8 - camera.z;
             double distance = dx * dx + dy * dy + dz * dz;

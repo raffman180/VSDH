@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 class PackPreparationKeyTest {
     private static PackPreparationKey key(long size, long modified, String profile, Map<String, String> options, boolean distant) {
-        return new PackPreparationKey("Pack.zip", size, modified, profile, options, distant, false, false);
+        return new PackPreparationKey("Pack.zip", size, modified, profile, options, distant, false, false, "NVIDIA RTX");
     }
 
     @Test
@@ -31,6 +31,7 @@ class PackPreparationKeyTest {
         assertNotEquals(base, key(100, 5, "LOW", Map.of(), true));
         assertNotEquals(base, key(100, 5, "HIGH", Map.of("A", "1"), true));
         assertNotEquals(base, key(100, 5, "HIGH", Map.of(), false));
-        assertNotEquals(base, new PackPreparationKey("Pack.zip", 100, 5, "HIGH", Map.of(), true, true, false));
+        assertNotEquals(base, new PackPreparationKey("Pack.zip", 100, 5, "HIGH", Map.of(), true, true, false, "NVIDIA RTX"));
+        assertNotEquals(base, new PackPreparationKey("Pack.zip", 100, 5, "HIGH", Map.of(), true, false, false, "")); // device unknown
     }
 }

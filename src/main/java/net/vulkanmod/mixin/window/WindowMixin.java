@@ -196,22 +196,26 @@ public abstract class WindowMixin {
             }
         }
         else if (this.fullscreen) {
-            // Borderless: an undecorated window exactly over the monitor at its desktop mode, no display mode change.
-            VideoModeSet.VideoMode videoMode = VideoModeManager.getOsVideoMode();
+            // Borderless: an undecorated window exactly over the monitor it is on, at that monitor's current desktop mode,
+            // no display mode change.
             if (!this.wasOnFullscreen) {
                 this.windowedX = this.x;
                 this.windowedY = this.y;
                 this.windowedWidth = this.width;
                 this.windowedHeight = this.height;
             }
+            long target = vsdh$monitorUnderWindow(monitor);
             int[] monitorX = new int[1], monitorY = new int[1];
-            GLFW.glfwGetMonitorPos(monitor, monitorX, monitorY);
+            GLFW.glfwGetMonitorPos(target, monitorX, monitorY);
+            org.lwjgl.glfw.GLFWVidMode mode = GLFW.glfwGetVideoMode(target);
+            int modeWidth = mode != null ? mode.width() : VideoModeManager.getOsVideoMode().width;
+            int modeHeight = mode != null ? mode.height() : VideoModeManager.getOsVideoMode().height;
             GLFW.glfwSetWindowAttrib(this.window, GLFW_DECORATED, GLFW_FALSE);
-            GLFW.glfwSetWindowMonitor(this.window, 0L, monitorX[0], monitorY[0], videoMode.width, videoMode.height, -1);
+            GLFW.glfwSetWindowMonitor(this.window, 0L, monitorX[0], monitorY[0], modeWidth, modeHeight, -1);
             this.x = monitorX[0];
             this.y = monitorY[0];
-            this.width = videoMode.width;
-            this.height = videoMode.height;
+            this.width = modeWidth;
+            this.height = modeHeight;
             this.wasOnFullscreen = true;
         }
         else {
@@ -225,6 +229,23 @@ public abstract class WindowMixin {
 
             this.wasOnFullscreen = false;
         }
+    }
+
+    /** The monitor that holds the window's centre (the windowed geometry when coming from a window), else the primary one. */
+    private long vsdh$monitorUnderWindow(long primary) {
+        org.lwjgl.PointerBuffer monitors = GLFW.glfwGetMonitors();
+        if (monitors == null) return primary;
+        int centreX = (this.wasOnFullscreen ? this.windowedX : this.x) + (this.wasOnFullscreen ? this.windowedWidth : this.width) / 2;
+        int centreY = (this.wasOnFullscreen ? this.windowedY : this.y) + (this.wasOnFullscreen ? this.windowedHeight : this.height) / 2;
+        int[] mx = new int[1], my = new int[1];
+        for (int i = 0; i < monitors.limit(); i++) {
+            long candidate = monitors.get(i);
+            org.lwjgl.glfw.GLFWVidMode mode = GLFW.glfwGetVideoMode(candidate);
+            if (mode == null) continue;
+            GLFW.glfwGetMonitorPos(candidate, mx, my);
+            if (centreX >= mx[0] && centreX < mx[0] + mode.width() && centreY >= my[0] && centreY < my[0] + mode.height()) return candidate;
+        }
+        return primary;
     }
 
     @Overwrite

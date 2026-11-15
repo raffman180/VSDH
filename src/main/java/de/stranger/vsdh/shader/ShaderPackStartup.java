@@ -79,7 +79,7 @@ public final class ShaderPackStartup {
         return thread;
     });
 
-    private static final java.util.concurrent.locks.ReentrantLock PREPARING=new java.util.concurrent.locks.ReentrantLock();
+    private static final java.util.concurrent.locks.ReentrantLock PREPARING=new java.util.concurrent.locks.ReentrantLock(true); // fair: a request does not wait behind repeated warm-ups
 
     /** Drops the cached preparation of this selection, so the next one runs again (shadow budget now known). */
     private static void forget(Path directory,Selection selection) {
@@ -112,8 +112,16 @@ public final class ShaderPackStartup {
     private static PackPreparationKey key(Path directory,String packFile,Selection selection) throws IOException {
         Path path=resolvePack(directory,packFile);
         long size=Files.isRegularFile(path)?Files.size(path):-1;
+        // The machine description (vendor, renderer) decides vendor branches of the pack: part of the key, so a result
+        // built before the device was known is never reused afterwards.
         return new PackPreparationKey(packFile,size,Files.getLastModifiedTime(path).toMillis(),selection.profile(),selection.options(),
-                selection.distant(),Boolean.getBoolean("vsdh.reduceTrig"),Boolean.getBoolean("vsdh.flatVolumes"));
+                selection.distant(),Boolean.getBoolean("vsdh.reduceTrig"),Boolean.getBoolean("vsdh.flatVolumes"),
+                String.valueOf(dev.vitrail.pack.option.EngineDefines.machine()));
+    }
+
+    /** Directory packs are edited in place (their own mtime does not change): never cached, prepared on every request. */
+    private static boolean cacheable(Path directory,String packFile) throws IOException {
+        return !Files.isDirectory(resolvePack(directory,packFile));
     }
 
     /** The cached or new preparation of this selection; not started yet when new. */
@@ -124,7 +132,7 @@ public final class ShaderPackStartup {
             var known=PREPARATIONS.get(key);
             if(known!=null && !known.future.isCompletedExceptionally())return known;
             var created=new Preparation(()->compute(directory,packFile,selection));
-            if(PACK_CACHE>0) {
+            if(PACK_CACHE>0 && cacheable(directory,packFile)) {
                 PREPARATIONS.put(key,created);
                 var eldest=PREPARATIONS.entrySet().iterator();
                 while(PREPARATIONS.size()>PACK_CACHE && eldest.hasNext()){eldest.next();eldest.remove();}
@@ -140,8 +148,16 @@ public final class ShaderPackStartup {
     public static void warm(Selection selection) {
         if(selection.off() || PACK_CACHE==0)return;
         try {
-            var preparation=preparation(FMLPaths.GAMEDIR.get().resolve("shaderpacks"),selection);
-            if(!preparation.started.get())WARM.execute(preparation::runOnce);
+            describeMachine(); // before compiling: vendor branches of the pack read it (review 15.11.)
+            Path directory=FMLPaths.GAMEDIR.get().resolve("shaderpacks");
+            if(!cacheable(directory,PackFileFallback.resolve(directory,selection.name())))return;
+            var preparation=preparation(directory,selection);
+            if(!preparation.started.get())WARM.execute(()->{
+                // A pack the player asked for goes first: a warm-up that has not started yields while a request is open.
+                var open=request;
+                if(open!=null && open.pending!=null && !open.pending.isDone() && open.pending!=preparation.future)return;
+                preparation.runOnce();
+            });
         } catch(IOException|RuntimeException unreadable) {
             // Chosen later, the same error reaches the player through the normal path.
         }
