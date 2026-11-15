@@ -759,3 +759,17 @@ differences; repeat it with colour loops alone before quoting it.
   1 %-Low 107/120/132 gegen 109/119/121, Ruckler 92/68/77 gegen 86/82/77, also kein messbarer Nachteil mehr.
 - Die übrigen langen Bilder im Flug ohne Shader sind laut ChunkDiag G1-Pausen um 23-25 ms und einzelne GPU-Wartezeiten
   (bis 88 ms), nicht Chunk-Arbeit.
+- **Farb-Feedback-Schleifen wieder an** (Bildvergleich Wasserszene, mittlere Abweichung je Kanal): Eclipse an/aus 2,13,
+  gegen Iris 5,85 / 5,29; Bliss an/aus 2,83, gegen Iris 5,68 / 5,36; Complementary ohne Schleifen zwei Läufe 2,89 (Rauschen).
+  Sichtbar kein Unterschied. Standard jetzt an.
+
+## Speicherbereinigung mit 10 GiB Heap wie im Spieler-Pack (15.11.2026, Eclipse-Flug, exklusives Vollbild, je 2 Läufe)
+
+| JVM | Ø FPS | 1 % low | 0,1 % low | p99,9 ms | Bilder > 33 ms | Ruckler |
+|---|---|---|---|---|---|---|
+| G1 (Standard) | 121,7 / 128,0 | 38,0 / 40,8 | 23,1 / 23,0 | 40,4 / 39,0 | 9 / 10 | 26 / 20 |
+| `-XX:+UseZGC` (Spieler, Java 21 ohne Generationen) | 130,4 / 139,8 | 53,6 / 62,5 | 31,3 / 35,6 | 29,3 / 25,8 | 1 / 0 | 17 / 11 |
+| `-XX:+UseZGC -XX:+ZGenerational` | 129,4 / 143,4 | 53,7 / 69,0 | 31,6 / 44,2 | 25,8 / 19,4 | 1 / 0 | 18 / 7 |
+
+Mit großem Heap ist ZGC klar ruhiger als G1 (die frühere Notiz „ZGC nicht empfohlen“ galt dem 4-GiB-Testclient).
+Empfehlung an Spieler mit großem Heap: `-XX:+UseZGC -XX:+ZGenerational`. Die Mod setzt keine JVM-Flags.

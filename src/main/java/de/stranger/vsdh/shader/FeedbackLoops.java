@@ -25,11 +25,14 @@ final class FeedbackLoops {
     private FeedbackLoops() {}
 
     /**
-     * Opt-in since 14.11.2026 ({@code -Dvsdh.feedbackLoops=true}): in a player's pack the water "moved along" with the
-     * camera while gbuffers_water and dh_water read colortex7/11 live. Overlapping water fragments of one pass read
-     * what earlier ones wrote without a barrier, which Vulkan leaves undefined. Default: the snapshot copies.
+     * On again since 15.11.2026 ({@code -Dvsdh.feedbackLoops=false} keeps the snapshot copies). They were switched off on
+     * 14.11. because the water "moved along" with the camera in a player's pack; that was later traced to two other
+     * bugs (view bobbing in the projection, sections built late), both fixed. Water-scene pictures with the loops on and
+     * off differ no more than two runs of the same setting (Eclipse 2.13, Bliss 2.83, Complementary without loops 2.89
+     * mean absolute difference), and Eclipse reads only the fragment's own texel (texelFetch at gl_FragCoord). GPU,
+     * Eclipse 1440p: feedback copies 0.12 ms -> 0, translucent 0.74 -> 0.58 ms. Iris binds the attachment the same way.
      */
-    static final boolean REQUESTED = "true".equalsIgnoreCase(System.getProperty("vsdh.feedbackLoops"));
+    static final boolean REQUESTED = !"false".equalsIgnoreCase(System.getProperty("vsdh.feedbackLoops"));
 
     static boolean enabled() {
         return REQUESTED && net.vulkanmod.vulkan.device.DeviceManager.isAttachmentFeedbackLoopEnabled();

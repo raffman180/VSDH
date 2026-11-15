@@ -66,10 +66,11 @@ First public beta.
   `-Dvsdh.tightSpriteUpload=false` restores the old copy.
 - Shader uniforms: the provider of each uniform is resolved once per program instead of on every write.
   `-Dvsdh.uniformRoutes=false` restores the full lookup order.
-- Shader programs that read a colour target they also draw into (the water programs of Eclipse, for example)
-  now sample the attachment directly where the GPU supports `VK_EXT_attachment_feedback_loop_layout`, instead of
-  copying the full-screen image before each such pass, but only with `-Dvsdh.feedbackLoops=true`: by default the
-  copies stay, because water appeared to move with the camera when the attachment was read live.
+- Shader programs that read a colour target they also draw into (the water programs of Eclipse and Bliss) sample
+  the attachment directly where the GPU supports `VK_EXT_attachment_feedback_loop_layout`, as Iris does, instead of
+  copying the full-screen image before each such pass (Eclipse 1440p: copies 0.12 ms -> 0, translucent pass
+  0.74 -> 0.58 ms). `-Dvsdh.feedbackLoops=false` restores the copies. The "water moving with the camera" that once
+  looked like a side effect came from view bobbing and late sections and is fixed.
   Distant-water programs keep reading the stable opaque Distant Horizons depth: reading the live depth while the
   same pass writes it made distant water flicker (Eclipse). `-Dvsdh.dhDepthFeedbackLoop=true` opts in.
 - The shadow pass no longer walks every chunk section each frame; it keeps a list of the drawable ones.
